@@ -1,0 +1,12 @@
+[workspace]
+members = ["corrosive_ecs_core_macro", "corrosive-ecs-core"]
+
+[package]
+name = "corrosive-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+corrosive-ecs-core = {path = "corrosive-ecs-core"}
+corrosive_ecs_core_macro = {path = "corrosive_ecs_core_macro"}
+rand = "0.9.0-alpha.2"
