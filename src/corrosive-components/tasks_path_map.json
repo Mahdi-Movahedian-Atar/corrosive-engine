@@ -1,0 +1,84 @@
+{
+  "path": "./src/task",
+  "modified_time": {
+    "secs_since_epoch": 1734512070,
+    "nanos_since_epoch": 489023700
+  },
+  "modified_state": "None",
+  "sub_maps": [
+    {
+      "path": "./src/task\\mod.rs",
+      "modified_time": {
+        "secs_since_epoch": 1735222877,
+        "nanos_since_epoch": 945016500
+      },
+      "modified_state": "None",
+      "sub_maps": []
+    },
+    {
+      "path": "./src/task\\mod.rs~",
+      "modified_time": {
+        "secs_since_epoch": 1734511969,
+        "nanos_since_epoch": 986455200
+      },
+      "modified_state": "None",
+      "sub_maps": []
+    },
+    {
+      "path": "./src/task\\other_tasks",
+      "modified_time": {
+        "secs_since_epoch": 1734515243,
+        "nanos_since_epoch": 781718400
+      },
+      "modified_state": "None",
+      "sub_maps": [
+        {
+          "path": "./src/task\\other_tasks\\mod.rs",
+          "modified_time": {
+            "secs_since_epoch": 1734515243,
+            "nanos_since_epoch": 783545300
+          },
+          "modified_state": "None",
+          "sub_maps": []
+        },
+        {
+          "path": "./src/task\\other_tasks\\other_other_task",
+          "modified_time": {
+            "secs_since_epoch": 1734417487,
+            "nanos_since_epoch": 828804000
+          },
+          "modified_state": "None",
+          "sub_maps": [
+            {
+              "path": "./src/task\\other_tasks\\other_other_task\\mod.rs",
+              "modified_time": {
+                "secs_since_epoch": 1734417487,
+                "nanos_since_epoch": 830877600
+              },
+              "modified_state": "None",
+              "sub_maps": []
+            },
+            {
+              "path": "./src/task\\other_tasks\\other_other_task\\mod.rs~",
+              "modified_time": {
+                "secs_since_epoch": 1734336952,
+                "nanos_since_epoch": 798207400
+              },
+              "modified_state": "None",
+              "sub_maps": []
+            }
+          ]
+        },
+        {
+          "path": "./src/task\\other_tasks\\mod.rs~",
+          "modified_time": {
+            "secs_since_epoch": 1734515222,
+            "nanos_since_epoch": 215623700
+          },
+          "modified_state": "None",
+          "sub_maps": []
+        }
+      ]
+    }
+  ]
+}

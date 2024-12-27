@@ -1,6 +1,6 @@
 //pub mod custom_ecs {
 use corrosive_ecs_core::ecs_core::{Locked, LockedRef};
-use corrosive_ecs_core_macro::{add_entity, main, task};
+use corrosive_ecs_core_macro::task;
 use std::thread;
 use std::time::Instant;
 

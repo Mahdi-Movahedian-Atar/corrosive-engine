@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/corrosive-ecs-core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/corrosive_ecs_core_macro/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/project2/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

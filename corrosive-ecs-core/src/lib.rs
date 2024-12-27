@@ -1,4 +1,9 @@
+#[cfg(feature = "build")]
+pub mod build;
+
+#[cfg(feature = "core")]
 pub mod ecs_core {
+    use crate::ecs_core::Reference::Expired;
     use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
     pub enum Reference<T> {
@@ -6,13 +11,13 @@ pub mod ecs_core {
         Expired,
     }
     pub struct Locked<T> {
-        value: RwLock<T>,
+        pub value: RwLock<T>,
     }
     pub struct Ref<T> {
-        value: Arc<Reference<T>>,
+        pub value: Arc<RwLock<Reference<T>>>,
     }
     pub struct LockedRef<T> {
-        value: Arc<RwLock<Reference<T>>>,
+        pub value: Arc<RwLock<Reference<T>>>,
     }
 
     impl<T> Locked<T> {
@@ -42,11 +47,10 @@ pub mod ecs_core {
             self.value.write().expect("Failed to force write a lock")
         }
     }
-
     impl<T> Ref<T> {
         pub fn new(value: T) -> Ref<T> {
             Ref {
-                value: Arc::new(Reference::Some(value)),
+                value: Arc::new(RwLock::new(Reference::Some(value))),
             }
         }
 
@@ -55,8 +59,15 @@ pub mod ecs_core {
                 value: self.value.clone(),
             }
         }
-    }
 
+        pub fn get(&self) -> RwLockReadGuard<'_, Reference<T>> {
+            self.value.read().unwrap()
+        }
+
+        pub fn expire(&mut self) {
+            *self.value.write().unwrap() = Expired;
+        }
+    }
     impl<T> LockedRef<T> {
         pub fn new(value: T) -> LockedRef<T> {
             LockedRef {
@@ -94,4 +105,41 @@ pub mod ecs_core {
             *self.value.write().unwrap() = Reference::Expired;
         }
     }
+
+    pub struct Arch<T> {
+        v: Vec<T>,
+    }
+    pub struct Res<T> {
+        v: Vec<T>,
+    }
+    pub struct State<T> {
+        v: Vec<T>,
+    }
+    pub type DeltaTime<'a> = &'a f64;
+
+    #[macro_export]
+    macro_rules! add_entity {
+    ($($x:ty : $y:expr),+ ) => {
+        println!("Hello from my_declarative_macro!");
+    };
+        [$x:ty , ( $y:expr ) ] => {
+        println!("Hello from my_declarative_macro!");
+    };
+}
+    #[macro_export]
+    macro_rules! signal {
+        ($x:literal) => {};
+    }
+
+    #[macro_export]
+    macro_rules! reset {
+        () => {};
+    }
+
+    #[macro_export]
+    macro_rules! corrosive_app {
+    () => {
+        #[corrosive_app(path=file!())]
+    };
+}
 }

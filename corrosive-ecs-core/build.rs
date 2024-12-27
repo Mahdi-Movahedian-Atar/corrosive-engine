@@ -1,0 +1,23 @@
+use std::env;
+use std::fs::OpenOptions;
+use std::io::Write;
+
+fn main() {
+    match env::current_dir() {
+        Ok(path) => log_message("./build_debug.log", path.as_path().to_str().unwrap()),
+        Err(e) => log_message("./build_debug.log", e.to_string().as_str()),
+    }
+    //log_message("./build_debug.log", file!());
+    println!("cargo:rerun-if-changed=build.rs");
+}
+fn log_message(file_path: &str, message: &str) {
+    // Open or create the log file
+    let mut file = OpenOptions::new()
+        .create(true) // Create the file if it doesn't exist
+        .append(true) // Append to the file instead of overwriting
+        .open(file_path)
+        .expect("Unable to open log file");
+
+    // Write the message with a newline
+    writeln!(file, "{}", message).expect("Unable to write to log file");
+}

@@ -1,5 +1,5 @@
 [workspace]
-members = ["corrosive_ecs_core_macro", "corrosive-ecs-core"]
+members = ["corrosive_ecs_core_macro", "corrosive-ecs-core", "project2"]
 
 [package]
 name = "corrosive-engine"

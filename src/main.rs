@@ -1,126 +1,50 @@
-use crate::components::components::{Position1, Position2, Position3, Position4};
-use crate::ext::extras::{MarkedResources, StateExample};
-use crate::tasks::normal_tasks::normal_tasks::{
-    fixed_task, long_task, setup, setup1, setup2, sync_task, update_task, update_task_signal,
-};
-use corrosive_ecs_core::ecs_core::{Locked, LockedRef, Ref};
+#![allow(warnings)]
+
+use corrosive_ecs_core::ecs_core::*;
+use corrosive_ecs_core_macro::corrosive_engine_builder;
 use std::cmp::PartialEq;
 use std::collections::HashSet;
-use std::hash::RandomState;
 use std::mem::take;
+use std::sync::atomic::Ordering::SeqCst;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, RwLock};
-use std::sync::atomic::Ordering::SeqCst;
 use std::thread;
-use std::thread::{JoinHandle, Scope, ScopedJoinHandle};
+use std::thread::{Scope, ScopedJoinHandle};
 use std::time::Instant;
 
-mod components;
+mod comp;
 mod core_test;
-mod ext;
-mod tasks;
+#[path = ".corrosive_engine/mod.rs"]
+mod corrosive_engine;
+mod task;
 
-#[derive(Copy, Clone)]
-struct TestUtArch<'a> {
-    ve1: &'a Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
-    ve2: &'a Vec<(Locked<Position1>, LockedRef<Position3>)>,
-    ve3: &'a Vec<(Locked<Position1>)>,
-    len: usize,
-    v_i: usize,
-}
-impl<'a> TestUtArch<'a> {
-    fn new(
-        ve1: &'a Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
-        ve2: &'a Vec<(Locked<Position1>, LockedRef<Position3>)>,
-        ve3: &'a Vec<(Locked<Position1>)>,
-    ) -> Self {
-        TestUtArch {
-            ve1,
-            ve2,
-            ve3,
-            len: ve1.len() + ve2.len() + ve3.len(),
-            v_i: 0,
-        }
-    }
-}
-impl<'a> Iterator for TestUtArch<'a> {
-    type Item = (&'a Locked<Position1>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.v_i < self.ve1.len() {
-            let current_index = self.v_i.clone();
-            self.v_i += 1;
-            return Some(&self.ve1[current_index].0);
-        };
-        if self.v_i < self.ve2.len() + self.ve1.len() {
-            let current_index = self.v_i.clone() - self.ve1.len();
-            self.v_i += 1;
-            return Some(&self.ve2[current_index].0);
-        };
-        if self.v_i < self.ve3.len() + self.ve2.len() + self.ve1.len() {
-            let current_index = self.v_i.clone() - self.ve1.len() - self.ve2.len();
-            self.v_i += 1;
-            return Some(&self.ve3[current_index]);
-        };
-        None
-    }
-}
-#[derive(Copy, Clone)]
-struct TestUtArch2<'a> {
-    ve1: &'a Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
-    ve2: &'a Vec<(Ref<Position2>, LockedRef<Position3>)>,
-    len: usize,
-    v_i: usize,
-}
-impl<'a> TestUtArch2<'a> {
-    fn new(
-        ve1: &'a Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
-        ve2: &'a Vec<(Ref<Position2>, LockedRef<Position3>)>,
-    ) -> Self {
-        TestUtArch2 {
-            ve1,
-            ve2,
-            len: ve1.len() + ve2.len(),
-            v_i: 0,
-        }
-    }
-}
-impl<'a> Iterator for TestUtArch2<'a> {
-    type Item = (&'a Ref<Position2>, &'a LockedRef<Position3>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.v_i < self.ve1.len() {
-            let current_index = self.v_i.clone();
-            self.v_i += 1;
-            return Some((&self.ve1[current_index].1, &self.ve1[current_index].2));
-        };
-        if self.v_i < self.ve2.len() {
-            let current_index = self.v_i.clone() - self.ve1.len();
-            self.v_i += 1;
-            return Some((&self.ve2[current_index].0, &self.ve2[current_index].1));
-        };
-        None
-    }
-}
+use corrosive_engine::auto_prelude::prelude::*;
 
 fn main() {
+    corrosive_engine_builder!(p "./src" );
+
     let mut last_time = Instant::now();
     let mut current_time = Instant::now();
-    let mut delta_time = AtomicU64::new(0.0f64.to_bits());
+    let delta_time = AtomicU64::new(0.0f64.to_bits());
 
-    let mut fixed_time = AtomicU64::new(0.1f64.to_bits());
+    let fixed_time = AtomicU64::new(0.1f64.to_bits());
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
-    let mut is_fixed = RwLock::new(false);
+    let is_fixed = AtomicBool::new(false);
 
     let reset: AtomicBool = AtomicBool::new(false);
 
-    let mut a1: RwLock<Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>> =
-        RwLock::new(Vec::new());
-    let mut a2: RwLock<Vec<(Locked<Position1>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
-    let mut a3: RwLock<Vec<(Ref<Position2>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
-    let mut a4: RwLock<Vec<(Ref<Position2>, Position4)>> = RwLock::new(Vec::new());
-    let mut a5: RwLock<Vec<(Ref<Position2>)>> = RwLock::new(Vec::new());
-    let mut a6: RwLock<Vec<(Locked<Position1>)>> = RwLock::new(Vec::new());
+    let a1: RwLock<
+        Vec<(
+            Locked<comp::Position1>,
+            Ref<comp::Position2>,
+            LockedRef<comp::sub::Position3>,
+        )>,
+    > = RwLock::new(Vec::new());
+    let a2: RwLock<Vec<(Locked<Position1>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
+    let a3: RwLock<Vec<(Ref<Position2>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
+    let a4: RwLock<Vec<(Ref<Position2>, Position4)>> = RwLock::new(Vec::new());
+    let a5: RwLock<Vec<(Ref<Position2>)>> = RwLock::new(Vec::new());
+    let a6: RwLock<Vec<(Locked<Position1>)>> = RwLock::new(Vec::new());
 
     let o1: RwLock<Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>> =
         RwLock::new(Vec::new());
@@ -144,18 +68,17 @@ fn main() {
     let la5: AtomicU8 = AtomicU8::new(0);
     let la6: AtomicU8 = AtomicU8::new(0);
 
-    let mut signal: RwLock<u8> = RwLock::new(0);
+    let signal: RwLock<u8> = RwLock::new(0);
     let signal_o: RwLock<u8> = RwLock::new(0);
 
     let resources: RwLock<MarkedResources> = RwLock::new(MarkedResources::default());
 
-    let mut state: RwLock<StateExample> = RwLock::new(StateExample::default());
+    let state: RwLock<StateExample> = RwLock::new(StateExample::default());
     let state_o: RwLock<StateExample> = RwLock::new(StateExample::default());
-
 
     loop {
         thread::scope(|s: &Scope| {
-            reset.store(false,Ordering::SeqCst);
+            reset.store(false, Ordering::SeqCst);
             {
                 let s1;
                 let s2;
@@ -190,13 +113,16 @@ fn main() {
                     let vlen = write.len();
 
                     if vlen > 0 {
-                        let mut indices_to_remove = take(&mut *or1.write().unwrap());
+                        let indices_to_remove = take(&mut *or1.write().unwrap());
                         let mut new = Vec::with_capacity(vlen);
 
-                        for (i, item) in write.drain(..).enumerate() {
+                        for (i, mut item) in write.drain(..).enumerate() {
                             if !indices_to_remove.contains(&i) {
                                 new.push(item);
+                                continue;
                             }
+                            item.1.expire();
+                            item.2.expire();
                         }
 
                         *write = new;
@@ -212,13 +138,15 @@ fn main() {
                     let vlen = write.len();
 
                     if vlen > 0 {
-                        let mut indices_to_remove = take(&mut *or2.write().unwrap());
+                        let indices_to_remove = take(&mut *or2.write().unwrap());
                         let mut new = Vec::with_capacity(vlen);
 
-                        for (i, item) in write.drain(..).enumerate() {
+                        for (i, mut item) in write.drain(..).enumerate() {
                             if !indices_to_remove.contains(&i) {
                                 new.push(item);
+                                continue;
                             }
+                            item.1.expire();
                         }
 
                         *write = new;
@@ -234,13 +162,16 @@ fn main() {
                     let vlen = write.len();
 
                     if vlen > 0 {
-                        let mut indices_to_remove = take(&mut *or3.write().unwrap());
+                        let indices_to_remove = take(&mut *or3.write().unwrap());
                         let mut new = Vec::with_capacity(vlen);
 
-                        for (i, item) in write.drain(..).enumerate() {
+                        for (i, mut item) in write.drain(..).enumerate() {
                             if !indices_to_remove.contains(&i) {
                                 new.push(item);
+                                continue;
                             }
+                            item.0.expire();
+                            item.1.expire();
                         }
 
                         *write = new;
@@ -256,13 +187,15 @@ fn main() {
                     let vlen = write.len();
 
                     if vlen > 0 {
-                        let mut indices_to_remove = take(&mut *or4.write().unwrap());
+                        let indices_to_remove = take(&mut *or4.write().unwrap());
                         let mut new = Vec::with_capacity(vlen);
 
-                        for (i, item) in write.drain(..).enumerate() {
+                        for (i, mut item) in write.drain(..).enumerate() {
                             if !indices_to_remove.contains(&i) {
                                 new.push(item);
+                                continue;
                             }
+                            item.0.expire();
                         }
 
                         *write = new;
@@ -278,13 +211,15 @@ fn main() {
                     let vlen = write.len();
 
                     if vlen > 0 {
-                        let mut indices_to_remove = take(&mut *or5.write().unwrap());
+                        let indices_to_remove = take(&mut *or5.write().unwrap());
                         let mut new = Vec::with_capacity(vlen);
 
-                        for (i, item) in write.drain(..).enumerate() {
+                        for (i, mut item) in write.drain(..).enumerate() {
                             if !indices_to_remove.contains(&i) {
                                 new.push(item);
+                                continue;
                             }
+                            item.expire();
                         }
 
                         *write = new;
@@ -300,12 +235,13 @@ fn main() {
                     let vlen = write.len();
 
                     if vlen > 0 {
-                        let mut indices_to_remove = take(&mut *or6.write().unwrap());
+                        let indices_to_remove = take(&mut *or6.write().unwrap());
                         let mut new = Vec::with_capacity(vlen);
 
-                        for (i, item) in write.drain(..).enumerate() {
+                        for (i, mut item) in write.drain(..).enumerate() {
                             if !indices_to_remove.contains(&i) {
                                 new.push(item);
+                                continue;
                             }
                         }
 
@@ -325,7 +261,7 @@ fn main() {
             let lu1: Arc<RwLock<Option<ScopedJoinHandle<_>>>> =
                 Arc::new(RwLock::new(None::<ScopedJoinHandle<_>>));
 
-            loop  {
+            loop {
                 let lu1 = Arc::clone(&lu1);
                 //loop init=============================================================================
                 current_time = Instant::now();
@@ -339,30 +275,30 @@ fn main() {
                 fixed_delta_time += new_current_time;
                 if (fixed_time.load(Ordering::Relaxed) <= fixed_delta_time) {
                     fixed_delta_time = 0;
-                    *is_fixed.write().unwrap() = true
+                    is_fixed.store(true, SeqCst);
                 } else {
-                    *is_fixed.write().unwrap() = false
+                    is_fixed.store(false, SeqCst);
                 }
                 //loop treads===========================================================================
                 let t1 = s.spawn(|| {
-                    let mut u1 = s.spawn(|| {
+                    let u1 = s.spawn(|| {
                         let o = update_task(
                             TestUtArch::new(
                                 &*a1.read().unwrap(),
                                 &*a2.read().unwrap(),
                                 &*a6.read().unwrap(),
+                                &or1,
+                                &or2,
+                                &or3,
                             ),
                             &resources,
                             &f64::from_bits(delta_time.load(Ordering::Relaxed)),
                         );
-                        *(&signal_o).write().unwrap() = o.0;
-                        *&or1.write().unwrap().extend(o.1);
-                        *&or2.write().unwrap().extend(o.2);
-                        *&or6.write().unwrap().extend(o.3);
+                        *(&signal_o).write().unwrap() = o;
                     });
-                    let mut u2 = if (*signal.read().unwrap() & 0b00000001 != 0
+                    let u2 = if (*signal.read().unwrap() & 0b00000001 != 0
                         && (*signal.read().unwrap() & 0b00000010 != 0
-                        || *signal.read().unwrap() & 0b00000100 != 0)
+                            || *signal.read().unwrap() & 0b00000100 != 0)
                         && *state.read().unwrap() == StateExample::A)
                     {
                         Some(s.spawn(|| {
@@ -371,6 +307,9 @@ fn main() {
                                     &*a1.read().unwrap(),
                                     &*a2.read().unwrap(),
                                     &*a6.read().unwrap(),
+                                    &or1,
+                                    &or2,
+                                    &or3,
                                 ),
                                 TestUtArch2::new(&*a1.read().unwrap(), &*a3.read().unwrap()),
                                 &state_o,
@@ -387,7 +326,7 @@ fn main() {
                     };
                     //second thread =================================================================
                     let t1 = s.spawn(|| {
-                        let mut u1 = if *(is_fixed.read().unwrap()) {
+                        let u1 = if is_fixed.load(SeqCst) {
                             Some(s.spawn(|| {
                                 let o = fixed_task();
                             }))
@@ -423,8 +362,10 @@ fn main() {
                         }
 
                         {
-                            let o =
-                                sync_task(TestUtArch2::new(&*a1.read().unwrap(), &*a3.read().unwrap()));;
+                            let o = sync_task(TestUtArch2::new(
+                                &*a1.read().unwrap(),
+                                &*a3.read().unwrap(),
+                            ));
                         }
 
                         //second inet join==============================================================
@@ -445,13 +386,16 @@ fn main() {
                         let vlen = write.len();
 
                         if vlen > 0 {
-                            let mut indices_to_remove = take(&mut *or1.write().unwrap());
+                            let indices_to_remove = take(&mut *or1.write().unwrap());
                             let mut new = Vec::with_capacity(vlen);
 
-                            for (i, item) in write.drain(..).enumerate() {
+                            for (i, mut item) in write.drain(..).enumerate() {
                                 if !indices_to_remove.contains(&i) {
                                     new.push(item);
+                                    continue;
                                 }
+                                item.1.expire();
+                                item.2.expire();
                             }
 
                             *write = new;
@@ -467,13 +411,15 @@ fn main() {
                         let vlen = write.len();
 
                         if vlen > 0 {
-                            let mut indices_to_remove = take(&mut *or2.write().unwrap());
+                            let indices_to_remove = take(&mut *or2.write().unwrap());
                             let mut new = Vec::with_capacity(vlen);
 
-                            for (i, item) in write.drain(..).enumerate() {
+                            for (i, mut item) in write.drain(..).enumerate() {
                                 if !indices_to_remove.contains(&i) {
                                     new.push(item);
+                                    continue;
                                 }
+                                item.1.expire();
                             }
 
                             *write = new;
@@ -489,13 +435,16 @@ fn main() {
                         let vlen = write.len();
 
                         if vlen > 0 {
-                            let mut indices_to_remove = take(&mut *or3.write().unwrap());
+                            let indices_to_remove = take(&mut *or3.write().unwrap());
                             let mut new = Vec::with_capacity(vlen);
 
-                            for (i, item) in write.drain(..).enumerate() {
+                            for (i, mut item) in write.drain(..).enumerate() {
                                 if !indices_to_remove.contains(&i) {
                                     new.push(item);
+                                    continue;
                                 }
+                                item.0.expire();
+                                item.1.expire();
                             }
 
                             *write = new;
@@ -511,13 +460,15 @@ fn main() {
                         let vlen = write.len();
 
                         if vlen > 0 {
-                            let mut indices_to_remove = take(&mut *or4.write().unwrap());
+                            let indices_to_remove = take(&mut *or4.write().unwrap());
                             let mut new = Vec::with_capacity(vlen);
 
-                            for (i, item) in write.drain(..).enumerate() {
+                            for (i, mut item) in write.drain(..).enumerate() {
                                 if !indices_to_remove.contains(&i) {
                                     new.push(item);
+                                    continue;
                                 }
+                                item.0.expire();
                             }
 
                             *write = new;
@@ -533,13 +484,15 @@ fn main() {
                         let vlen = write.len();
 
                         if vlen > 0 {
-                            let mut indices_to_remove = take(&mut *or5.write().unwrap());
+                            let indices_to_remove = take(&mut *or5.write().unwrap());
                             let mut new = Vec::with_capacity(vlen);
 
-                            for (i, item) in write.drain(..).enumerate() {
+                            for (i, mut item) in write.drain(..).enumerate() {
                                 if !indices_to_remove.contains(&i) {
                                     new.push(item);
+                                    continue;
                                 }
+                                item.expire();
                             }
 
                             *write = new;
@@ -555,12 +508,13 @@ fn main() {
                         let vlen = write.len();
 
                         if vlen > 0 {
-                            let mut indices_to_remove = take(&mut *or6.write().unwrap());
+                            let indices_to_remove = take(&mut *or6.write().unwrap());
                             let mut new = Vec::with_capacity(vlen);
 
-                            for (i, item) in write.drain(..).enumerate() {
+                            for (i, mut item) in write.drain(..).enumerate() {
                                 if !indices_to_remove.contains(&i) {
                                     new.push(item);
+                                    continue;
                                 }
                             }
 
@@ -580,7 +534,9 @@ fn main() {
                     m5.join().expect("TODO: panic message");
                     m6.join().expect("TODO: panic message");
 
-                    if reset.load(SeqCst) { break() }
+                    if reset.load(SeqCst) {
+                        break ();
+                    }
                 }
             }
         })

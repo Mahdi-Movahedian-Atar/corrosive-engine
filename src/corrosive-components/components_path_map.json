@@ -1,0 +1,47 @@
+{
+  "path": "./src/comp",
+  "modified_time": {
+    "secs_since_epoch": 1734849188,
+    "nanos_since_epoch": 695918300
+  },
+  "modified_state": "None",
+  "sub_maps": [
+    {
+      "path": "./src/comp\\mod.rs",
+      "modified_time": {
+        "secs_since_epoch": 1733903369,
+        "nanos_since_epoch": 613140100
+      },
+      "modified_state": "None",
+      "sub_maps": []
+    },
+    {
+      "path": "./src/comp\\mod.rs~",
+      "modified_time": {
+        "secs_since_epoch": 1733430214,
+        "nanos_since_epoch": 223377700
+      },
+      "modified_state": "None",
+      "sub_maps": []
+    },
+    {
+      "path": "./src/comp\\sub",
+      "modified_time": {
+        "secs_since_epoch": 1733471241,
+        "nanos_since_epoch": 434584000
+      },
+      "modified_state": "None",
+      "sub_maps": [
+        {
+          "path": "./src/comp\\sub\\mod.rs",
+          "modified_time": {
+            "secs_since_epoch": 1733903369,
+            "nanos_since_epoch": 613651200
+          },
+          "modified_state": "None",
+          "sub_maps": []
+        }
+      ]
+    }
+  ]
+}
