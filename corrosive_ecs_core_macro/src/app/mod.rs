@@ -1,4 +1,6 @@
-use corrosive_ecs_core::build::codegen::{generate_prelude, get_all_archetypes, write_rust_file};
+use corrosive_ecs_core::build::codegen::{
+    generate_arch_types, generate_prelude, get_all_archetypes, write_rust_file,
+};
 use corrosive_ecs_core::build::components_scan::{
     get_component_map, scan_components, write_component_map,
 };
@@ -121,7 +123,12 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     )
     .expect("failed to create auto_prelude.ts");
 
-    get_all_archetypes(&all_tasks);
+    let arch_types = get_all_archetypes(&all_tasks);
+    write_rust_file(
+        generate_arch_types(&arch_types),
+        format!("{}/corrosive-components/arch_types.rs", app_path).as_str(),
+    )
+    .expect("failed to create arch_types.ts");
 
     TokenStream::new()
 }

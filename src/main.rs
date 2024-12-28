@@ -44,7 +44,7 @@ fn main() {
     let a3: RwLock<Vec<(Ref<Position2>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
     let a4: RwLock<Vec<(Ref<Position2>, Position4)>> = RwLock::new(Vec::new());
     let a5: RwLock<Vec<(Ref<Position2>)>> = RwLock::new(Vec::new());
-    let a6: RwLock<Vec<(Locked<Position1>)>> = RwLock::new(Vec::new());
+    let a6: RwLock<Vec<(Locked<Position1>,)>> = RwLock::new(Vec::new());
 
     let o1: RwLock<Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>> =
         RwLock::new(Vec::new());
@@ -52,7 +52,7 @@ fn main() {
     let o3: RwLock<Vec<(Ref<Position2>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
     let o4: RwLock<Vec<(Ref<Position2>, Position4)>> = RwLock::new(Vec::new());
     let o5: RwLock<Vec<Ref<Position2>>> = RwLock::new(Vec::new());
-    let o6: RwLock<Vec<Locked<Position1>>> = RwLock::new(Vec::new());
+    let o6: RwLock<Vec<(Locked<Position1>,)>> = RwLock::new(Vec::new());
 
     let or1: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let or2: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());

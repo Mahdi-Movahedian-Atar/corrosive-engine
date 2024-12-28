@@ -611,7 +611,7 @@ pub mod codegen {
     use crate::build::tasks_scan::{Task, TaskMap};
     use proc_macro2::{Ident, Punct, Spacing, Span, TokenStream};
     use quote::{quote, ToTokens, TokenStreamExt};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::fmt::Debug;
     use std::fs::File;
     use std::io::Write;
@@ -621,13 +621,13 @@ pub mod codegen {
     #[derive(Debug)]
     pub struct ArchTypes {
         arch_types: Vec<Vec<String>>,
-        tasks: Vec<TaskArchType>,
+        tasks: HashMap<String, Vec<TaskArchType>>,
     }
     #[derive(Debug)]
     pub struct TaskArchType {
-        task_name: String,
+        arch_type_type: Vec<String>,
         task_index: usize,
-        input_arch_type_indexes: Vec<usize>,
+        input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
     }
 
     pub fn write_rust_file(token_stream: TokenStream, path: &str) -> io::Result<()> {
@@ -637,6 +637,106 @@ pub mod codegen {
         file.write_all(token_stream_str.as_bytes())?;
 
         Ok(())
+    }
+
+    pub fn get_all_archetypes(all_tasks: &HashMap<Task, String>) -> ArchTypes {
+        let mut archetypes: ArchTypes = ArchTypes {
+            arch_types: vec![],
+            tasks: HashMap::new(),
+        };
+
+        for task in all_tasks {
+            for output_arch in &task.0.output_archs {
+                let output = output_arch
+                    .iter()
+                    .map(|x| x.0.clone())
+                    .collect::<Vec<String>>();
+                if !archetypes
+                    .arch_types
+                    .contains(&output.iter().map(|x| x.clone()).collect::<Vec<String>>())
+                {
+                    archetypes.arch_types.push(output);
+                }
+            }
+        }
+        for key in all_tasks.keys() {
+            let mut index: usize = 0;
+            for input_arch in &key.input_archs {
+                let inner_set: HashSet<&str> = input_arch.1.iter().map(|s| s.as_str()).collect();
+
+                match archetypes.tasks.get_mut(&key.name) {
+                    Some(T) => T.push(TaskArchType {
+                        arch_type_type: input_arch.1.clone(),
+                        task_index: index,
+                        input_arch_type_indexes: archetypes
+                            .arch_types
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(outer_index, sub_vec)| {
+                                let sub_set: HashSet<&str> =
+                                    sub_vec.iter().map(|s| s.as_str()).collect();
+                                if sub_set.is_superset(&inner_set) {
+                                    Some((
+                                        outer_index,
+                                        sub_vec
+                                            .iter()
+                                            .enumerate()
+                                            .filter_map(|(inner_index, s)| {
+                                                if inner_set.contains(s.as_str()) {
+                                                    Some(inner_index)
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .collect(),
+                                    ))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
+                    }),
+                    _ => {
+                        archetypes.tasks.insert(
+                            key.name.clone(),
+                            vec![TaskArchType {
+                                arch_type_type: input_arch.1.clone(),
+                                task_index: index,
+                                input_arch_type_indexes: archetypes
+                                    .arch_types
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(outer_index, sub_vec)| {
+                                        let sub_set: HashSet<&str> =
+                                            sub_vec.iter().map(|s| s.as_str()).collect();
+                                        if sub_set.is_superset(&inner_set) {
+                                            Some((
+                                                outer_index,
+                                                sub_vec
+                                                    .iter()
+                                                    .enumerate()
+                                                    .filter_map(|(inner_index, s)| {
+                                                        if inner_set.contains(s.as_str()) {
+                                                            Some(inner_index)
+                                                        } else {
+                                                            None
+                                                        }
+                                                    })
+                                                    .collect(),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect(),
+                            }],
+                        );
+                    }
+                };
+                index += 1;
+            }
+        }
+        archetypes
     }
 
     /*pub fn generate_codes(component_map: &ComponentMap, task_map: &TaskMap) {
@@ -735,54 +835,125 @@ pub mod codegen {
             }
         }
     }
-
-    pub fn get_all_archetypes(all_tasks: &HashMap<Task, String>) -> ArchTypes {
+    pub fn generate_arch_types(arch_types: &ArchTypes) -> TokenStream {
         let mut code: TokenStream = TokenStream::new();
 
-        let mut archetypes: ArchTypes = ArchTypes {
-            arch_types: vec![],
-            tasks: vec![],
-        };
+        for task in &arch_types.tasks {
+            for input_arch_type in task.1 {
+                let arch_type_name: TokenStream =
+                    parse_str(format!("{}{}", &task.0, input_arch_type.task_index).as_str())
+                        .unwrap();
+                let mut arch_type_type: TokenStream = TokenStream::new();
+                let mut members: TokenStream = TokenStream::new();
+                let mut new_fn: TokenStream = TokenStream::new();
+                let mut new_fn_len: TokenStream = TokenStream::new();
+                let mut remove_fn: TokenStream = TokenStream::new();
+                let mut iter_code: TokenStream = TokenStream::new();
 
-        for task in all_tasks {
-            for output_arch in &task.0.output_archs {
-                let output = output_arch
-                    .iter()
-                    .map(|x| x.0.clone())
-                    .collect::<Vec<String>>();
-                if !archetypes
-                    .arch_types
-                    .contains(&output.iter().map(|x| x.clone()).collect::<Vec<String>>())
-                {
-                    archetypes.arch_types.push(output);
+                let mut index: usize = 0;
+
+                //members
+                for input_arch_type in &input_arch_type.input_arch_type_indexes {
+                    let var_name: TokenStream = parse_str(format!("ve{}", index).as_str()).unwrap();
+                    let mut var_types: TokenStream = TokenStream::new();
+                    let var_remove_name: TokenStream =
+                        parse_str(format!("rve{}", index).as_str()).unwrap();
+                    let mut iter_types: TokenStream = TokenStream::new();
+
+                    for input_arch_type in &arch_types.arch_types[input_arch_type.0] {
+                        let val: TokenStream =
+                            parse_str(format!("{},", input_arch_type).as_str()).unwrap();
+                        var_types.extend(val);
+                    }
+                    for input_arch_type_index in &input_arch_type.1 {
+                        let val: TokenStream =
+                            parse_str(format!("{}", input_arch_type_index).as_str()).unwrap();
+                        iter_types.extend(quote! {&self.#var_name[current_index].#val,});
+                    }
+                    iter_code.extend(quote! {
+                    if current_index < self.#var_name.len() {
+                        return Some((#iter_types));
+                    };
+                    current_index -= self.#var_name.len();
+                                });
+
+                    members.extend(quote! {#var_name: &'a Vec<(#var_types)>,});
+                    members.extend(quote! {#var_remove_name: &'a RwLock<HashSet<usize>>,});
+                    //remove_fn
+                    remove_fn.extend(quote! {
+                        if index < self.#var_name.len() {
+                            self.#var_remove_name.write().unwrap().insert(index);
+                            return;
+                        };
+                        index -= self.#var_name.len();
+                    });
+                    index += 1;
                 }
-            }
-        }
-        for task in all_tasks {
-            let mut input_num: usize = 0;
-            for input_arch in task.0.input_archs.iter().map(|x| x.1.clone()) {
-                let mut input_arch_type_indexes: Vec<usize> = vec![];
-                'l: for arch_type in &archetypes.arch_types {
-                    let mut task_num: usize = 0;
-                    for ty in arch_type {
-                        if &input_arch[task_num] == ty {
-                            input_arch_type_indexes.push(task_num);
-                            task_num += 1;
-                        }
-                        if input_arch.len() == task_num {
-                            archetypes.tasks.push(TaskArchType {
-                                task_name: task.0.name.clone(),
-                                task_index: input_num,
-                                input_arch_type_indexes,
-                            });
-                            break 'l;
-                        }
+                //new_fn
+                for i in 0..index {
+                    let val: TokenStream =
+                        parse_str(format!("ve{},rve{},", i, i).as_str()).unwrap();
+                    new_fn.extend(val);
+                    if index == (i + 1) {
+                        let val: TokenStream =
+                            parse_str(format!("ve{}.len(),", i).as_str()).unwrap();
+                        new_fn_len.extend(val);
+                    } else {
+                        let val: TokenStream =
+                            parse_str(format!("ve{}.len() +", i).as_str()).unwrap();
+                        new_fn_len.extend(val);
                     }
                 }
-                input_num += 1;
+                //arch_type_type
+                for arch_type_name in &input_arch_type.arch_type_type {
+                    let val: TokenStream =
+                        parse_str(format!("{}", arch_type_name).as_str()).unwrap();
+                    arch_type_type.extend(quote! {&'a #val,});
+                }
+
+                code.extend(quote! {
+                            #[derive(Copy, Clone)]
+                            pub struct #arch_type_name<'a> {
+                            #members
+                            pub len: usize,
+                            pub v_i: usize,
+                        }
+                            impl<'a> #arch_type_name<'a> {
+                    pub fn new(
+                        #members
+                    ) -> Self {
+                        #arch_type_name {
+                            #new_fn
+                            len: #new_fn_len
+                            v_i: 0,
+                        }
+                    }
+
+                    pub fn remove(&self, mut index: usize) {
+                        #remove_fn
+                    }
+                }
+                impl<'a> Iterator for #arch_type_name<'a> {
+                    type Item = (#arch_type_type);
+
+                    fn next(&mut self) -> Option<Self::Item> {
+                        let mut current_index = self.v_i.clone();
+                        self.v_i += 1;
+                        #iter_code
+                        None
+                    }
+                }
+                                })
             }
         }
-        println!("{:?}", archetypes);
-        archetypes
+
+        quote! {
+                pub mod arch_types {
+        use crate::corrosive_engine::auto_prelude::prelude::*;
+        use std::collections::HashSet;
+        use std::sync::RwLock;
+                #code
+                }
+            }
     }
 }
