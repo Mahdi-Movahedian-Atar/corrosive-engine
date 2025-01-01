@@ -466,7 +466,7 @@ pub mod tasks_scan {
         false
     }
 
-    fn get_task_input(
+    pub fn get_task_input(
         token_stream: Punctuated<FnArg, Comma>,
     ) -> (
         Vec<(String, Vec<String>)>,
@@ -501,7 +501,6 @@ pub mod tasks_scan {
                                                 elem.to_token_stream().to_string().replace(" ", "")
                                             })
                                             .collect();
-                                        elems.sort();
                                         input_arch.push((name, elems));
                                     } else {
                                         input_arch.push((
@@ -571,7 +570,7 @@ pub mod tasks_scan {
                                 va.push("".to_string());
                                 continue;
                             }
-                            if t == ":" {
+                            if t == "=" {
                                 type_flag = false;
                                 continue;
                             }
@@ -589,10 +588,19 @@ pub mod tasks_scan {
 
                         tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
 
+                        if output_arch.contains(&tuples) {
+                            break;
+                        }
+
                         output_arch.push(tuples);
                     }
                     "signal" => {
                         let signal: LitStr = mac.mac.parse_body().unwrap();
+
+                        if output_signals.contains(&signal.value()) {
+                            break;
+                        }
+
                         output_signals.push(signal.value())
                     }
                     "reset" => {
@@ -607,16 +615,18 @@ pub mod tasks_scan {
 }
 
 pub mod codegen {
-    use crate::build::components_scan::ComponentMap;
     use crate::build::tasks_scan::{Task, TaskMap};
     use proc_macro2::{Ident, Punct, Spacing, Span, TokenStream};
-    use quote::{quote, ToTokens, TokenStreamExt};
+    use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
+    use serde_json::to_string;
     use std::collections::{HashMap, HashSet};
     use std::fmt::Debug;
     use std::fs::File;
     use std::io::Write;
+    use std::ops::Index;
     use std::{fs, io, vec};
-    use syn::{parse_str, Token};
+    use syn::spanned::Spanned;
+    use syn::{parse, parse2, parse_quote, parse_str, Expr, LitStr, ReturnType, Stmt, Token};
 
     #[derive(Debug)]
     pub struct ArchTypes {
@@ -662,7 +672,7 @@ pub mod codegen {
         for key in all_tasks.keys() {
             let mut index: usize = 0;
             for input_arch in &key.input_archs {
-                let inner_set: HashSet<&str> = input_arch.1.iter().map(|s| s.as_str()).collect();
+                let Hash_archs: HashSet<&str> = input_arch.1.iter().map(|s| s.as_str()).collect();
 
                 match archetypes.tasks.get_mut(&key.name) {
                     Some(T) => T.push(TaskArchType {
@@ -673,17 +683,18 @@ pub mod codegen {
                             .iter()
                             .enumerate()
                             .filter_map(|(outer_index, sub_vec)| {
-                                let sub_set: HashSet<&str> =
-                                    sub_vec.iter().map(|s| s.as_str()).collect();
-                                if sub_set.is_superset(&inner_set) {
+                                if input_arch.1.iter().all(|b_elem| sub_vec.contains(b_elem)) {
                                     Some((
                                         outer_index,
-                                        sub_vec
+                                        input_arch
+                                            .1
                                             .iter()
                                             .enumerate()
-                                            .filter_map(|(inner_index, s)| {
-                                                if inner_set.contains(s.as_str()) {
-                                                    Some(inner_index)
+                                            .filter_map(|a| {
+                                                if let Some(t) =
+                                                    sub_vec.iter().position(|i| i == a.1)
+                                                {
+                                                    Some(t)
                                                 } else {
                                                     None
                                                 }
@@ -707,17 +718,22 @@ pub mod codegen {
                                     .iter()
                                     .enumerate()
                                     .filter_map(|(outer_index, sub_vec)| {
-                                        let sub_set: HashSet<&str> =
-                                            sub_vec.iter().map(|s| s.as_str()).collect();
-                                        if sub_set.is_superset(&inner_set) {
+                                        if input_arch
+                                            .1
+                                            .iter()
+                                            .all(|b_elem| sub_vec.contains(b_elem))
+                                        {
                                             Some((
                                                 outer_index,
-                                                sub_vec
+                                                input_arch
+                                                    .1
                                                     .iter()
                                                     .enumerate()
-                                                    .filter_map(|(inner_index, s)| {
-                                                        if inner_set.contains(s.as_str()) {
-                                                            Some(inner_index)
+                                                    .filter_map(|a| {
+                                                        if let Some(t) =
+                                                            sub_vec.iter().position(|i| i == a.1)
+                                                        {
+                                                            Some(t)
                                                         } else {
                                                             None
                                                         }
@@ -738,77 +754,6 @@ pub mod codegen {
         }
         archetypes
     }
-
-    /*pub fn generate_codes(component_map: &ComponentMap, task_map: &TaskMap) {
-        let mut all_components = component_map.get_all();
-        let mut all_tasks = task_map.get_all();
-        all_components.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-        let mut auto_prelude_code: TokenStream = TokenStream::new();
-        let mut engine_code: TokenStream = TokenStream::new();
-
-        let mut archetypes: Vec<Vec<String>> = Vec::new();
-        let mut task_archetypes: Vec<Archetype> = Vec::new();
-
-        for component in all_components {
-            let name = Ident::new(component.0.as_str(), Span::call_site());
-            auto_prelude_code.extend(quote!(pub use crate::#name;).into_iter());
-        }
-        let mut index: usize = 0;
-        for task in all_tasks {
-            let name = Ident::new(&task.0.name.as_str(), Span::call_site());
-            auto_prelude_code.extend(quote!(pub use crate::#name;).into_iter());
-
-            for output_arch in &task.0.output_archs {
-                let output = output_arch
-                    .iter()
-                    .map(|x| x.0.clone())
-                    .collect::<Vec<String>>();
-                if !archetypes.contains(
-                    &output_arch
-                        .iter()
-                        .map(|x| x.0.clone())
-                        .collect::<Vec<String>>(),
-                ) {
-                    let mut type_tokens: TokenStream = TokenStream::new();
-                    let ident1 =
-                        Ident::new(format!("arch_set{}", index).as_str(), Span::call_site());
-                    let ident2 =
-                        Ident::new(format!("arch_add{}", index).as_str(), Span::call_site());
-                    let ident3 =
-                        Ident::new(format!("arch_remove{}", index).as_str(), Span::call_site());
-                    let ident4 =
-                        Ident::new(format!("arch_lock{}", index).as_str(), Span::call_site());
-                    for out in &output {
-                        let a: TokenStream =
-                            parse_str(format!("{},", out.as_str()).as_str()).unwrap();
-                        type_tokens.extend(a);
-                    }
-                    engine_code.extend(
-                        quote!(
-                            let #ident1: RwLock<Vec<#type_tokens>> =RwLock::new(Vec::new());
-                            let #ident2: RwLock<Vec<#type_tokens>> =RwLock::new(Vec::new());
-                            let #ident3: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
-                            let #ident4: AtomicU8 = AtomicU8::new(0);
-                        )
-                        .into_iter(),
-                    );
-                    archetypes.push(output);
-                    index += 1;
-                }
-            }
-        }
-        /*for task in all_tasks {
-            for input_arch in task.0.input_archs{
-                //let
-            }
-        }*/
-
-        //println!("{:?}",archetypes);
-        //println!("{:?}", engine_code.to_string());
-
-        //generate_prelude(auto_prelude_code)
-    }*/
 
     pub fn generate_prelude(
         all_components: &HashMap<String, String>,
@@ -955,5 +900,164 @@ pub mod codegen {
                 #code
                 }
             }
+    }
+
+    pub fn generate_task_body(stmts: &mut Vec<Stmt>) -> TokenStream {
+        let mut var_arch: Vec<Stmt> = Vec::new();
+        let mut var_signals: Vec<Stmt> = Vec::new();
+        let mut var_reset: Option<Stmt> = None;
+
+        let mut out_type: TokenStream = TokenStream::new();
+        let mut bool_num: usize = 0;
+
+        let mut out_arch: TokenStream = TokenStream::new();
+        let mut out_signals: TokenStream = TokenStream::new();
+        let mut out_reset: TokenStream = TokenStream::new();
+
+        let mut index_arch: HashMap<Vec<(String, String)>, usize> = HashMap::new();
+        let mut index_signals: HashMap<String, usize> = HashMap::new();
+        let mut is_reset = false;
+
+        for i in 0..stmts.len() {
+            if let Stmt::Macro(mac) = &stmts[i] {
+                match mac
+                    .mac
+                    .path
+                    .segments
+                    .last()
+                    .unwrap()
+                    .ident
+                    .to_string()
+                    .as_str()
+                {
+                    "add_entity" => {
+                        let mut type_flag = true;
+                        let mut ty: Vec<String> = vec!["".to_string()];
+                        let mut va: Vec<String> = vec!["".to_string()];
+                        for token in mac.mac.tokens.clone() {
+                            let t = token.to_string().replace(" ", "");
+                            if t == "," {
+                                type_flag = true;
+                                ty.push("".to_string());
+                                va.push("".to_string());
+                                continue;
+                            }
+                            if t == "=" {
+                                type_flag = false;
+                                continue;
+                            }
+                            if type_flag {
+                                if let Some(last) = ty.last_mut() {
+                                    last.push_str(&t);
+                                }
+                            } else {
+                                if let Some(last) = va.last_mut() {
+                                    last.push_str(&t);
+                                }
+                            }
+                        }
+                        let mut tuples: Vec<_> = ty.into_iter().zip(va.into_iter()).collect();
+
+                        tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+                        let mut is_new = false;
+                        if !index_arch.contains_key(&tuples) {
+                            index_arch.insert(tuples.clone(), index_arch.len());
+                            is_new = true;
+                        }
+
+                        let mut vec_type = TokenStream::new();
+                        let mut vec_input = TokenStream::new();
+                        let mut vec_name: TokenStream =
+                            parse_str(format!("engine_add_arch{}", index_arch[&tuples]).as_str())
+                                .unwrap();
+
+                        for tuple in tuples {
+                            let v: TokenStream = parse_str(tuple.1.as_str()).unwrap();
+                            vec_input.extend(quote! {#v,});
+                            if is_new {
+                                let t: TokenStream = parse_str(tuple.0.as_str()).unwrap();
+                                vec_type.extend(quote! {#t,});
+                            }
+                        }
+
+                        if is_new {
+                            var_arch.push(
+                                parse2(quote! {let mut #vec_name: Vec<(#vec_type)> = Vec::new();})
+                                    .expect("Failed to parse TokenStream into Stmt"),
+                            );
+                            out_arch.extend(quote! {#vec_name,});
+                            out_type.extend(quote! {Vec<(#vec_type)>,})
+                        }
+
+                        stmts[i] = parse2(quote! { #vec_name.push((#vec_input)); })
+                            .expect("Failed to parse TokenStream into Stmt");
+                    }
+                    "signal" => {
+                        let signal: LitStr = mac.mac.parse_body().unwrap();
+
+                        let mut is_new = false;
+                        if !index_signals.contains_key(&signal.value()) {
+                            index_signals.insert(signal.value(), index_signals.len());
+                            is_new = true;
+                            bool_num += 1;
+                        }
+
+                        let mut vec_name: TokenStream = parse_str(
+                            format!("engine_trigger_signal{}", index_signals[&signal.value()])
+                                .as_str(),
+                        )
+                        .unwrap();
+
+                        if is_new {
+                            var_signals.push(
+                                parse2(quote! {let mut #vec_name: bool = false;})
+                                    .expect("Failed to parse TokenStream into Stmt"),
+                            );
+                            out_signals.extend(quote! {#vec_name,});
+                        }
+
+                        stmts[i] = parse2(quote! { #vec_name = true; })
+                            .expect("Failed to parse TokenStream into Stmt");
+                    }
+                    "reset" => {
+                        if !is_reset {
+                            var_reset = Some(
+                                parse2(quote! {let mut engine_signal_trigger: bool = false;})
+                                    .expect("Failed to parse TokenStream into Stmt"),
+                            );
+                            out_reset.extend(quote! {engine_signal_trigger,});
+                            is_reset = true;
+                            bool_num += 1;
+                        }
+
+                        stmts[i] = parse2(quote! { engine_signal_trigger = true; })
+                            .expect("Failed to parse TokenStream into Stmt");
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let mut var = var_arch;
+        var.extend(var_signals);
+
+        if let Some(t) = var_reset {
+            var.push(t);
+        }
+
+        for s in var {
+            stmts.insert(0, s);
+        }
+        stmts.push(
+            parse2(quote! {return (#out_arch #out_signals # out_reset); })
+                .expect("Failed to parse TokenStream into Stmt"),
+        );
+
+        for _ in 0..bool_num {
+            out_type.extend(quote! {bool, })
+        }
+
+        out_type
     }
 }

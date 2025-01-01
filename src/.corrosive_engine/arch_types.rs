@@ -109,6 +109,7 @@ pub mod arch_types {
             None
         }
     }
+    #[derive(Copy, Clone)]
     pub struct macro_test0<'a> {
         ve0: &'a Vec<(LockedRef<Position3>, Ref<Position2>)>,
         rve0: &'a RwLock<HashSet<usize>>,
@@ -147,16 +148,16 @@ pub mod arch_types {
         }
     }
     impl<'a> Iterator for macro_test0<'a> {
-        type Item = (&'a LockedRef<Position3>, &'a Ref<Position2>);
+        type Item = (&'a Ref<Position2>, &'a LockedRef<Position3>);
         fn next(&mut self) -> Option<Self::Item> {
             let mut current_index = self.v_i.clone();
             self.v_i += 1;
             if current_index < self.ve0.len() {
-                return Some((&self.ve0[current_index].0, &self.ve0[current_index].1));
+                return Some((&self.ve0[current_index].1, &self.ve0[current_index].0));
             };
             current_index -= self.ve0.len();
             if current_index < self.ve1.len() {
-                return Some((&self.ve1[current_index].0, &self.ve1[current_index].2));
+                return Some((&self.ve1[current_index].2, &self.ve1[current_index].0));
             };
             current_index -= self.ve1.len();
             None
@@ -201,16 +202,16 @@ pub mod arch_types {
         }
     }
     impl<'a> Iterator for macro_test1<'a> {
-        type Item = (&'a LockedRef<Position3>, &'a Ref<Position2>);
+        type Item = (&'a Ref<Position2>, &'a LockedRef<Position3>);
         fn next(&mut self) -> Option<Self::Item> {
             let mut current_index = self.v_i.clone();
             self.v_i += 1;
             if current_index < self.ve0.len() {
-                return Some((&self.ve0[current_index].0, &self.ve0[current_index].1));
+                return Some((&self.ve0[current_index].1, &self.ve0[current_index].0));
             };
             current_index -= self.ve0.len();
             if current_index < self.ve1.len() {
-                return Some((&self.ve1[current_index].0, &self.ve1[current_index].2));
+                return Some((&self.ve1[current_index].2, &self.ve1[current_index].0));
             };
             current_index -= self.ve1.len();
             None

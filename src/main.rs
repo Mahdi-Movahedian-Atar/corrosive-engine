@@ -291,10 +291,15 @@ fn main() {
                                 &or2,
                                 &or3,
                             ),
-                            &resources,
+                            Res::new(&resources),
                             &f64::from_bits(delta_time.load(Ordering::Relaxed)),
                         );
-                        *(&signal_o).write().unwrap() = o;
+                        if o.0 {
+                            *(&signal_o).write().unwrap() |= 0b00000001;
+                        }
+                        if o.1 {
+                            *(&signal_o).write().unwrap() |= 0b00000010;
+                        }
                     });
                     let u2 = if (*signal.read().unwrap() & 0b00000001 != 0
                         && (*signal.read().unwrap() & 0b00000010 != 0
@@ -312,7 +317,7 @@ fn main() {
                                     &or3,
                                 ),
                                 TestUtArch2::new(&*a1.read().unwrap(), &*a3.read().unwrap()),
-                                &state_o,
+                                State::new(&state_o),
                             );
                         }))
                     } else {
