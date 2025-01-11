@@ -10,7 +10,7 @@ use rand::Rng;
 use std::collections::HashSet;
 use std::sync::RwLock;
 
-#[task]
+//#[task]
 pub fn setup() -> (
     Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
     Vec<(Locked<Position1>, LockedRef<Position3>)>,
@@ -41,8 +41,8 @@ pub fn setup() -> (
     (o1, o2)
 }
 
-#[task]
-pub fn macro_test(
+//#[task]
+/*pub fn macro_test(
     a: Arch<(Ref<Position2>, LockedRef<Position3>)>,
     aa: Arch<(Ref<Position2>, LockedRef<Position3>)>,
     b: Arch<LockedRef<Position3>>,
@@ -57,7 +57,7 @@ pub fn macro_test(
     add_entity!(LockedRef<Position3> = LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
     signal!("sss");
     reset!();
-}
+}*/
 
 pub fn macro_test(
     a: corrosive_engine::arch_types::arch_types::macro_test0,
@@ -99,7 +99,7 @@ pub fn macro_test(
     );
 }
 
-#[task]
+//#[task]
 pub fn setup1() -> (
     Vec<(Ref<Position2>, LockedRef<Position3>)>,
     Vec<(Ref<Position2>, Position4)>,
@@ -119,7 +119,7 @@ pub fn setup1() -> (
     add_entity!(Position1 = Position2 { x: 1.0, y: 1.0 });
     (o1, o2)
 }
-#[task]
+//#[task]
 pub fn setup2() -> (Vec<Ref<Position2>>, Vec<(Locked<Position1>,)>) {
     let mut o1: Vec<Ref<Position2>> = Vec::new();
     let mut o2: Vec<(Locked<Position1>,)> = Vec::new();
@@ -132,7 +132,7 @@ pub fn setup2() -> (Vec<Ref<Position2>>, Vec<(Locked<Position1>,)>) {
     add_entity!(Position1 = Position2 { x: 1.0, y: 1.0 });
     (o1, o2)
 }
-#[task]
+//#[task]
 pub fn update_task(
     inp: TestUtArch,
     res: Res<MarkedResources>,
@@ -155,7 +155,7 @@ pub fn update_task(
 
     (s1, s2)
 }
-#[task]
+//#[task]
 pub fn update_task_signal(inp: TestUtArch, inp2: TestUtArch2, sat: State<StateExample>) {
     let mut rng = rand::thread_rng();
     let random_number: usize = rng.gen_range(0..10000);
@@ -173,7 +173,7 @@ pub fn update_task_signal(inp: TestUtArch, inp2: TestUtArch2, sat: State<StateEx
     }
 }
 
-#[task]
+//#[task]
 pub fn fixed_task() {
     println!("Fixed")
 }

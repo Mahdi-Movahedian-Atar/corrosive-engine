@@ -9,18 +9,6 @@ pub mod task_macro {
         Type,
     };
 
-    enum TaskType {
-        Update,
-        FixedUpdate,
-        LongUpdate,
-        SyncUpdate,
-    }
-    struct TaskInput {
-        r#type: Option<TaskType>,
-        position: Option<String>,
-        place: Option<String>,
-    }
-
     pub fn task_fn(
         attr: proc_macro::TokenStream,
         item: proc_macro::TokenStream,
@@ -78,7 +66,7 @@ pub mod task_macro {
         //println!("{}", new_input.to_string());
 
         let a: TokenStream = quote! {#body}.into();
-        println!("{}", a.to_string());
+        //println!("{}", a.to_string());
         //a.into();
         c
     }

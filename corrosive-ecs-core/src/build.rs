@@ -614,6 +614,350 @@ pub mod tasks_scan {
     }
 }
 
+pub mod app_scan {
+    use proc_macro2::{TokenStream, TokenTree};
+    use quote::{quote, quote_spanned, ToTokens};
+    use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
+    use syn::token::{Group, Paren};
+    use syn::Stmt::Expr;
+    use syn::{braced, Error, Ident, Lit, LitStr, Token};
+
+    #[derive(Debug)]
+    pub enum LogicalOperator {
+        And,
+        Or,
+    }
+
+    #[derive(Debug)]
+    pub enum LogicalExpression {
+        Signal(String),
+        State(String, String),
+        Operator(LogicalOperator),
+        Not(Box<LogicalExpression>),
+        Grouped(Vec<LogicalExpression>),
+    }
+    pub enum TaskSchedule {
+        BeforeTask(String),
+        BeforeGroup(String),
+        AfterTask(String),
+        AfterGroup(String),
+        In(String),
+    }
+    pub enum TaskType {
+        Update(String),
+        Fixed(String),
+        Sync(String),
+        Long(String),
+        Setup(String),
+    }
+    pub struct AppPackage {
+        pub path: String,
+        pub tasks: Vec<TaskType>,
+        pub task_schedule: Vec<TaskSchedule>,
+        pub task_conditions: Vec<Option<LogicalExpression>>,
+        pub packages: Vec<String>,
+    }
+    impl Default for AppPackage {
+        fn default() -> Self {
+            AppPackage {
+                path: "./src".to_string(),
+                tasks: vec![],
+                packages: vec![],
+                task_schedule: vec![],
+                task_conditions: vec![],
+            }
+        }
+    }
+
+    impl Parse for LogicalExpression {
+        fn parse(input: ParseStream) -> Result<Self> {
+            let mut logical_expressions: Vec<LogicalExpression> = Vec::new();
+            let mut is_not = false;
+            while !input.is_empty() && !input.peek(Token![,]) {
+                if input.peek(Paren) {
+                    let content: ParseBuffer;
+                    syn::parenthesized!(content in input);
+
+                    if is_not {
+                        logical_expressions.push(LogicalExpression::Not(Box::from(
+                            content.parse::<LogicalExpression>()?,
+                        )));
+                        is_not = false;
+                    } else {
+                        logical_expressions.push(content.parse::<LogicalExpression>()?);
+                    }
+                }
+                if input.peek(LitStr) {
+                    let signal: LitStr = input.parse()?;
+
+                    if is_not {
+                        logical_expressions.push(LogicalExpression::Not(Box::from(
+                            LogicalExpression::Signal(signal.value()),
+                        )));
+                        is_not = false;
+                    } else {
+                        logical_expressions.push(LogicalExpression::Signal(signal.value()));
+                    }
+                }
+                if input.peek(Ident) {
+                    let mut tokens: TokenStream = TokenStream::new();
+                    tokens.extend(Some(input.parse::<TokenTree>()?));
+                    let t = tokens.to_string();
+
+                    while !input.is_empty()
+                        && !input.peek(Token![,])
+                        && !input.peek(Token![||])
+                        && !input.peek(Token![&&])
+                    {
+                        let token_tree: TokenTree = input.parse()?;
+                        tokens.extend(Some(token_tree));
+                    }
+
+                    if is_not {
+                        logical_expressions.push(LogicalExpression::Not(Box::from(
+                            LogicalExpression::State(t, tokens.to_string()),
+                        )));
+                        is_not = false;
+                    } else {
+                        logical_expressions.push(LogicalExpression::State(t, tokens.to_string()));
+                    }
+                }
+                if input.peek(Token![!]) {
+                    input.parse::<Token![!]>()?;
+                    is_not = true;
+                }
+                if input.peek(Token![||]) {
+                    input.parse::<Token![||]>()?;
+                    logical_expressions.push(LogicalExpression::Operator(LogicalOperator::Or));
+                }
+                if input.peek(Token![&&]) {
+                    input.parse::<Token![&&]>()?;
+                    logical_expressions.push(LogicalExpression::Operator(LogicalOperator::And));
+                }
+            }
+
+            Ok(LogicalExpression::Grouped(logical_expressions))
+        }
+    }
+
+    impl Parse for AppPackage {
+        fn parse(input: ParseStream) -> Result<Self> {
+            let mut app_package: AppPackage = AppPackage::default();
+
+            let ident: Ident = match input.parse::<Ident>() {
+                Ok(T) => T,
+                Err(E) => {
+                    return Err(Error::new_spanned(
+                        E.into_compile_error(),
+                        "Expected and Ident",
+                    ));
+                }
+            };
+
+            match ident.to_string().as_str() {
+                "path" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(T)) => {
+                        app_package.path = T.value();
+                    }
+                    T => {
+                        return Err(Error::new_spanned(
+                    match T {
+                        Ok(T) => { T.to_token_stream() }
+                        Err(E) => {E.into_compile_error()}
+                    },
+                    "String literal of the path of the package.\nExample: (path \"./src/main.rs\")"));
+                    }
+                },
+                "update" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Update(T.value())),
+                    T => {
+                        return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => T.to_token_stream(),
+                                Err(E) => E.into_compile_error(),
+                            },
+                            "String literal of name of a task.\nExample: (update \"normal_task\")",
+                        ));
+                    }
+                },
+                "fixed_update" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Fixed(T.value())),
+                    T => {
+                        return Err(Error::new_spanned(
+                        match T {
+                            Ok(T) => { T.to_token_stream() }
+                            Err(E) => {E.into_compile_error()}
+                        },
+                        "String literal of name of a task.\nExample: (fixed_update \"fixed_task\")"));
+                    }
+                },
+                "sync_update" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Sync(T.value())),
+                    T => {
+                        return Err(Error::new_spanned(
+                        match T {
+                            Ok(T) => { T.to_token_stream() }
+                            Err(E) => {E.into_compile_error()}
+                        },
+                        "String literal of name of a task.\nExample: (sync_update \"sync_task\")"));
+                    }
+                },
+                "long_update" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Long(T.value())),
+                    T => {
+                        return Err(Error::new_spanned(
+                        match T {
+                            Ok(T) => { T.to_token_stream() }
+                            Err(E) => {E.into_compile_error()}
+                        },
+                        "String literal of name of a task.\nExample: (long_update \"long_task\")"));
+                    }
+                },
+                "setup" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Setup(T.value())),
+                    T => {
+                        return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => T.to_token_stream(),
+                                Err(E) => E.into_compile_error(),
+                            },
+                            "String literal of name of a task.\nExample: (setup \"setup_task\")",
+                        ));
+                    }
+                },
+                "package" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(T)) => app_package.packages.push(T.value()),
+                    T => {
+                        return Err(Error::new_spanned(
+                        match T {
+                            Ok(T) => { T.to_token_stream() }
+                            Err(E) => {E.into_compile_error()}
+                        },
+                        "String literal of name of a package.\nExample: (package \"package_name\")"));
+                    }
+                },
+                _ => {
+                    return Err(Error::new_spanned(
+                ident,
+                "Exacted path, update, fixed_update, sync_update, long_update, setup or package."));
+                }
+            }
+
+            if app_package.tasks.len() != app_package.task_schedule.len() {
+                if input.peek(syn::Ident) {
+                    let ident: Ident = match input.parse::<Ident>() {
+                        Ok(T) => T,
+                        Err(E) => {
+                            return Err(Error::new_spanned(
+                                E.into_compile_error(),
+                                "Expected and Ident",
+                            ));
+                        }
+                    };
+
+                    match ident.to_string().as_str() {
+                        "before" => match input.parse::<Lit>() {
+                            Ok(Lit::Str(T)) => app_package
+                                .task_schedule
+                                .push(TaskSchedule::BeforeTask(T.value())),
+                            T => {
+                                return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => { T.to_token_stream() }
+                                Err(E) => {E.into_compile_error()}
+                            },
+                            "String literal of name of a task.\nExample: (update \"example_task\" before \"example_task\")"));
+                            }
+                        },
+                        "before_group" => match input.parse::<Lit>() {
+                            Ok(Lit::Str(T)) => app_package
+                                .task_schedule
+                                .push(TaskSchedule::BeforeGroup(T.value())),
+                            T => {
+                                return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => { T.to_token_stream() }
+                                Err(E) => {E.into_compile_error()}
+                            },
+                            "String literal of name of a group.\nExample: (update \"example_task\" before \"example_group\")"));
+                            }
+                        },
+                        "after" => match input.parse::<Lit>() {
+                            Ok(Lit::Str(T)) => app_package
+                                .task_schedule
+                                .push(TaskSchedule::AfterTask(T.value())),
+                            T => {
+                                return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => { T.to_token_stream() }
+                                Err(E) => {E.into_compile_error()}
+                            },
+                            "String literal of name of a task.\nExample: (update \"example_task\" after \"example_task\")"));
+                            }
+                        },
+                        "after_group" => match input.parse::<Lit>() {
+                            Ok(Lit::Str(T)) => app_package
+                                .task_schedule
+                                .push(TaskSchedule::AfterGroup(T.value())),
+                            T => {
+                                return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => { T.to_token_stream() }
+                                Err(E) => {E.into_compile_error()}
+                            },
+                            "String literal of name of a group.\nExample: (update \"example_task\" after \"example_group\")"));
+                            }
+                        },
+                        "in_group" => match input.parse::<Lit>() {
+                            Ok(Lit::Str(T)) => {
+                                app_package.task_schedule.push(TaskSchedule::In(T.value()))
+                            }
+                            T => {
+                                return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => T.to_token_stream(),
+                                Err(E) => E.into_compile_error(),
+                            },
+                            "String literal of name of a group.\nExample: (setup \"example_task\" in_group \"example_group\")",
+                        ));
+                            }
+                        },
+                        _ => {
+                            return Err(Error::new_spanned(
+                                ident,
+                                "Exacted before, after, before_group, after_group and in.",
+                            ));
+                        }
+                    }
+                } else {
+                    app_package
+                        .task_schedule
+                        .push(TaskSchedule::In("main".to_string()))
+                }
+
+                if input.peek(Token![if]) {
+                    let _: Token![if] = input.parse()?;
+
+                    app_package
+                        .task_conditions
+                        .push(Some(input.parse::<LogicalExpression>()?));
+                } else {
+                    app_package.task_conditions.push(None)
+                }
+            }
+
+            if input.peek(Token![,]) {
+                let _: Token![,] = input.parse()?;
+                let sub: AppPackage = input.parse()?;
+                app_package.tasks.extend(sub.tasks);
+                app_package.packages.extend(sub.packages);
+            }
+
+            Ok(app_package)
+        }
+    }
+}
+
 pub mod codegen {
     use crate::build::tasks_scan::{Task, TaskMap};
     use proc_macro2::{Ident, Punct, Spacing, Span, TokenStream};

@@ -1,3 +1,4 @@
+use corrosive_ecs_core::build::app_scan::AppPackage;
 use corrosive_ecs_core::build::codegen::{
     generate_arch_types, generate_prelude, get_all_archetypes, write_rust_file,
 };
@@ -7,36 +8,19 @@ use corrosive_ecs_core::build::components_scan::{
 use corrosive_ecs_core::build::general_scan::{get_path_map, scan_directory, write_path_map};
 use corrosive_ecs_core::build::tasks_scan::{get_task_map, scan_tasks, write_task_map};
 use proc_macro::{TokenStream, TokenTree};
-use quote::ToTokens;
+use proc_macro_error::emit_error;
+use quote::{quote, ToTokens};
 use std::ptr::write;
 use std::{env, fs, path};
 use syn::parse::{Parse, ParseStream};
 use syn::token::Token;
-use syn::{parse_macro_input, token, Ident, Lit, Result, Token};
-
-struct CorrosiveEngineInput {
-    path: String,
-}
-
-impl Parse for CorrosiveEngineInput {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let mut path: String = "./src".to_string();
-        let a: Ident = input.parse()?;
-        if a.eq("p") {
-            if let Lit::Str(T) = input.parse::<Lit>()? {
-                path = T.value();
-            }
-        }
-
-        Ok(CorrosiveEngineInput { path })
-    }
-}
+use syn::{parse_macro_input, token, Error, Ident, Lit, Result, Token};
 
 pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(item as AppPackage);
+
     let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");
     app_path.push_str("/src");
-
-    let args = parse_macro_input!(item as CorrosiveEngineInput);
 
     //component scan
 

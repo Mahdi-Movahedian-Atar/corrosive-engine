@@ -170,26 +170,23 @@ pub mod ecs_core {
     #[macro_export]
     macro_rules! add_entity {
     ($($x:ty = $y:expr),+ ) => {
-        println!("Hello from my_declarative_macro!");
+        eprintln!("Warning: funtions must have the [tast] attrabute!");
     };
         [$x:ty , ( $y:expr ) ] => {
-        println!("Hello from my_declarative_macro!");
+        eprintln!("Warning: funtions must have the [tast] attrabute!");
     };
 }
     #[macro_export]
     macro_rules! signal {
-        ($x:literal) => {};
+        ($x:literal) => {
+            eprintln!("Warning: funtions must have the [tast] attrabute!");
+        };
     }
 
     #[macro_export]
     macro_rules! reset {
-        () => {};
+        () => {
+            eprintln!("Warning: funtions must have the [tast] attrabute!");
+        };
     }
-
-    #[macro_export]
-    macro_rules! corrosive_app {
-    () => {
-        #[corrosive_app(path=file!())]
-    };
-}
 }

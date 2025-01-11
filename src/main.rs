@@ -21,7 +21,14 @@ mod task;
 use corrosive_engine::auto_prelude::prelude::*;
 
 fn main() {
-    corrosive_engine_builder!(p "./src" );
+    //corrosive_engine!(| update , sss|, | ss);
+    //corrosive_engine_builder!(path "./src", update "task", fixed_update "ssss" in_group "example_task" if !"sss" ||  State::new && !( Resorse{main: "mahdi"}), package "ddd" );
+    //lll!(f);
+    /*corrosive_engine![
+        path "sss",
+        add u
+    ];*/
+    //e!(add update : ss, add Task);
 
     let mut last_time = Instant::now();
     let mut current_time = Instant::now();
@@ -68,8 +75,12 @@ fn main() {
     let la5: AtomicU8 = AtomicU8::new(0);
     let la6: AtomicU8 = AtomicU8::new(0);
 
-    let signal: RwLock<u8> = RwLock::new(0);
-    let signal_o: RwLock<u8> = RwLock::new(0);
+    let signal1: AtomicBool = AtomicBool::new(false);
+    let signal2: AtomicBool = AtomicBool::new(false);
+    let signal3: AtomicBool = AtomicBool::new(false);
+    let signal_o1: AtomicBool = AtomicBool::new(false);
+    let signal_o2: AtomicBool = AtomicBool::new(false);
+    let signal_o3: AtomicBool = AtomicBool::new(false);
 
     let resources: RwLock<MarkedResources> = RwLock::new(MarkedResources::default());
 
@@ -294,17 +305,13 @@ fn main() {
                             Res::new(&resources),
                             &f64::from_bits(delta_time.load(Ordering::Relaxed)),
                         );
-                        if o.0 {
-                            *(&signal_o).write().unwrap() |= 0b00000001;
-                        }
-                        if o.1 {
-                            *(&signal_o).write().unwrap() |= 0b00000010;
-                        }
+                        signal_o1.store(o.0, Ordering::Relaxed);
+                        signal_o2.store(o.0, Ordering::Relaxed);
                     });
-                    let u2 = if (*signal.read().unwrap() & 0b00000001 != 0
-                        && (*signal.read().unwrap() & 0b00000010 != 0
-                            || *signal.read().unwrap() & 0b00000100 != 0)
-                        && *state.read().unwrap() == StateExample::A)
+                    let u2 = if (signal1.load(Ordering::Relaxed)
+                        && (signal2.load(Ordering::Relaxed)
+                            || signal3.load(Ordering::Relaxed)
+                                && *state.read().unwrap() == StateExample::A))
                     {
                         Some(s.spawn(|| {
                             let o = update_task_signal(
@@ -528,9 +535,12 @@ fn main() {
                         write.extend(o6.write().unwrap().drain(..));
                     });
 
-                    *signal.write().unwrap() = *signal_o.read().unwrap();
-                    *signal_o.write().unwrap() = 0u8;
-                    *state.write().unwrap() = (*state_o.read().unwrap()).clone();
+                    signal1.store(signal_o1.load(Ordering::Relaxed), Ordering::Relaxed);
+                    signal2.store(signal_o2.load(Ordering::Relaxed), Ordering::Relaxed);
+                    signal3.store(signal_o3.load(Ordering::Relaxed), Ordering::Relaxed);
+                    signal_o1.store(false, Ordering::Relaxed);
+                    signal_o2.store(false, Ordering::Relaxed);
+                    signal_o3.store(false, Ordering::Relaxed);
 
                     m1.join().expect("TODO: panic message");
                     m2.join().expect("TODO: panic message");
