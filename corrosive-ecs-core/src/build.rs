@@ -498,7 +498,10 @@ pub mod tasks_scan {
                                         let mut elems: Vec<String> = elems
                                             .iter()
                                             .map(|elem| {
-                                                elem.to_token_stream().to_string().replace(" ", "")
+                                                elem.to_token_stream()
+                                                    .to_string()
+                                                    .replace(" ", "")
+                                                    .replace("&", "")
                                             })
                                             .collect();
                                         input_arch.push((name, elems));
@@ -651,6 +654,7 @@ pub mod app_scan {
         Setup(String),
     }
     pub struct AppPackage {
+        pub name: String,
         pub path: String,
         pub tasks: Vec<TaskType>,
         pub task_schedule: Vec<TaskSchedule>,
@@ -660,6 +664,7 @@ pub mod app_scan {
     impl Default for AppPackage {
         fn default() -> Self {
             AppPackage {
+                name: "main".to_string(),
                 path: "./src".to_string(),
                 tasks: vec![],
                 packages: vec![],
@@ -959,10 +964,11 @@ pub mod app_scan {
 }
 
 pub mod codegen {
+    use crate::build::app_scan::{AppPackage, TaskType};
+    use crate::build::components_scan::ComponentMap;
     use crate::build::tasks_scan::{Task, TaskMap};
-    use proc_macro2::{Ident, Punct, Spacing, Span, TokenStream};
-    use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
-    use serde_json::to_string;
+    use proc_macro2::TokenStream;
+    use quote::{quote, ToTokens};
     use std::collections::{HashMap, HashSet};
     use std::fmt::Debug;
     use std::fs::File;
@@ -984,6 +990,50 @@ pub mod codegen {
         input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
     }
 
+    pub enum Schedule {
+        Task(String),
+        Group(String, Vec<Schedule>),
+    }
+
+    pub struct AppMap {
+        arch_types: ArchTypes,
+        all_tasks: HashMap<String, Task>,
+        components: Vec<String>,
+        states: Vec<String>,
+        resources: Vec<String>,
+        signals: Vec<String>,
+    }
+
+    impl AppMap {
+        pub fn new(
+            app_packages: Vec<AppPackage>,
+            component_maps: Vec<ComponentMap>,
+            task_maps: Vec<TaskMap>,
+        ) {
+            let mut tasks: Vec<&TaskType>;
+
+            let mut packages: Vec<&str> = vec!["main"];
+            let mut index = 0;
+            while index < packages.len() {
+                let package = packages[index];
+                for app_package in &app_packages {
+                    if package == app_package.name {
+                        for v in &app_package.packages {
+                            if !packages.contains(&v.as_str()) {
+                                packages.push(v.as_str());
+                            }
+                        }
+                    }
+                }
+                index += 1;
+            }
+
+            /*for _ in main_app_package.task_schedule[0] {
+
+            }*/
+        }
+    }
+
     pub fn write_rust_file(token_stream: TokenStream, path: &str) -> io::Result<()> {
         let token_stream_str = token_stream.to_string();
 
@@ -993,13 +1043,15 @@ pub mod codegen {
         Ok(())
     }
 
-    pub fn get_all_archetypes(all_tasks: &HashMap<Task, String>) -> ArchTypes {
+    pub fn get_all_archetypes(task_map: &TaskMap) -> ArchTypes {
+        let all_tasks: HashMap<Task, String> = task_map.get_all();
+
         let mut archetypes: ArchTypes = ArchTypes {
             arch_types: vec![],
             tasks: HashMap::new(),
         };
 
-        for task in all_tasks {
+        for task in &all_tasks {
             for output_arch in &task.0.output_archs {
                 let output = output_arch
                     .iter()
@@ -1016,8 +1068,6 @@ pub mod codegen {
         for key in all_tasks.keys() {
             let mut index: usize = 0;
             for input_arch in &key.input_archs {
-                let Hash_archs: HashSet<&str> = input_arch.1.iter().map(|s| s.as_str()).collect();
-
                 match archetypes.tasks.get_mut(&key.name) {
                     Some(T) => T.push(TaskArchType {
                         arch_type_type: input_arch.1.clone(),
@@ -1099,10 +1149,10 @@ pub mod codegen {
         archetypes
     }
 
-    pub fn generate_prelude(
-        all_components: &HashMap<String, String>,
-        all_tasks: &HashMap<Task, String>,
-    ) -> TokenStream {
+    pub fn generate_prelude(component_map: &ComponentMap, task_map: &TaskMap) -> TokenStream {
+        let all_components: HashMap<String, String> = component_map.get_all();
+        let all_tasks: HashMap<Task, String> = task_map.get_all();
+
         let mut code: TokenStream = TokenStream::new();
 
         for component in all_components {
@@ -1117,17 +1167,17 @@ pub mod codegen {
         }
 
         quote! {
-            pub mod prelude {
             #code
             pub use crate::corrosive_engine::arch_types::arch_types::*;
             pub use corrosive_ecs_core::ecs_core::{Locked, LockedRef, Ref};
-            }
         }
     }
+
     pub fn generate_arch_types(arch_types: &ArchTypes) -> TokenStream {
         let mut code: TokenStream = TokenStream::new();
 
         for task in &arch_types.tasks {
+            let exact_name = parse_str::<TokenStream>(format!("\"{}\"", &task.0).as_str()).unwrap();
             for input_arch_type in task.1 {
                 let arch_type_name: TokenStream =
                     parse_str(format!("{}{}", &task.0, input_arch_type.task_index).as_str())
@@ -1157,13 +1207,13 @@ pub mod codegen {
                     for input_arch_type_index in &input_arch_type.1 {
                         let val: TokenStream =
                             parse_str(format!("{}", input_arch_type_index).as_str()).unwrap();
-                        iter_types.extend(quote! {&self.#var_name[current_index].#val,});
+                        iter_types.extend(quote! {&self.#var_name[index].#val,});
                     }
                     iter_code.extend(quote! {
-                    if current_index < self.#var_name.len() {
+                    if index < self.#var_name.len() {
                         return Some((#iter_types));
                     };
-                    current_index -= self.#var_name.len();
+                    index -= self.#var_name.len();
                                 });
 
                     members.extend(quote! {#var_name: &'a Vec<(#var_types)>,});
@@ -1204,8 +1254,7 @@ pub mod codegen {
                             #[derive(Copy, Clone)]
                             pub struct #arch_type_name<'a> {
                             #members
-                            pub len: usize,
-                            pub v_i: usize,
+                            len: usize,
                         }
                             impl<'a> #arch_type_name<'a> {
                     pub fn new(
@@ -1214,20 +1263,21 @@ pub mod codegen {
                         #arch_type_name {
                             #new_fn
                             len: #new_fn_len
-                            v_i: 0,
                         }
                     }
-
-                    pub fn remove(&self, mut index: usize) {
-                        #remove_fn
-                    }
                 }
-                impl<'a> Iterator for #arch_type_name<'a> {
-                    type Item = (#arch_type_type);
+                impl<'a> EngineArch<(#arch_type_type)> for #arch_type_name<'a> {
 
-                    fn next(&mut self) -> Option<Self::Item> {
-                        let mut current_index = self.v_i.clone();
-                        self.v_i += 1;
+                        fn remove(&self, mut index: usize) {
+                        #remove_fn
+                            eprintln!("Warning: index of out of {} is out of bounds",#exact_name);
+                    }
+
+                        fn len(&self) -> usize {
+                            self.len
+                        }
+
+                    fn get_item(&self, mut index: usize) -> Option<(#arch_type_type)> {
                         #iter_code
                         None
                     }
@@ -1237,13 +1287,12 @@ pub mod codegen {
         }
 
         quote! {
-                pub mod arch_types {
-        use crate::corrosive_engine::auto_prelude::prelude::*;
+        use crate::corrosive_engine::auto_prelude::*;
+        use corrosive_ecs_core::ecs_core::EngineArch;
         use std::collections::HashSet;
         use std::sync::RwLock;
                 #code
                 }
-            }
     }
 
     pub fn generate_task_body(stmts: &mut Vec<Stmt>) -> TokenStream {
@@ -1403,5 +1452,20 @@ pub mod codegen {
         }
 
         out_type
+    }
+
+    pub fn generate_app_body(
+        all_components: &HashMap<String, String>,
+        all_tasks: &HashMap<Task, String>,
+        app_map: &AppPackage,
+    ) -> TokenStream {
+        let mut tasks_hash: HashMap<&String, &Task> = HashMap::new();
+        all_tasks.iter().enumerate().for_each(|t| {
+            tasks_hash.insert(&t.1 .0.name, &t.1 .0);
+        });
+        let mut used_components: HashMap<String, String> = HashMap::new();
+        let mut used_tasks: HashMap<String, String> = HashMap::new();
+
+        TokenStream::new()
     }
 }

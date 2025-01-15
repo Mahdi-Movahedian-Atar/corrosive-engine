@@ -1,8 +1,9 @@
 pub mod task_macro {
-    use corrosive_ecs_core::build::codegen::generate_task_body;
+    use corrosive_ecs_core::build::codegen::{generate_task_body, write_rust_file};
     use corrosive_ecs_core::build::tasks_scan::get_task_input;
     use proc_macro2::TokenStream;
-    use quote::{quote, ToTokens};
+    use quote::{quote, quote_spanned, ToTokens};
+    use std::env;
     use syn::token::RArrow;
     use syn::{
         parse2, parse_macro_input, parse_quote, parse_str, Item, ItemFn, ReturnType, Stmt, Token,
@@ -13,7 +14,7 @@ pub mod task_macro {
         attr: proc_macro::TokenStream,
         item: proc_macro::TokenStream,
     ) -> proc_macro::TokenStream {
-        let c = item.clone();
+        let original = item.clone();
         let mut body = parse_macro_input!(item as ItemFn);
 
         let old_inputs = get_task_input(body.sig.inputs.clone());
@@ -22,9 +23,11 @@ pub mod task_macro {
         let mut index: usize = 0;
         for old_input in old_inputs.0 {
             let name: TokenStream = parse_str(old_input.0.as_str()).unwrap();
-            let type_name: TokenStream =
-                parse_str(format!("{}{}", body.sig.ident.to_string(), index).as_str()).unwrap();
-            new_input.extend(quote! {#name: corrosive_engine::arch_types::arch_types::#type_name,});
+            let mut i_type: TokenStream = TokenStream::new();
+            old_input.1.iter().for_each(|v| {
+                i_type.extend(parse_str::<TokenStream>(format!("&{},", v).as_str()).unwrap());
+            });
+            new_input.extend(quote! {#name: corrosive_ecs_core::ecs_core::Arch<(#i_type)>,});
 
             index += 1;
         }
@@ -46,28 +49,12 @@ pub mod task_macro {
         }
 
         body.sig.inputs = parse_quote! {#new_input};
+
         let out = generate_task_body(&mut body.block.stmts);
-
-        /*match &mut body.sig.output {
-            ReturnType::Default => {
-                // If the original return type is (), change it to String
-                body.sig.output = ReturnType::Type((syn::parse_quote!(->).span(), Box::new(syn::parse_quote!(String))), Box::new(()));
-            }
-            ReturnType::Type(_, ty) => {
-                *ty = syn::parse_quote!(Option<#ty>);
-            }
-        }
-
-        let a: RArrow = parse_quote!(->);
-        let v: Type = parse_quote!((#out));*/
         body.sig.output = ReturnType::Type(parse_quote!(->), Box::new(parse_quote!((#out))));
 
-        //println!("{}", generate_task_body(&mut body.block.stmts,).to_string());
-        //println!("{}", new_input.to_string());
+        let new_body: TokenStream = quote! {#body}.into();
 
-        let a: TokenStream = quote! {#body}.into();
-        //println!("{}", a.to_string());
-        //a.into();
-        c
+        original
     }
 }

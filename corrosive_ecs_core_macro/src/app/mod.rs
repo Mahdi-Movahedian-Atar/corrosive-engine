@@ -99,7 +99,7 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     let all_components = component_map.get_all();
     let all_tasks = task_map.get_all();
 
-    let auto_prelude_code = generate_prelude(&all_components, &all_tasks);
+    let auto_prelude_code = generate_prelude(&component_map, &task_map);
 
     write_rust_file(
         auto_prelude_code,
@@ -107,7 +107,7 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     )
     .expect("failed to create auto_prelude.ts");
 
-    let arch_types = get_all_archetypes(&all_tasks);
+    let arch_types = get_all_archetypes(&task_map);
     write_rust_file(
         generate_arch_types(&arch_types),
         format!("{}/corrosive-components/arch_types.rs", app_path).as_str(),

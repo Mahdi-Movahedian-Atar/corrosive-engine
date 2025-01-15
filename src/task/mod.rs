@@ -37,29 +37,26 @@ pub fn setup() -> (
             LockedRef::new(Position3 { x: 2.0, y: 2.0 }),
         ));
     }
-    add_entity!(Locked<Position1>= Position2 { x: 1.0, y: 1.0 });
+    add_entity!(Locked<Position1>= Locked::new(Position1 { x: 1.0, y: 1.0 }));
     (o1, o2)
 }
 
 //#[task]
-/*pub fn macro_test(
-    a: Arch<(Ref<Position2>, LockedRef<Position3>)>,
-    aa: Arch<(Ref<Position2>, LockedRef<Position3>)>,
-    b: Arch<LockedRef<Position3>>,
+pub fn macro_test(
+    b: Arch<(&LockedRef<Position3>,)>,
+    a: Arch<(&LockedRef<Position3>, &Ref<Position2>)>,
+    aa: Arch<(&Ref<Position2>, &LockedRef<Position3>)>,
     c: Res<MarkedResources>,
     d: State<StateExample>,
 ) {
-    let mut o1: Vec<(Ref<Position2>, LockedRef<Position3>)> = Vec::new();
-    let mut o2: Vec<(Ref<Position2>, Position4)> = Vec::new();
-
     add_entity!(Ref<Position2> = Ref::new(Position2 { x: 1.0, y: 1.0 }),LockedRef<Position3>= LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
     add_entity!(Ref<Position2> = Ref::new(Position2 { x: 1.0, y: 1.0 }),Position3= Position3 { x: 1.0, y: 1.0 },LockedRef<Position3>= LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
     add_entity!(LockedRef<Position3> = LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
     signal!("sss");
     reset!();
-}*/
+}
 
-pub fn macro_test(
+/*pub fn macro_test(
     a: corrosive_engine::arch_types::arch_types::macro_test0,
     aa: corrosive_engine::arch_types::arch_types::macro_test1,
     b: corrosive_engine::arch_types::arch_types::macro_test2,
@@ -98,7 +95,7 @@ pub fn macro_test(
         engine_signal_trigger,
     );
 }
-
+*/
 //#[task]
 pub fn setup1() -> (
     Vec<(Ref<Position2>, LockedRef<Position3>)>,
@@ -134,22 +131,23 @@ pub fn setup2() -> (Vec<Ref<Position2>>, Vec<(Locked<Position1>,)>) {
 }
 //#[task]
 pub fn update_task(
-    inp: TestUtArch,
+    inp: Arch<(&Locked<Position1>,)>,
     res: Res<MarkedResources>,
     delta_time: DeltaTime,
 ) -> (bool, bool) {
     let mut s1 = false;
     let mut s2 = false;
     let mut mark: usize = 0;
-    for x in inp {
+    let a = vec!["sss", "ddd"];
+    for x in inp.iter() {
         if x.0.read().unwrap().x == 10.0 {
             res.write().unwrap().0 = mark.clone();
             break;
         }
         mark += 1;
     }
-    println!("{:?},{}", inp.len, delta_time);
-    for i in mark..inp.len {
+    println!("{:?},{}", inp.len(), delta_time);
+    for i in mark..inp.len() {
         inp.remove(i);
     }
 
@@ -160,17 +158,15 @@ pub fn update_task_signal(inp: TestUtArch, inp2: TestUtArch2, sat: State<StateEx
     let mut rng = rand::thread_rng();
     let random_number: usize = rng.gen_range(0..10000);
 
-    *sat.write().unwrap() = StateExample::B;
-
     let mut mark: usize = 0;
-    for x in inp {
+    /*for x in &inp {
         if mark == random_number {
             *x.0.write().unwrap() = Position1 { x: 10.0, y: 10.0 };
             break;
         }
         println!("{:?}", sat.read().unwrap());
         mark += 1;
-    }
+    }*/
 }
 
 //#[task]

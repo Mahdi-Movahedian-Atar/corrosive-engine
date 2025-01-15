@@ -1,9 +1,11 @@
 pub mod arch_types {
-    use crate::corrosive_engine::auto_prelude::prelude::*;
+    use crate::corrosive_engine::auto_prelude::*;
+    use corrosive_ecs_core::ecs_core::{Arch, EngineArch};
+    use std::cell::UnsafeCell;
     use std::collections::HashSet;
+    use std::marker::PhantomData;
     use std::sync::RwLock;
 
-    #[derive(Copy, Clone)]
     pub struct TestUtArch<'a> {
         ve1: &'a Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
         ve2: &'a Vec<(Locked<Position1>, LockedRef<Position3>)>,
@@ -11,8 +13,48 @@ pub mod arch_types {
         rve1: &'a RwLock<HashSet<usize>>,
         rve2: &'a RwLock<HashSet<usize>>,
         rve3: &'a RwLock<HashSet<usize>>,
-        pub len: usize,
-        pub v_i: usize,
+        len: usize,
+    }
+    impl<'a> EngineArch<(&'a Locked<Position1>,)> for TestUtArch<'a> {
+        fn remove(&self, mut index: usize) {
+            if index < self.ve1.len() {
+                self.rve1.write().unwrap().insert(index);
+                return;
+            };
+            index -= self.ve1.len();
+            if index < self.ve2.len() {
+                self.rve2.write().unwrap().insert(index);
+                return;
+            };
+            index -= self.ve2.len();
+            if index < self.ve3.len() {
+                self.rve3.write().unwrap().insert(index);
+                return;
+            };
+            eprintln!(
+                "Warning: index of out of {} is out of bounds",
+                "this is test"
+            );
+        }
+
+        fn len(&self) -> usize {
+            self.len
+        }
+
+        fn get_item(&self, mut index: usize) -> Option<(&'a Locked<Position1>,)> {
+            if index < self.ve1.len() {
+                return Some((&self.ve1[index].0,));
+            };
+            index -= self.ve1.len();
+            if index < self.ve2.len() {
+                return Some((&self.ve2[index].0,));
+            };
+            index -= self.ve2.len();
+            if index < self.ve3.len() {
+                return Some((&self.ve3[index].0,));
+            };
+            None
+        }
     }
     impl<'a> TestUtArch<'a> {
         pub fn new(
@@ -31,45 +73,7 @@ pub mod arch_types {
                 rve2,
                 rve3,
                 len: ve1.len() + ve2.len() + ve3.len(),
-                v_i: 0,
             }
-        }
-
-        pub fn remove(&self, mut index: usize) {
-            if index < self.ve1.len() {
-                self.rve1.write().unwrap().insert(index);
-                return;
-            };
-            index -= self.ve1.len();
-            if index < self.ve2.len() {
-                self.rve2.write().unwrap().insert(index);
-                return;
-            };
-            index -= self.ve2.len();
-            if index < self.ve3.len() {
-                self.rve3.write().unwrap().insert(index);
-                return;
-            };
-        }
-    }
-    impl<'a> Iterator for TestUtArch<'a> {
-        type Item = (&'a Locked<Position1>,);
-
-        fn next(&mut self) -> Option<Self::Item> {
-            let mut current_index = self.v_i.clone();
-            self.v_i += 1;
-            if current_index < self.ve1.len() {
-                return Some((&self.ve1[current_index].0,));
-            };
-            current_index -= self.ve1.len();
-            if self.v_i < self.ve2.len() {
-                return Some((&self.ve2[current_index].0,));
-            };
-            current_index -= self.ve2.len();
-            if self.v_i < self.ve3.len() {
-                return Some((&self.ve3[current_index].0,));
-            };
-            None
         }
     }
     #[derive(Copy, Clone)]

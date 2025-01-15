@@ -16,9 +16,15 @@ mod comp;
 mod core_test;
 #[path = ".corrosive_engine/mod.rs"]
 mod corrosive_engine;
+
+#[path = "corrosive-components/arch_types.rs"]
+mod e;
 mod task;
 
-use corrosive_engine::auto_prelude::prelude::*;
+use crate::task::other_tasks::other_other_task::*;
+use crate::task::other_tasks::*;
+use crate::task::*;
+use corrosive_engine::auto_prelude::*;
 
 fn main() {
     //corrosive_engine!(| update , sss|, | ss);
@@ -294,14 +300,14 @@ fn main() {
                 let t1 = s.spawn(|| {
                     let u1 = s.spawn(|| {
                         let o = update_task(
-                            TestUtArch::new(
+                            Arch::new(&mut TestUtArch::new(
                                 &*a1.read().unwrap(),
                                 &*a2.read().unwrap(),
                                 &*a6.read().unwrap(),
                                 &or1,
                                 &or2,
                                 &or3,
-                            ),
+                            )),
                             Res::new(&resources),
                             &f64::from_bits(delta_time.load(Ordering::Relaxed)),
                         );
