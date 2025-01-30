@@ -326,16 +326,26 @@ pub mod tasks_scan {
     }
 
     impl TaskMap {
-        pub fn get_all(&self) -> HashMap<Task, String> {
+        pub fn get_all_with_path(&self) -> HashMap<Task, String> {
             let mut data: HashMap<Task, String> = HashMap::new();
             let path = self.path.as_path().iter().last().unwrap().to_str().unwrap();
             for i in &self.tasks {
                 data.insert(i.clone(), format!("{}::{}", path, i.name).to_string());
             }
             for i in &self.sub_maps {
-                for i in i.get_all() {
+                for i in i.get_all_with_path() {
                     data.insert(i.0, format!("{}::{}", path, i.1).to_string());
                 }
+            }
+            data
+        }
+        pub fn get_all(&self) -> HashMap<String, Task> {
+            let mut data: HashMap<String, Task> = HashMap::new();
+            for i in &self.tasks {
+                data.insert(i.name.clone(), i.clone());
+            }
+            for i in &self.sub_maps {
+                data.extend(i.get_all());
             }
             data
         }
@@ -620,18 +630,19 @@ pub mod tasks_scan {
 pub mod app_scan {
     use proc_macro2::{TokenStream, TokenTree};
     use quote::{quote, quote_spanned, ToTokens};
+    use std::collections::{HashMap, HashSet};
     use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
     use syn::token::{Group, Paren};
     use syn::Stmt::Expr;
     use syn::{braced, Error, Ident, Lit, LitStr, Token};
 
-    #[derive(Debug)]
+    #[derive(Debug, Eq, PartialEq, Clone)]
     pub enum LogicalOperator {
         And,
         Or,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Eq, PartialEq, Clone)]
     pub enum LogicalExpression {
         Signal(String),
         State(String, String),
@@ -639,6 +650,7 @@ pub mod app_scan {
         Not(Box<LogicalExpression>),
         Grouped(Vec<LogicalExpression>),
     }
+    #[derive(Debug)]
     pub enum TaskSchedule {
         BeforeTask(String),
         BeforeGroup(String),
@@ -646,6 +658,7 @@ pub mod app_scan {
         AfterGroup(String),
         In(String),
     }
+    #[derive(Debug, PartialEq, Eq, Clone)]
     pub enum TaskType {
         Update(String),
         Fixed(String),
@@ -653,12 +666,14 @@ pub mod app_scan {
         Long(String),
         Setup(String),
     }
+    #[derive(Debug)]
     pub struct AppPackage {
         pub name: String,
         pub path: String,
         pub tasks: Vec<TaskType>,
         pub task_schedule: Vec<TaskSchedule>,
         pub task_conditions: Vec<Option<LogicalExpression>>,
+        pub groups: HashMap<String, TaskSchedule>,
         pub packages: Vec<String>,
     }
     impl Default for AppPackage {
@@ -667,6 +682,7 @@ pub mod app_scan {
                 name: "main".to_string(),
                 path: "./src".to_string(),
                 tasks: vec![],
+                groups: HashMap::new(),
                 packages: vec![],
                 task_schedule: vec![],
                 task_conditions: vec![],
@@ -830,6 +846,101 @@ pub mod app_scan {
                         ));
                     }
                 },
+                "group" => match input.parse::<Lit>() {
+                    Ok(Lit::Str(J)) => {
+                        let ident: Ident = match input.parse::<Ident>() {
+                            Ok(T) => T,
+                            Err(E) => {
+                                return Err(Error::new_spanned(
+                                    E.into_compile_error(),
+                                    "Expected and Ident",
+                                ));
+                            }
+                        };
+                        match ident.to_string().as_str() {
+                            "before" => match input.parse::<Lit>() {
+                                Ok(Lit::Str(T)) => app_package
+                                    .groups
+                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
+                                T => {
+                                    return Err(Error::new_spanned(
+                                        match T {
+                                            Ok(T) => { T.to_token_stream() }
+                                            Err(E) => {E.into_compile_error()}
+                                        },
+                                        "String literal of name of a task.\nExample: (group \"example_group\" before \"example_task\")"));
+                                }
+                            },
+                            "before_group" => match input.parse::<Lit>() {
+                                Ok(Lit::Str(T)) => app_package
+                                    .groups
+                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
+                                T => {
+                                    return Err(Error::new_spanned(
+                                        match T {
+                                            Ok(T) => { T.to_token_stream() }
+                                            Err(E) => {E.into_compile_error()}
+                                        },
+                                        "String literal of name of a group.\nExample: (group \"example_group\" before_group \"example_group\")"));
+                                }
+                            },
+                            "after" => match input.parse::<Lit>() {
+                                Ok(Lit::Str(T)) => app_package
+                                    .groups
+                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
+                                T => {
+                                    return Err(Error::new_spanned(
+                                        match T {
+                                            Ok(T) => { T.to_token_stream() }
+                                            Err(E) => {E.into_compile_error()}
+                                        },
+                                        "String literal of name of a task.\nExample: (group \"example_group\" after \"example_task\")"));
+                                }
+                            },
+                            "after_group" => match input.parse::<Lit>() {
+                                Ok(Lit::Str(T)) => app_package
+                                    .groups
+                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
+                                T => {
+                                    return Err(Error::new_spanned(
+                                        match T {
+                                            Ok(T) => { T.to_token_stream() }
+                                            Err(E) => {E.into_compile_error()}
+                                        },
+                                        "String literal of name of a group.\nExample: (group \"example_group\" after_group \"example_group\")"));
+                                }
+                            },
+                            "in_group" => match input.parse::<Lit>() {
+                                Ok(Lit::Str(T)) => app_package
+                                    .groups
+                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
+                                T => {
+                                    return Err(Error::new_spanned(
+                                        match T {
+                                            Ok(T) => T.to_token_stream(),
+                                            Err(E) => E.into_compile_error(),
+                                        },
+                                        "String literal of name of a group.\nExample: (group \"example_group\" in_group \"example_group\")",
+                                    ));
+                                }
+                            },
+                            _ => {
+                                return Err(Error::new_spanned(
+                                    ident,
+                                    "Exacted before, after, before_group, after_group or in_group.",
+                                ));
+                            }
+                        };
+                    }
+                    T => {
+                        return Err(Error::new_spanned(
+                            match T {
+                                Ok(T) => { T.to_token_stream() }
+                                Err(E) => {E.into_compile_error()}
+                            },
+                            "String literal of name of a group.\nExample: (group \"group_name\" before \"another_group\")"));
+                    }
+                },
                 "package" => match input.parse::<Lit>() {
                     Ok(Lit::Str(T)) => app_package.packages.push(T.value()),
                     T => {
@@ -844,7 +955,7 @@ pub mod app_scan {
                 _ => {
                     return Err(Error::new_spanned(
                 ident,
-                "Exacted path, update, fixed_update, sync_update, long_update, setup or package."));
+                "Exacted path, update, fixed_update, sync_update, long_update, setup, group or package."));
                 }
             }
 
@@ -884,7 +995,7 @@ pub mod app_scan {
                                 Ok(T) => { T.to_token_stream() }
                                 Err(E) => {E.into_compile_error()}
                             },
-                            "String literal of name of a group.\nExample: (update \"example_task\" before \"example_group\")"));
+                            "String literal of name of a group.\nExample: (update \"example_task\" before_group \"example_group\")"));
                             }
                         },
                         "after" => match input.parse::<Lit>() {
@@ -910,7 +1021,7 @@ pub mod app_scan {
                                 Ok(T) => { T.to_token_stream() }
                                 Err(E) => {E.into_compile_error()}
                             },
-                            "String literal of name of a group.\nExample: (update \"example_task\" after \"example_group\")"));
+                            "String literal of name of a group.\nExample: (update \"example_task\" after_group \"example_group\")"));
                             }
                         },
                         "in_group" => match input.parse::<Lit>() {
@@ -930,7 +1041,7 @@ pub mod app_scan {
                         _ => {
                             return Err(Error::new_spanned(
                                 ident,
-                                "Exacted before, after, before_group, after_group and in.",
+                                "Exacted before, after, before_group, after_group or in_group.",
                             ));
                         }
                     }
@@ -956,6 +1067,9 @@ pub mod app_scan {
                 let sub: AppPackage = input.parse()?;
                 app_package.tasks.extend(sub.tasks);
                 app_package.packages.extend(sub.packages);
+                app_package.task_schedule.extend(sub.task_schedule);
+                app_package.task_conditions.extend(sub.task_conditions);
+                app_package.groups.extend(sub.groups);
             }
 
             Ok(app_package)
@@ -964,15 +1078,17 @@ pub mod app_scan {
 }
 
 pub mod codegen {
-    use crate::build::app_scan::{AppPackage, TaskType};
+    use crate::build::app_scan::{AppPackage, LogicalExpression, TaskSchedule, TaskType};
     use crate::build::components_scan::ComponentMap;
     use crate::build::tasks_scan::{Task, TaskMap};
     use proc_macro2::TokenStream;
     use quote::{quote, ToTokens};
+    use std::cmp::PartialEq;
     use std::collections::{HashMap, HashSet};
     use std::fmt::Debug;
     use std::fs::File;
     use std::io::Write;
+    use std::iter::zip;
     use std::ops::Index;
     use std::{fs, io, vec};
     use syn::spanned::Spanned;
@@ -990,30 +1106,46 @@ pub mod codegen {
         input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
     }
 
+    #[derive(PartialEq, Eq)]
     pub enum Schedule {
-        Task(String),
+        Task(Option<LogicalExpression>, TaskType),
         Group(String, Vec<Schedule>),
+        Conditions(Schedule, Vec<Schedule>),
+    }
+
+    struct ScheduleStructure {
+        tasks: HashSet<String>,
+        groups: HashSet<String>,
+        schedule: Schedule
     }
 
     pub struct AppMap {
         arch_types: ArchTypes,
-        all_tasks: HashMap<String, Task>,
-        components: Vec<String>,
+        runtime_tasks: Schedule,
+        startup_tasks: Schedule,
+        tasks: HashMap<String, Task>,
         states: Vec<String>,
         resources: Vec<String>,
         signals: Vec<String>,
     }
 
     impl AppMap {
-        pub fn new(
-            app_packages: Vec<AppPackage>,
-            component_maps: Vec<ComponentMap>,
-            task_maps: Vec<TaskMap>,
-        ) {
-            let mut tasks: Vec<&TaskType>;
+        pub fn new(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
+            //let mut runtime_tasks: Vec<HashMap<,Schedule>> = vec![vec![]];
+            let mut startup_tasks: Vec<Vec<Schedule>> =vec![vec![]];
+
+            let mut tasks_types: Vec<&TaskType> = vec![];
+            let mut tasks_schedule: Vec<&TaskSchedule> = vec![];
+            let mut tasks_logical: Vec<&Option<LogicalExpression>> = vec![];
+            let mut groups: HashMap<&String, &TaskSchedule> = HashMap::new();
+            let tasks: HashMap<String, Task> = task_maps
+                .into_iter()
+                .flat_map(|task_map| task_map.get_all())
+                .collect();
 
             let mut packages: Vec<&str> = vec!["main"];
             let mut index = 0;
+
             while index < packages.len() {
                 let package = packages[index];
                 for app_package in &app_packages {
@@ -1023,9 +1155,47 @@ pub mod codegen {
                                 packages.push(v.as_str());
                             }
                         }
+                        app_package.tasks.iter().for_each(|x| tasks_types.push(x));
+                        app_package
+                            .task_schedule
+                            .iter()
+                            .for_each(|x| tasks_schedule.push(x));
+                        app_package
+                            .task_conditions
+                            .iter()
+                            .for_each(|x| tasks_logical.push(x));
+                        app_package.groups.iter().for_each(|x| {
+                            if !groups.contains_key(x.0) {
+                                groups.insert(x.0, x.1);
+                            }
+                        })
                     }
                 }
                 index += 1;
+            }
+
+            println!("{:?}", tasks_types);
+            println!("{:?}", tasks_schedule);
+            println!("{:?}", tasks_logical);
+            println!("{:?}", groups);
+            println!("{:?}", tasks.keys());
+
+            'outer: for i in 0..tasks_schedule.len() {
+                let p1: (usize,usize) = (0,0);
+                let p2: (usize,usize) = (0,0);
+
+                match tasks_schedule[i] {
+                    TaskSchedule::In(T)=>{
+                        if let TaskType::Setup(T)= tasks_types[i] {
+                            for j in 0..startup_tasks.len() {
+                                for k in 0..startup_tasks[j].len() {
+
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             }
 
             /*for _ in main_app_package.task_schedule[0] {
@@ -1044,7 +1214,7 @@ pub mod codegen {
     }
 
     pub fn get_all_archetypes(task_map: &TaskMap) -> ArchTypes {
-        let all_tasks: HashMap<Task, String> = task_map.get_all();
+        let all_tasks: HashMap<Task, String> = task_map.get_all_with_path();
 
         let mut archetypes: ArchTypes = ArchTypes {
             arch_types: vec![],
@@ -1151,7 +1321,7 @@ pub mod codegen {
 
     pub fn generate_prelude(component_map: &ComponentMap, task_map: &TaskMap) -> TokenStream {
         let all_components: HashMap<String, String> = component_map.get_all();
-        let all_tasks: HashMap<Task, String> = task_map.get_all();
+        let all_tasks: HashMap<Task, String> = task_map.get_all_with_path();
 
         let mut code: TokenStream = TokenStream::new();
 
@@ -1169,7 +1339,7 @@ pub mod codegen {
         quote! {
             #code
             pub use crate::corrosive_engine::arch_types::arch_types::*;
-            pub use corrosive_ecs_core::ecs_core::{Locked, LockedRef, Ref};
+            pub use corrosive_ecs_core::ecs_core::{State, Res, Arch, Locked, LockedRef, Ref};
         }
     }
 

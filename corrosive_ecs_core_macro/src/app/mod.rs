@@ -1,6 +1,6 @@
 use corrosive_ecs_core::build::app_scan::AppPackage;
 use corrosive_ecs_core::build::codegen::{
-    generate_arch_types, generate_prelude, get_all_archetypes, write_rust_file,
+    generate_arch_types, generate_prelude, get_all_archetypes, write_rust_file, AppMap,
 };
 use corrosive_ecs_core::build::components_scan::{
     get_component_map, scan_components, write_component_map,
@@ -97,7 +97,7 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     .expect("Filed to write path map file");
 
     let all_components = component_map.get_all();
-    let all_tasks = task_map.get_all();
+    let all_tasks = task_map.get_all_with_path();
 
     let auto_prelude_code = generate_prelude(&component_map, &task_map);
 
@@ -113,6 +113,8 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
         format!("{}/corrosive-components/arch_types.rs", app_path).as_str(),
     )
     .expect("failed to create arch_types.ts");
+
+    AppMap::new(vec![args], vec![task_map]);
 
     TokenStream::new()
 }

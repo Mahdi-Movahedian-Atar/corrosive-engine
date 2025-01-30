@@ -4,7 +4,6 @@ pub mod build;
 #[cfg(feature = "core")]
 pub mod ecs_core {
     use crate::ecs_core::Reference::Expired;
-    use std::cell::UnsafeCell;
     use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
     pub enum Reference<T> {

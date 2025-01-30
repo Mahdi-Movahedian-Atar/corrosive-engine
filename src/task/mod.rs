@@ -7,8 +7,6 @@ use corrosive_ecs_core::ecs_core::{Arch, DeltaTime, Locked, LockedRef, Ref, Res,
 use corrosive_ecs_core::{add_entity, reset, signal};
 use corrosive_ecs_core_macro::task;
 use rand::Rng;
-use std::collections::HashSet;
-use std::sync::RwLock;
 
 //#[task]
 pub fn setup() -> (
@@ -41,7 +39,7 @@ pub fn setup() -> (
     (o1, o2)
 }
 
-//#[task]
+#[task]
 pub fn macro_test(
     b: Arch<(&LockedRef<Position3>,)>,
     a: Arch<(&LockedRef<Position3>, &Ref<Position2>)>,

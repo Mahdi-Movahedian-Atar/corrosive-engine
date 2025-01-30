@@ -1,6 +1,5 @@
 #![allow(warnings)]
 
-use corrosive_ecs_core::ecs_core::*;
 use corrosive_ecs_core_macro::corrosive_engine_builder;
 use std::cmp::PartialEq;
 use std::collections::HashSet;
@@ -28,7 +27,7 @@ use corrosive_engine::auto_prelude::*;
 
 fn main() {
     //corrosive_engine!(| update , sss|, | ss);
-    //corrosive_engine_builder!(path "./src", update "task", fixed_update "ssss" in_group "example_task" if !"sss" ||  State::new && !( Resorse{main: "mahdi"}), package "ddd" );
+    corrosive_engine_builder!(path "./src", update "task", fixed_update "ssss" in_group "example_task" if !"sss" ||  State::new && !( Resorse{main: "mahdi"}), package "ddd", group "example_task" before "ssss" );
     //lll!(f);
     /*corrosive_engine![
         path "sss",
