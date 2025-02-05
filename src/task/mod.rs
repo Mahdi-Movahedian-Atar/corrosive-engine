@@ -8,7 +8,7 @@ use corrosive_ecs_core::{add_entity, reset, signal};
 use corrosive_ecs_core_macro::task;
 use rand::Rng;
 
-//#[task]
+#[task]
 pub fn setup() -> (
     Vec<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
     Vec<(Locked<Position1>, LockedRef<Position3>)>,

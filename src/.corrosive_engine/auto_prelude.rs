@@ -1,7 +1,10 @@
-pub use crate :: comp :: Position1; pub use crate :: comp :: sub ::
-StateExample; pub use crate :: comp :: sub :: Position3; pub use crate :: comp
-:: sub :: MarkedResources; pub use crate :: comp :: sub :: Position4; pub use
-crate :: comp :: Position2; pub use crate :: task :: macro_test; pub use crate
-:: corrosive_engine :: arch_types :: arch_types :: * ; pub use
-corrosive_ecs_core :: ecs_core ::
-{ State, Res, Arch, Locked, LockedRef, Ref };
+pub use crate::comp::sub::MarkedResources;
+pub use crate::comp::sub::Position3;
+pub use crate::comp::sub::Position4;
+pub use crate::comp::sub::StateExample;
+pub use crate::comp::Position1;
+pub use crate::comp::Position2;
+pub use crate::corrosive_engine::arch_types::arch_types::*;
+pub use crate::task::macro_test;
+pub use crate::task::setup;
+pub use corrosive_ecs_core::ecs_core::{Arch, Locked, LockedRef, Ref, Res, State};

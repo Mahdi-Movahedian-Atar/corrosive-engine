@@ -630,7 +630,8 @@ pub mod tasks_scan {
 pub mod app_scan {
     use proc_macro2::{TokenStream, TokenTree};
     use quote::{quote, quote_spanned, ToTokens};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{HashMap, HashSet, VecDeque};
+    use std::ops::Deref;
     use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
     use syn::token::{Group, Paren};
     use syn::Stmt::Expr;
@@ -641,7 +642,6 @@ pub mod app_scan {
         And,
         Or,
     }
-
     #[derive(Debug, Eq, PartialEq, Clone)]
     pub enum LogicalExpression {
         Signal(String),
@@ -650,30 +650,101 @@ pub mod app_scan {
         Not(Box<LogicalExpression>),
         Grouped(Vec<LogicalExpression>),
     }
-    #[derive(Debug)]
-    pub enum TaskSchedule {
-        BeforeTask(String),
-        BeforeGroup(String),
-        AfterTask(String),
-        AfterGroup(String),
-        In(String),
-    }
-    #[derive(Debug, PartialEq, Eq, Clone)]
+    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
     pub enum TaskType {
-        Update(String),
-        Fixed(String),
-        Sync(String),
-        Long(String),
-        Setup(String),
+        Update,
+        Fixed,
+        Sync,
+        Long,
+        Setup,
+    }
+    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    pub enum DependencyGraphNode {
+        GroupStart(String),
+        GroupEnd(String),
+        Task(String),
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DependencyGraph {
+        pub dependents: HashMap<DependencyGraphNode, Vec<DependencyGraphNode>>,
+        pub in_degrees: HashMap<DependencyGraphNode, usize>,
+    }
+    impl DependencyGraph {
+        pub fn new() -> Self {
+            DependencyGraph {
+                dependents: HashMap::new(),
+                in_degrees: HashMap::new(),
+            }
+        }
+
+        pub fn add_node(&mut self, node: DependencyGraphNode) {
+            self.dependents.entry(node.clone()).or_default();
+            self.in_degrees.entry(node).or_insert(0);
+        }
+
+        pub fn add_dependency(&mut self, to: DependencyGraphNode, from: DependencyGraphNode) {
+            self.dependents
+                .entry(to.clone())
+                .or_default()
+                .push(from.clone());
+
+            *self.in_degrees.entry(from.clone()).or_insert(0) += 1;
+            self.in_degrees.entry(to.clone()).or_insert(0);
+        }
+
+        pub fn merge(&mut self, other: &Self) {
+            for node in other.in_degrees.keys() {
+                self.add_node(node.clone());
+            }
+
+            for (to, dependents) in &other.dependents {
+                for from in dependents {
+                    self.add_dependency(from.clone(), to.clone());
+                }
+            }
+        }
+
+        pub fn topological_sort(&self) -> core::result::Result<Vec<DependencyGraphNode>, &str> {
+            let mut in_degrees = self.in_degrees.clone();
+            let mut dependents = self.dependents.clone();
+            let mut queue = VecDeque::new();
+
+            for (node, &degree) in &in_degrees {
+                if degree == 0 {
+                    queue.push_back(node.clone());
+                }
+            }
+
+            let mut sorted = Vec::new();
+            while let Some(node) = queue.pop_front() {
+                sorted.push(node.clone());
+
+                if let Some(dependent_nodes) = dependents.get(&node) {
+                    for dependent in dependent_nodes {
+                        if let Some(degree) = in_degrees.get_mut(dependent) {
+                            *degree -= 1;
+                            if *degree == 0 {
+                                queue.push_back(dependent.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
+            if sorted.len() == self.in_degrees.len() {
+                Ok(sorted)
+            } else {
+                Err("Circular dependency detected")
+            }
+        }
     }
     #[derive(Debug)]
     pub struct AppPackage {
         pub name: String,
         pub path: String,
-        pub tasks: Vec<TaskType>,
-        pub task_schedule: Vec<TaskSchedule>,
-        pub task_conditions: Vec<Option<LogicalExpression>>,
-        pub groups: HashMap<String, TaskSchedule>,
+        pub setup_dependency: DependencyGraph,
+        pub runtime_dependency: DependencyGraph,
+        pub tasks: HashMap<String, (TaskType, Option<LogicalExpression>)>,
         pub packages: Vec<String>,
     }
     impl Default for AppPackage {
@@ -681,11 +752,10 @@ pub mod app_scan {
             AppPackage {
                 name: "main".to_string(),
                 path: "./src".to_string(),
-                tasks: vec![],
-                groups: HashMap::new(),
+                setup_dependency: DependencyGraph::new(),
+                runtime_dependency: DependencyGraph::new(),
+                tasks: HashMap::new(),
                 packages: vec![],
-                task_schedule: vec![],
-                task_conditions: vec![],
             }
         }
     }
@@ -764,6 +834,10 @@ pub mod app_scan {
     impl Parse for AppPackage {
         fn parse(input: ParseStream) -> Result<Self> {
             let mut app_package: AppPackage = AppPackage::default();
+            let mut task_name: Option<(String, TaskType)> = None;
+            let mut is_setup = false;
+            let mut nodes: Vec<DependencyGraphNode> = vec![];
+            let mut dependencies: Vec<(DependencyGraphNode, DependencyGraphNode)> = vec![];
 
             let ident: Ident = match input.parse::<Ident>() {
                 Ok(T) => T,
@@ -790,7 +864,7 @@ pub mod app_scan {
                     }
                 },
                 "update" => match input.parse::<Lit>() {
-                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Update(T.value())),
+                    Ok(Lit::Str(T)) => task_name = Some((T.value(), TaskType::Update)),
                     T => {
                         return Err(Error::new_spanned(
                             match T {
@@ -802,7 +876,7 @@ pub mod app_scan {
                     }
                 },
                 "fixed_update" => match input.parse::<Lit>() {
-                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Fixed(T.value())),
+                    Ok(Lit::Str(T)) => task_name = Some((T.value(), TaskType::Fixed)),
                     T => {
                         return Err(Error::new_spanned(
                         match T {
@@ -813,7 +887,7 @@ pub mod app_scan {
                     }
                 },
                 "sync_update" => match input.parse::<Lit>() {
-                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Sync(T.value())),
+                    Ok(Lit::Str(T)) => task_name = Some((T.value(), TaskType::Sync)),
                     T => {
                         return Err(Error::new_spanned(
                         match T {
@@ -824,7 +898,7 @@ pub mod app_scan {
                     }
                 },
                 "long_update" => match input.parse::<Lit>() {
-                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Long(T.value())),
+                    Ok(Lit::Str(T)) => task_name = Some((T.value(), TaskType::Long)),
                     T => {
                         return Err(Error::new_spanned(
                         match T {
@@ -835,7 +909,10 @@ pub mod app_scan {
                     }
                 },
                 "setup" => match input.parse::<Lit>() {
-                    Ok(Lit::Str(T)) => app_package.tasks.push(TaskType::Setup(T.value())),
+                    Ok(Lit::Str(T)) => {
+                        is_setup = true;
+                        task_name = Some((T.value(), TaskType::Setup))
+                    }
                     T => {
                         return Err(Error::new_spanned(
                             match T {
@@ -846,101 +923,160 @@ pub mod app_scan {
                         ));
                     }
                 },
-                "group" => match input.parse::<Lit>() {
-                    Ok(Lit::Str(J)) => {
-                        let ident: Ident = match input.parse::<Ident>() {
-                            Ok(T) => T,
+                "group" => {
+                    if input.peek(syn::Ident) {
+                        match input.parse::<Ident>() {
+                            Ok(T) => {
+                                if (T.to_string().as_str()) == "setup" {
+                                    is_setup = true
+                                } else {
+                                    return Err(Error::new_spanned(
+                                T.to_token_stream(),
+                                "Expected setup.\nExample: (group setup \"example_group\" before \"example_task\")"));
+                                }
+                            }
                             Err(E) => {
                                 return Err(Error::new_spanned(
                                     E.into_compile_error(),
-                                    "Expected and Ident",
+                                    "Expected setup.\nExample: (group setup \"example_group\" before \"example_task\")",
                                 ));
                             }
                         };
-                        match ident.to_string().as_str() {
-                            "before" => match input.parse::<Lit>() {
-                                Ok(Lit::Str(T)) => app_package
-                                    .groups
-                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
-                                T => {
+                    }
+
+                    match input.parse::<Lit>() {
+                        Ok(Lit::Str(J)) => {
+                            let ident: Ident = match input.parse::<Ident>() {
+                                Ok(T) => T,
+                                Err(E) => {
                                     return Err(Error::new_spanned(
-                                        match T {
-                                            Ok(T) => { T.to_token_stream() }
-                                            Err(E) => {E.into_compile_error()}
-                                        },
-                                        "String literal of name of a task.\nExample: (group \"example_group\" before \"example_task\")"));
-                                }
-                            },
-                            "before_group" => match input.parse::<Lit>() {
-                                Ok(Lit::Str(T)) => app_package
-                                    .groups
-                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
-                                T => {
-                                    return Err(Error::new_spanned(
-                                        match T {
-                                            Ok(T) => { T.to_token_stream() }
-                                            Err(E) => {E.into_compile_error()}
-                                        },
-                                        "String literal of name of a group.\nExample: (group \"example_group\" before_group \"example_group\")"));
-                                }
-                            },
-                            "after" => match input.parse::<Lit>() {
-                                Ok(Lit::Str(T)) => app_package
-                                    .groups
-                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
-                                T => {
-                                    return Err(Error::new_spanned(
-                                        match T {
-                                            Ok(T) => { T.to_token_stream() }
-                                            Err(E) => {E.into_compile_error()}
-                                        },
-                                        "String literal of name of a task.\nExample: (group \"example_group\" after \"example_task\")"));
-                                }
-                            },
-                            "after_group" => match input.parse::<Lit>() {
-                                Ok(Lit::Str(T)) => app_package
-                                    .groups
-                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
-                                T => {
-                                    return Err(Error::new_spanned(
-                                        match T {
-                                            Ok(T) => { T.to_token_stream() }
-                                            Err(E) => {E.into_compile_error()}
-                                        },
-                                        "String literal of name of a group.\nExample: (group \"example_group\" after_group \"example_group\")"));
-                                }
-                            },
-                            "in_group" => match input.parse::<Lit>() {
-                                Ok(Lit::Str(T)) => app_package
-                                    .groups
-                                    .insert(J.value(), TaskSchedule::BeforeTask(T.value())),
-                                T => {
-                                    return Err(Error::new_spanned(
-                                        match T {
-                                            Ok(T) => T.to_token_stream(),
-                                            Err(E) => E.into_compile_error(),
-                                        },
-                                        "String literal of name of a group.\nExample: (group \"example_group\" in_group \"example_group\")",
+                                        E.into_compile_error(),
+                                        "Expected an Ident",
                                     ));
                                 }
-                            },
-                            _ => {
-                                return Err(Error::new_spanned(
-                                    ident,
-                                    "Exacted before, after, before_group, after_group or in_group.",
-                                ));
-                            }
-                        };
+                            };
+                            match ident.to_string().as_str() {
+                                "before" => match input.parse::<Lit>() {
+                                    Ok(Lit::Str(T)) => {
+                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
+                                        nodes.push(DependencyGraphNode::Task(T.value()));
+                                        dependencies.push((
+                                            DependencyGraphNode::GroupEnd(J.value()),
+                                            DependencyGraphNode::Task(T.value()),
+                                        ));
+                                    }
+                                    T => {
+                                        return Err(Error::new_spanned(
+                                            match T {
+                                                Ok(T) => { T.to_token_stream() }
+                                                Err(E) => { E.into_compile_error() }
+                                            },
+                                            "String literal of name of a task.\nExample: (group \"example_group\" before \"example_task\")"));
+                                    }
+                                },
+                                "before_group" => match input.parse::<Lit>() {
+                                    Ok(Lit::Str(T)) => {
+                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupStart(T.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                        dependencies.push((
+                                            DependencyGraphNode::GroupEnd(J.value()),
+                                            DependencyGraphNode::GroupStart(T.value()),
+                                        ));
+                                    }
+                                    T => {
+                                        return Err(Error::new_spanned(
+                                            match T {
+                                                Ok(T) => { T.to_token_stream() }
+                                                Err(E) => { E.into_compile_error() }
+                                            },
+                                            "String literal of name of a group.\nExample: (group \"example_group\" before_group \"example_group\")"));
+                                    }
+                                },
+                                "after" => match input.parse::<Lit>() {
+                                    Ok(Lit::Str(T)) => {
+                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
+                                        nodes.push(DependencyGraphNode::Task(T.value()));
+                                        dependencies.push((
+                                            DependencyGraphNode::Task(T.value()),
+                                            DependencyGraphNode::GroupStart(J.value()),
+                                        ));
+                                    }
+                                    T => {
+                                        return Err(Error::new_spanned(
+                                            match T {
+                                                Ok(T) => { T.to_token_stream() }
+                                                Err(E) => { E.into_compile_error() }
+                                            },
+                                            "String literal of name of a task.\nExample: (group \"example_group\" after \"example_task\")"));
+                                    }
+                                },
+                                "after_group" => match input.parse::<Lit>() {
+                                    Ok(Lit::Str(T)) => {
+                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupStart(T.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                        dependencies.push((
+                                            DependencyGraphNode::GroupEnd(T.value()),
+                                            DependencyGraphNode::GroupStart(J.value()),
+                                        ));
+                                    }
+                                    T => {
+                                        return Err(Error::new_spanned(
+                                            match T {
+                                                Ok(T) => { T.to_token_stream() }
+                                                Err(E) => { E.into_compile_error() }
+                                            },
+                                            "String literal of name of a group.\nExample: (group \"example_group\" after_group \"example_group\")"));
+                                    }
+                                },
+                                "in_group" => match input.parse::<Lit>() {
+                                    Ok(Lit::Str(T)) => {
+                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
+                                        nodes.push(DependencyGraphNode::GroupStart(T.value()));
+                                        nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                        dependencies.push((
+                                            DependencyGraphNode::GroupStart(T.value()),
+                                            DependencyGraphNode::GroupStart(J.value()),
+                                        ));
+                                        dependencies.push((
+                                            DependencyGraphNode::GroupEnd(J.value()),
+                                            DependencyGraphNode::GroupEnd(T.value()),
+                                        ));
+                                    }
+                                    T => {
+                                        return Err(Error::new_spanned(
+                                            match T {
+                                                Ok(T) => T.to_token_stream(),
+                                                Err(E) => E.into_compile_error(),
+                                            },
+                                            "String literal of name of a group.\nExample: (group \"example_group\" in_group \"example_group\")",
+                                        ));
+                                    }
+                                },
+                                _ => {
+                                    return Err(Error::new_spanned(
+                                        ident,
+                                        "Expected before, after, before_group, after_group or in_group.",
+                                    ));
+                                }
+                            };
+                        }
+                        T => {
+                            return Err(Error::new_spanned(
+                                match T {
+                                    Ok(T) => { T.to_token_stream() }
+                                    Err(E) => { E.into_compile_error() }
+                                },
+                                "String literal of name of a group.\nExample: (group \"group_name\" before \"another_group\")"));
+                        }
                     }
-                    T => {
-                        return Err(Error::new_spanned(
-                            match T {
-                                Ok(T) => { T.to_token_stream() }
-                                Err(E) => {E.into_compile_error()}
-                            },
-                            "String literal of name of a group.\nExample: (group \"group_name\" before \"another_group\")"));
-                    }
-                },
+                }
                 "package" => match input.parse::<Lit>() {
                     Ok(Lit::Str(T)) => app_package.packages.push(T.value()),
                     T => {
@@ -955,27 +1091,36 @@ pub mod app_scan {
                 _ => {
                     return Err(Error::new_spanned(
                 ident,
-                "Exacted path, update, fixed_update, sync_update, long_update, setup, group or package."));
+                "Expected path, update, fixed_update, sync_update, long_update, setup, group or package."));
                 }
             }
 
-            if app_package.tasks.len() != app_package.task_schedule.len() {
+            if let Some(J) = task_name {
                 if input.peek(syn::Ident) {
+                    if J.1 == TaskType::Setup {
+                        is_setup == true;
+                    }
+
                     let ident: Ident = match input.parse::<Ident>() {
                         Ok(T) => T,
                         Err(E) => {
                             return Err(Error::new_spanned(
                                 E.into_compile_error(),
-                                "Expected and Ident",
+                                "Expected before, after, before_group, after_group or in after",
                             ));
                         }
                     };
 
                     match ident.to_string().as_str() {
                         "before" => match input.parse::<Lit>() {
-                            Ok(Lit::Str(T)) => app_package
-                                .task_schedule
-                                .push(TaskSchedule::BeforeTask(T.value())),
+                            Ok(Lit::Str(T)) => {
+                                nodes.push(DependencyGraphNode::Task(T.value()));
+                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                dependencies.push((
+                                    DependencyGraphNode::Task(J.0.clone()),
+                                    DependencyGraphNode::Task(T.value()),
+                                ));
+                            }
                             T => {
                                 return Err(Error::new_spanned(
                             match T {
@@ -986,9 +1131,15 @@ pub mod app_scan {
                             }
                         },
                         "before_group" => match input.parse::<Lit>() {
-                            Ok(Lit::Str(T)) => app_package
-                                .task_schedule
-                                .push(TaskSchedule::BeforeGroup(T.value())),
+                            Ok(Lit::Str(T)) => {
+                                nodes.push(DependencyGraphNode::GroupStart(T.value()));
+                                nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                dependencies.push((
+                                    DependencyGraphNode::Task(J.0.clone()),
+                                    DependencyGraphNode::GroupStart(T.value()),
+                                ));
+                            }
                             T => {
                                 return Err(Error::new_spanned(
                             match T {
@@ -999,9 +1150,14 @@ pub mod app_scan {
                             }
                         },
                         "after" => match input.parse::<Lit>() {
-                            Ok(Lit::Str(T)) => app_package
-                                .task_schedule
-                                .push(TaskSchedule::AfterTask(T.value())),
+                            Ok(Lit::Str(T)) => {
+                                nodes.push(DependencyGraphNode::Task(T.value()));
+                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                dependencies.push((
+                                    DependencyGraphNode::Task(T.value()),
+                                    DependencyGraphNode::Task(J.0.clone()),
+                                ));
+                            }
                             T => {
                                 return Err(Error::new_spanned(
                             match T {
@@ -1012,9 +1168,15 @@ pub mod app_scan {
                             }
                         },
                         "after_group" => match input.parse::<Lit>() {
-                            Ok(Lit::Str(T)) => app_package
-                                .task_schedule
-                                .push(TaskSchedule::AfterGroup(T.value())),
+                            Ok(Lit::Str(T)) => {
+                                nodes.push(DependencyGraphNode::GroupStart(T.value()));
+                                nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                dependencies.push((
+                                    DependencyGraphNode::GroupEnd(T.value()),
+                                    DependencyGraphNode::Task(J.0.clone()),
+                                ));
+                            }
                             T => {
                                 return Err(Error::new_spanned(
                             match T {
@@ -1026,7 +1188,17 @@ pub mod app_scan {
                         },
                         "in_group" => match input.parse::<Lit>() {
                             Ok(Lit::Str(T)) => {
-                                app_package.task_schedule.push(TaskSchedule::In(T.value()))
+                                nodes.push(DependencyGraphNode::GroupStart(T.value()));
+                                nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                dependencies.push((
+                                    DependencyGraphNode::GroupStart(T.value()),
+                                    DependencyGraphNode::Task(J.0.clone()),
+                                ));
+                                dependencies.push((
+                                    DependencyGraphNode::Task(J.0.clone()),
+                                    DependencyGraphNode::GroupEnd(T.value()),
+                                ));
                             }
                             T => {
                                 return Err(Error::new_spanned(
@@ -1041,35 +1213,51 @@ pub mod app_scan {
                         _ => {
                             return Err(Error::new_spanned(
                                 ident,
-                                "Exacted before, after, before_group, after_group or in_group.",
+                                "Expected before, after, before_group, after_group or in_group.",
                             ));
                         }
                     }
-                } else {
-                    app_package
-                        .task_schedule
-                        .push(TaskSchedule::In("main".to_string()))
                 }
 
                 if input.peek(Token![if]) {
                     let _: Token![if] = input.parse()?;
 
                     app_package
-                        .task_conditions
-                        .push(Some(input.parse::<LogicalExpression>()?));
+                        .tasks
+                        .insert(J.0, (J.1, Some(input.parse::<LogicalExpression>()?)));
                 } else {
-                    app_package.task_conditions.push(None)
+                    app_package.tasks.insert(J.0, (J.1, None));
                 }
             }
 
             if input.peek(Token![,]) {
                 let _: Token![,] = input.parse()?;
-                let sub: AppPackage = input.parse()?;
-                app_package.tasks.extend(sub.tasks);
-                app_package.packages.extend(sub.packages);
-                app_package.task_schedule.extend(sub.task_schedule);
-                app_package.task_conditions.extend(sub.task_conditions);
-                app_package.groups.extend(sub.groups);
+                let mut sub: AppPackage = input.parse()?;
+                sub.packages.extend(app_package.packages);
+                sub.tasks.extend(app_package.tasks);
+                sub.path = app_package.path;
+                sub.name = app_package.name;
+                app_package = sub;
+            }
+
+            if is_setup {
+                for node in nodes {
+                    app_package.setup_dependency.add_node(node);
+                }
+                for dependency in dependencies {
+                    app_package
+                        .setup_dependency
+                        .add_dependency(dependency.0, dependency.1)
+                }
+            } else {
+                for node in nodes {
+                    app_package.runtime_dependency.add_node(node);
+                }
+                for dependency in dependencies {
+                    app_package
+                        .runtime_dependency
+                        .add_dependency(dependency.0, dependency.1)
+                }
             }
 
             Ok(app_package)
@@ -1078,7 +1266,9 @@ pub mod app_scan {
 }
 
 pub mod codegen {
-    use crate::build::app_scan::{AppPackage, LogicalExpression, TaskSchedule, TaskType};
+    use crate::build::app_scan::{
+        AppPackage, DependencyGraph, LogicalExpression, LogicalOperator, TaskType,
+    };
     use crate::build::components_scan::ComponentMap;
     use crate::build::tasks_scan::{Task, TaskMap};
     use proc_macro2::TokenStream;
@@ -1106,7 +1296,7 @@ pub mod codegen {
         input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
     }
 
-    #[derive(PartialEq, Eq)]
+    /*#[derive(PartialEq, Eq)]
     pub enum Schedule {
         Task(Option<LogicalExpression>, TaskType),
         Group(String, Vec<Schedule>),
@@ -1117,12 +1307,66 @@ pub mod codegen {
         tasks: HashSet<String>,
         groups: HashSet<String>,
         schedule: Schedule
+    }*/
+
+    pub fn create_app(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
+        let mut tasks: HashMap<&String, Task> = HashMap::new();
+        let mut task_options: HashMap<&String, &(TaskType, Option<LogicalExpression>)> =
+            HashMap::new();
+        let mut setup_dependency_map: DependencyGraph = DependencyGraph::new();
+        let mut runtime_dependency_map: DependencyGraph = DependencyGraph::new();
+
+        {
+            let mut all_tasks: HashMap<String, Task> = task_maps
+                .into_iter()
+                .flat_map(|task_map| task_map.get_all())
+                .collect();
+            let mut packages: Vec<&str> = vec!["main"];
+            let mut index = 0;
+
+            while index < packages.len() {
+                let package = packages[index];
+                for app_package in &app_packages {
+                    if package == app_package.name {
+                        for v in &app_package.packages {
+                            if !packages.contains(&v.as_str()) {
+                                packages.push(v.as_str());
+                            }
+                        }
+                        if setup_dependency_map.dependents.len() == 0 {
+                            setup_dependency_map = app_package.setup_dependency.clone();
+                        } else {
+                            setup_dependency_map.merge(&app_package.setup_dependency);
+                        }
+                        if runtime_dependency_map.dependents.len() == 0 {
+                            runtime_dependency_map = app_package.runtime_dependency.clone();
+                        } else {
+                            runtime_dependency_map.merge(&app_package.runtime_dependency);
+                        }
+                        app_package.tasks.iter().for_each(|x| {
+                            task_options.insert(x.0, x.1);
+                            tasks.insert(
+                                x.0,
+                                all_tasks
+                                    .remove(x.0)
+                                    .unwrap_or_else(|| panic!("Tasks {} not defined", x.0)),
+                            );
+                        });
+                    }
+                }
+                index += 1;
+            }
+        }
+
+        println!("{:?}", setup_dependency_map);
+        println!("{:?}", runtime_dependency_map);
+        println!("{:?}", tasks);
+        println!("{:?}", task_options);
     }
 
-    pub struct AppMap {
+    /*pub struct AppMap {
         arch_types: ArchTypes,
-        runtime_tasks: Schedule,
-        startup_tasks: Schedule,
+        dependency_graph: DependencyGraph,
         tasks: HashMap<String, Task>,
         states: Vec<String>,
         resources: Vec<String>,
@@ -1131,13 +1375,8 @@ pub mod codegen {
 
     impl AppMap {
         pub fn new(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
-            //let mut runtime_tasks: Vec<HashMap<,Schedule>> = vec![vec![]];
-            let mut startup_tasks: Vec<Vec<Schedule>> =vec![vec![]];
-
             let mut tasks_types: Vec<&TaskType> = vec![];
-            let mut tasks_schedule: Vec<&TaskSchedule> = vec![];
             let mut tasks_logical: Vec<&Option<LogicalExpression>> = vec![];
-            let mut groups: HashMap<&String, &TaskSchedule> = HashMap::new();
             let tasks: HashMap<String, Task> = task_maps
                 .into_iter()
                 .flat_map(|task_map| task_map.get_all())
@@ -1155,7 +1394,7 @@ pub mod codegen {
                                 packages.push(v.as_str());
                             }
                         }
-                        app_package.tasks.iter().for_each(|x| tasks_types.push(x));
+                        /*app_package.tasks.iter().for_each(|x| tasks_types.push(x));
                         app_package
                             .task_schedule
                             .iter()
@@ -1168,19 +1407,18 @@ pub mod codegen {
                             if !groups.contains_key(x.0) {
                                 groups.insert(x.0, x.1);
                             }
-                        })
+                        })*/
                     }
                 }
                 index += 1;
             }
 
+            println!("{:?}", app_packages[0].setup_dependency.topological_sort());
             println!("{:?}", tasks_types);
-            println!("{:?}", tasks_schedule);
             println!("{:?}", tasks_logical);
-            println!("{:?}", groups);
             println!("{:?}", tasks.keys());
 
-            'outer: for i in 0..tasks_schedule.len() {
+            /*'outer: for i in 0..tasks_schedule.len() {
                 let p1: (usize,usize) = (0,0);
                 let p2: (usize,usize) = (0,0);
 
@@ -1196,13 +1434,13 @@ pub mod codegen {
                     }
                     _ => {}
                 }
-            }
+            }*/
 
             /*for _ in main_app_package.task_schedule[0] {
 
             }*/
         }
-    }
+    }*/
 
     pub fn write_rust_file(token_stream: TokenStream, path: &str) -> io::Result<()> {
         let token_stream_str = token_stream.to_string();

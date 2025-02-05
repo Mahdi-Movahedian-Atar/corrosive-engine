@@ -1,6 +1,6 @@
 use corrosive_ecs_core::build::app_scan::AppPackage;
 use corrosive_ecs_core::build::codegen::{
-    generate_arch_types, generate_prelude, get_all_archetypes, write_rust_file, AppMap,
+    create_app, generate_arch_types, generate_prelude, get_all_archetypes, write_rust_file,
 };
 use corrosive_ecs_core::build::components_scan::{
     get_component_map, scan_components, write_component_map,
@@ -114,7 +114,7 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     )
     .expect("failed to create arch_types.ts");
 
-    AppMap::new(vec![args], vec![task_map]);
+    create_app(vec![args], vec![task_map]);
 
     TokenStream::new()
 }

@@ -27,7 +27,12 @@ use corrosive_engine::auto_prelude::*;
 
 fn main() {
     //corrosive_engine!(| update , sss|, | ss);
-    corrosive_engine_builder!(path "./src", update "task", fixed_update "ssss" in_group "example_task" if !"sss" ||  State::new && !( Resorse{main: "mahdi"}), package "ddd", group "example_task" before "ssss" );
+    corrosive_engine_builder!(
+        path "./src",
+        update "macro_test",
+        fixed_update "setup" in_group "example_task" if !"sss" ||  State::new && !( Resorse{main: "mahdi"}),
+        group setup "example_task" before "macro_test"
+    );
     //lll!(f);
     /*corrosive_engine![
         path "sss",
