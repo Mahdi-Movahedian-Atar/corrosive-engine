@@ -659,15 +659,24 @@ pub mod app_scan {
         Setup,
     }
     #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-    pub enum DependencyGraphNode {
+    pub enum DependencyType {
         GroupStart(String),
         GroupEnd(String),
         Task(String),
     }
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct DependencyGraph {
-        pub dependents: HashMap<DependencyGraphNode, Vec<DependencyGraphNode>>,
-        pub in_degrees: HashMap<DependencyGraphNode, usize>,
+        pub dependents: HashMap<DependencyType, Vec<DependencyType>>,
+        pub in_degrees: HashMap<DependencyType, usize>,
+    }
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DependencyTreeNode {
+        pub node: DependencyType,
+        pub children: Vec<DependencyTreeNode>,
+    }
+    pub struct Dependency {
+        members: Vec<Dependency>,
+        next: Option<Box<Dependency>>,
     }
     impl DependencyGraph {
         pub fn new() -> Self {
@@ -677,12 +686,12 @@ pub mod app_scan {
             }
         }
 
-        pub fn add_node(&mut self, node: DependencyGraphNode) {
+        pub fn add_node(&mut self, node: DependencyType) {
             self.dependents.entry(node.clone()).or_default();
             self.in_degrees.entry(node).or_insert(0);
         }
 
-        pub fn add_dependency(&mut self, to: DependencyGraphNode, from: DependencyGraphNode) {
+        pub fn add_dependency(&mut self, to: DependencyType, from: DependencyType) {
             self.dependents
                 .entry(to.clone())
                 .or_default()
@@ -704,7 +713,7 @@ pub mod app_scan {
             }
         }
 
-        pub fn topological_sort(&self) -> core::result::Result<Vec<DependencyGraphNode>, &str> {
+        pub fn topological_sort(&self) -> core::result::Result<Vec<DependencyType>, &str> {
             let mut in_degrees = self.in_degrees.clone();
             let mut dependents = self.dependents.clone();
             let mut queue = VecDeque::new();
@@ -735,6 +744,161 @@ pub mod app_scan {
                 Ok(sorted)
             } else {
                 Err("Circular dependency detected")
+            }
+        }
+
+        pub fn print_dependency_tree(&self) {
+            let roots = self
+                .in_degrees
+                .iter()
+                .filter(|(_, &degree)| degree == 0)
+                .map(|(node, _)| node)
+                .collect::<Vec<_>>();
+
+            for root in roots {
+                self.print_tree(root, 0, &mut HashSet::new(), &mut vec![]);
+            }
+        }
+
+        fn print_tree(
+            &self,
+            node: &DependencyType,
+            depth: usize,
+            visited: &mut HashSet<DependencyType>,
+            path: &mut Vec<DependencyType>,
+        ) {
+            let indent = "    ".repeat(depth);
+            let prefix = if depth == 0 { "" } else { "└── " };
+            println!("{}{}{:?}", indent, prefix, node);
+
+            if path.contains(&node) {
+                println!("{}    ⤷ CYCLE DETECTED", "    ".repeat(depth + 1));
+                return;
+            }
+
+            if visited.contains(node) {
+                return;
+            }
+
+            visited.insert(node.clone());
+            path.push(node.clone());
+
+            if let Some(dependents) = self.dependents.get(node) {
+                for (i, dependent) in dependents.iter().enumerate() {
+                    let is_last = i == dependents.len() - 1;
+                    let new_prefix = if is_last { "└── " } else { "├── " };
+                    print!("{}{}", indent, new_prefix);
+                    self.print_tree(dependent, depth + 1, visited, path);
+                }
+            }
+
+            path.pop();
+        }
+        pub fn build_tree(&self) -> DependencyTreeNode {
+            let forest = self.build_forest();
+            DependencyTreeNode {
+                node: DependencyType::GroupStart("ROOT".to_string()), // Dummy root node
+                children: forest,
+            }
+        }
+
+        pub fn build_forest(&self) -> Vec<DependencyTreeNode> {
+            // Find all nodes with in-degree 0.
+            let mut all_nodes = HashSet::new();
+            for node in self.in_degrees.keys() {
+                all_nodes.insert(node.clone());
+            }
+            for node in self.dependents.keys() {
+                all_nodes.insert(node.clone());
+            }
+            for children in self.dependents.values() {
+                for node in children {
+                    all_nodes.insert(node.clone());
+                }
+            }
+
+            // Make sure every node appears in the in_degrees map, with a default of 0 if missing.
+            let mut complete_in_degrees = self.in_degrees.clone();
+            for node in &all_nodes {
+                complete_in_degrees.entry(node.clone()).or_insert(0);
+            }
+
+            // Find all nodes with in-degree 0 (they have no dependencies).
+            let roots: Vec<_> = complete_in_degrees
+                .iter()
+                .filter(|(_, &deg)| deg == 0)
+                .map(|(node, _)| node.clone())
+                .collect();
+
+            // Build a subtree for each root.
+            roots
+                .into_iter()
+                .map(|node| self.build_subtree(&node, &mut HashSet::new()))
+                .collect()
+        }
+
+        fn build_subtree(
+            &self,
+            node: &DependencyType,
+            visited: &mut HashSet<DependencyType>,
+        ) -> DependencyTreeNode {
+            // Prevent cycles: if the node was already visited, return a node with no children.
+            if !visited.insert(node.clone()) {
+                return DependencyTreeNode {
+                    node: node.clone(),
+                    children: vec![],
+                };
+            }
+
+            let children = self
+                .dependents
+                .get(node)
+                .unwrap_or(&Vec::new())
+                .iter()
+                .map(|child| self.build_subtree(child, visited))
+                .collect();
+
+            // Remove from visited to allow different branches to use this node if needed.
+            visited.remove(node);
+
+            DependencyTreeNode {
+                node: node.clone(),
+                children,
+            }
+        }
+    }
+    impl DependencyTreeNode {
+        pub fn print(&self) {
+            print!("  ");
+
+            // Print the current node in a friendly way.
+            match &self.node {
+                DependencyType::GroupStart(s) => println!("GroupStart({})", s),
+                DependencyType::GroupEnd(s) => println!("GroupEnd({})", s),
+                DependencyType::Task(s) => println!("Task({})", s),
+            }
+
+            // Recursively print children.
+            for child in &self.children {
+                child.print_tree(1);
+            }
+        }
+        fn print_tree(&self, indent: usize) {
+            // Print indentation
+            for _ in 0..indent {
+                print!("  ");
+            }
+
+            // Print the current node in a friendly way.
+            match &self.node {
+                DependencyType::GroupStart(s) => println!("GroupStart({})", s),
+                DependencyType::GroupEnd(s) => println!("GroupEnd({})", s),
+                DependencyType::Task(s) => println!("Task({})", s),
+            }
+
+            // Recursively print children.
+            for child in &self.children {
+                child.print_tree(indent + 1);
             }
         }
     }
@@ -836,8 +1000,8 @@ pub mod app_scan {
             let mut app_package: AppPackage = AppPackage::default();
             let mut task_name: Option<(String, TaskType)> = None;
             let mut is_setup = false;
-            let mut nodes: Vec<DependencyGraphNode> = vec![];
-            let mut dependencies: Vec<(DependencyGraphNode, DependencyGraphNode)> = vec![];
+            let mut nodes: Vec<DependencyType> = vec![];
+            let mut dependencies: Vec<(DependencyType, DependencyType)> = vec![];
 
             let ident: Ident = match input.parse::<Ident>() {
                 Ok(T) => T,
@@ -958,12 +1122,12 @@ pub mod app_scan {
                             match ident.to_string().as_str() {
                                 "before" => match input.parse::<Lit>() {
                                     Ok(Lit::Str(T)) => {
-                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
-                                        nodes.push(DependencyGraphNode::Task(T.value()));
+                                        nodes.push(DependencyType::GroupStart(J.value()));
+                                        nodes.push(DependencyType::GroupEnd(J.value()));
+                                        nodes.push(DependencyType::Task(T.value()));
                                         dependencies.push((
-                                            DependencyGraphNode::GroupEnd(J.value()),
-                                            DependencyGraphNode::Task(T.value()),
+                                            DependencyType::GroupEnd(J.value()),
+                                            DependencyType::Task(T.value()),
                                         ));
                                     }
                                     T => {
@@ -977,13 +1141,13 @@ pub mod app_scan {
                                 },
                                 "before_group" => match input.parse::<Lit>() {
                                     Ok(Lit::Str(T)) => {
-                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupStart(T.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                        nodes.push(DependencyType::GroupStart(J.value()));
+                                        nodes.push(DependencyType::GroupEnd(J.value()));
+                                        nodes.push(DependencyType::GroupStart(T.value()));
+                                        nodes.push(DependencyType::GroupEnd(T.value()));
                                         dependencies.push((
-                                            DependencyGraphNode::GroupEnd(J.value()),
-                                            DependencyGraphNode::GroupStart(T.value()),
+                                            DependencyType::GroupEnd(J.value()),
+                                            DependencyType::GroupStart(T.value()),
                                         ));
                                     }
                                     T => {
@@ -997,12 +1161,12 @@ pub mod app_scan {
                                 },
                                 "after" => match input.parse::<Lit>() {
                                     Ok(Lit::Str(T)) => {
-                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
-                                        nodes.push(DependencyGraphNode::Task(T.value()));
+                                        nodes.push(DependencyType::GroupStart(J.value()));
+                                        nodes.push(DependencyType::GroupEnd(J.value()));
+                                        nodes.push(DependencyType::Task(T.value()));
                                         dependencies.push((
-                                            DependencyGraphNode::Task(T.value()),
-                                            DependencyGraphNode::GroupStart(J.value()),
+                                            DependencyType::Task(T.value()),
+                                            DependencyType::GroupStart(J.value()),
                                         ));
                                     }
                                     T => {
@@ -1016,13 +1180,13 @@ pub mod app_scan {
                                 },
                                 "after_group" => match input.parse::<Lit>() {
                                     Ok(Lit::Str(T)) => {
-                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupStart(T.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                        nodes.push(DependencyType::GroupStart(J.value()));
+                                        nodes.push(DependencyType::GroupEnd(J.value()));
+                                        nodes.push(DependencyType::GroupStart(T.value()));
+                                        nodes.push(DependencyType::GroupEnd(T.value()));
                                         dependencies.push((
-                                            DependencyGraphNode::GroupEnd(T.value()),
-                                            DependencyGraphNode::GroupStart(J.value()),
+                                            DependencyType::GroupEnd(T.value()),
+                                            DependencyType::GroupStart(J.value()),
                                         ));
                                     }
                                     T => {
@@ -1036,17 +1200,17 @@ pub mod app_scan {
                                 },
                                 "in_group" => match input.parse::<Lit>() {
                                     Ok(Lit::Str(T)) => {
-                                        nodes.push(DependencyGraphNode::GroupStart(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(J.value()));
-                                        nodes.push(DependencyGraphNode::GroupStart(T.value()));
-                                        nodes.push(DependencyGraphNode::GroupEnd(T.value()));
+                                        nodes.push(DependencyType::GroupStart(J.value()));
+                                        nodes.push(DependencyType::GroupEnd(J.value()));
+                                        nodes.push(DependencyType::GroupStart(T.value()));
+                                        nodes.push(DependencyType::GroupEnd(T.value()));
                                         dependencies.push((
-                                            DependencyGraphNode::GroupStart(T.value()),
-                                            DependencyGraphNode::GroupStart(J.value()),
+                                            DependencyType::GroupStart(T.value()),
+                                            DependencyType::GroupStart(J.value()),
                                         ));
                                         dependencies.push((
-                                            DependencyGraphNode::GroupEnd(J.value()),
-                                            DependencyGraphNode::GroupEnd(T.value()),
+                                            DependencyType::GroupEnd(J.value()),
+                                            DependencyType::GroupEnd(T.value()),
                                         ));
                                     }
                                     T => {
@@ -1096,6 +1260,7 @@ pub mod app_scan {
             }
 
             if let Some(J) = task_name {
+                nodes.push(DependencyType::Task(J.0.clone()));
                 if input.peek(syn::Ident) {
                     if J.1 == TaskType::Setup {
                         is_setup == true;
@@ -1114,11 +1279,10 @@ pub mod app_scan {
                     match ident.to_string().as_str() {
                         "before" => match input.parse::<Lit>() {
                             Ok(Lit::Str(T)) => {
-                                nodes.push(DependencyGraphNode::Task(T.value()));
-                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                nodes.push(DependencyType::Task(T.value()));
                                 dependencies.push((
-                                    DependencyGraphNode::Task(J.0.clone()),
-                                    DependencyGraphNode::Task(T.value()),
+                                    DependencyType::Task(J.0.clone()),
+                                    DependencyType::Task(T.value()),
                                 ));
                             }
                             T => {
@@ -1132,12 +1296,11 @@ pub mod app_scan {
                         },
                         "before_group" => match input.parse::<Lit>() {
                             Ok(Lit::Str(T)) => {
-                                nodes.push(DependencyGraphNode::GroupStart(T.value()));
-                                nodes.push(DependencyGraphNode::GroupEnd(T.value()));
-                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                nodes.push(DependencyType::GroupStart(T.value()));
+                                nodes.push(DependencyType::GroupEnd(T.value()));
                                 dependencies.push((
-                                    DependencyGraphNode::Task(J.0.clone()),
-                                    DependencyGraphNode::GroupStart(T.value()),
+                                    DependencyType::Task(J.0.clone()),
+                                    DependencyType::GroupStart(T.value()),
                                 ));
                             }
                             T => {
@@ -1151,11 +1314,10 @@ pub mod app_scan {
                         },
                         "after" => match input.parse::<Lit>() {
                             Ok(Lit::Str(T)) => {
-                                nodes.push(DependencyGraphNode::Task(T.value()));
-                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                nodes.push(DependencyType::Task(T.value()));
                                 dependencies.push((
-                                    DependencyGraphNode::Task(T.value()),
-                                    DependencyGraphNode::Task(J.0.clone()),
+                                    DependencyType::Task(T.value()),
+                                    DependencyType::Task(J.0.clone()),
                                 ));
                             }
                             T => {
@@ -1169,12 +1331,11 @@ pub mod app_scan {
                         },
                         "after_group" => match input.parse::<Lit>() {
                             Ok(Lit::Str(T)) => {
-                                nodes.push(DependencyGraphNode::GroupStart(T.value()));
-                                nodes.push(DependencyGraphNode::GroupEnd(T.value()));
-                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                nodes.push(DependencyType::GroupStart(T.value()));
+                                nodes.push(DependencyType::GroupEnd(T.value()));
                                 dependencies.push((
-                                    DependencyGraphNode::GroupEnd(T.value()),
-                                    DependencyGraphNode::Task(J.0.clone()),
+                                    DependencyType::GroupEnd(T.value()),
+                                    DependencyType::Task(J.0.clone()),
                                 ));
                             }
                             T => {
@@ -1188,16 +1349,15 @@ pub mod app_scan {
                         },
                         "in_group" => match input.parse::<Lit>() {
                             Ok(Lit::Str(T)) => {
-                                nodes.push(DependencyGraphNode::GroupStart(T.value()));
-                                nodes.push(DependencyGraphNode::GroupEnd(T.value()));
-                                nodes.push(DependencyGraphNode::Task(J.0.clone()));
+                                nodes.push(DependencyType::GroupStart(T.value()));
+                                nodes.push(DependencyType::GroupEnd(T.value()));
                                 dependencies.push((
-                                    DependencyGraphNode::GroupStart(T.value()),
-                                    DependencyGraphNode::Task(J.0.clone()),
+                                    DependencyType::GroupStart(T.value()),
+                                    DependencyType::Task(J.0.clone()),
                                 ));
                                 dependencies.push((
-                                    DependencyGraphNode::Task(J.0.clone()),
-                                    DependencyGraphNode::GroupEnd(T.value()),
+                                    DependencyType::Task(J.0.clone()),
+                                    DependencyType::GroupEnd(T.value()),
                                 ));
                             }
                             T => {
@@ -1271,7 +1431,7 @@ pub mod codegen {
     };
     use crate::build::components_scan::ComponentMap;
     use crate::build::tasks_scan::{Task, TaskMap};
-    use proc_macro2::TokenStream;
+    use proc_macro2::{Span, TokenStream};
     use quote::{quote, ToTokens};
     use std::cmp::PartialEq;
     use std::collections::{HashMap, HashSet};
@@ -1288,6 +1448,9 @@ pub mod codegen {
     pub struct ArchTypes {
         arch_types: Vec<Vec<String>>,
         tasks: HashMap<String, Vec<TaskArchType>>,
+        signals: HashSet<String>,
+        resources: HashSet<String>,
+        states: HashSet<String>,
     }
     #[derive(Debug)]
     pub struct TaskArchType {
@@ -1295,19 +1458,6 @@ pub mod codegen {
         task_index: usize,
         input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
     }
-
-    /*#[derive(PartialEq, Eq)]
-    pub enum Schedule {
-        Task(Option<LogicalExpression>, TaskType),
-        Group(String, Vec<Schedule>),
-        Conditions(Schedule, Vec<Schedule>),
-    }
-
-    struct ScheduleStructure {
-        tasks: HashSet<String>,
-        groups: HashSet<String>,
-        schedule: Schedule
-    }*/
 
     pub fn create_app(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
         let mut tasks: HashMap<&String, Task> = HashMap::new();
@@ -1357,11 +1507,15 @@ pub mod codegen {
                 index += 1;
             }
         }
+        let arch_types = get_all_archetypes(tasks.values().collect::<Vec<&Task>>());
 
-        println!("{:?}", setup_dependency_map);
-        println!("{:?}", runtime_dependency_map);
-        println!("{:?}", tasks);
-        println!("{:?}", task_options);
+        generate_app_body(
+            &tasks,
+            &task_options,
+            &setup_dependency_map,
+            &runtime_dependency_map,
+            &arch_types,
+        );
     }
 
     /*pub struct AppMap {
@@ -1451,16 +1605,17 @@ pub mod codegen {
         Ok(())
     }
 
-    pub fn get_all_archetypes(task_map: &TaskMap) -> ArchTypes {
-        let all_tasks: HashMap<Task, String> = task_map.get_all_with_path();
-
+    pub fn get_all_archetypes(tasks: Vec<&Task>) -> ArchTypes {
         let mut archetypes: ArchTypes = ArchTypes {
             arch_types: vec![],
             tasks: HashMap::new(),
+            signals: Default::default(),
+            resources: Default::default(),
+            states: Default::default(),
         };
 
-        for task in &all_tasks {
-            for output_arch in &task.0.output_archs {
+        for task in &tasks {
+            for output_arch in &task.output_archs {
                 let output = output_arch
                     .iter()
                     .map(|x| x.0.clone())
@@ -1472,11 +1627,18 @@ pub mod codegen {
                     archetypes.arch_types.push(output);
                 }
             }
+            archetypes.signals.extend(task.output_signals.clone());
+            archetypes
+                .resources
+                .extend(task.input_resources.iter().map(|x| x.1.clone()));
+            archetypes
+                .states
+                .extend(task.input_states.iter().map(|x| x.1.clone()));
         }
-        for key in all_tasks.keys() {
+        for task in tasks {
             let mut index: usize = 0;
-            for input_arch in &key.input_archs {
-                match archetypes.tasks.get_mut(&key.name) {
+            for input_arch in &task.input_archs {
+                match archetypes.tasks.get_mut(&task.name) {
                     Some(T) => T.push(TaskArchType {
                         arch_type_type: input_arch.1.clone(),
                         task_index: index,
@@ -1511,7 +1673,7 @@ pub mod codegen {
                     }),
                     _ => {
                         archetypes.tasks.insert(
-                            key.name.clone(),
+                            task.name.clone(),
                             vec![TaskArchType {
                                 arch_type_type: input_arch.1.clone(),
                                 task_index: index,
@@ -1863,17 +2025,168 @@ pub mod codegen {
     }
 
     pub fn generate_app_body(
-        all_components: &HashMap<String, String>,
-        all_tasks: &HashMap<Task, String>,
-        app_map: &AppPackage,
+        all_tasks: &HashMap<&String, Task>,
+        task_options: &HashMap<&String, &(TaskType, Option<LogicalExpression>)>,
+        setup_dependency_map: &DependencyGraph,
+        runtime_dependency_map: &DependencyGraph,
+        arch_types: &ArchTypes,
     ) -> TokenStream {
-        let mut tasks_hash: HashMap<&String, &Task> = HashMap::new();
-        all_tasks.iter().enumerate().for_each(|t| {
-            tasks_hash.insert(&t.1 .0.name, &t.1 .0);
-        });
-        let mut used_components: HashMap<String, String> = HashMap::new();
-        let mut used_tasks: HashMap<String, String> = HashMap::new();
-
+        //println!("{}", generate_app_variables(arch_types).to_string());
+        //println!("{}", generate_app_overwrite(arch_types).to_string());
+        println!("{:?}", runtime_dependency_map.in_degrees);
+        //println!("{:?}", runtime_dependency_map.topological_sort());
+        runtime_dependency_map.build_tree().print();
         TokenStream::new()
+    }
+    fn generate_app_variables(arch_types: &ArchTypes) -> TokenStream {
+        let mut arch_code = TokenStream::new();
+        let mut index: usize = 0;
+
+        for arch_type in &arch_types.arch_types {
+            index += 1;
+
+            let name: TokenStream = parse_str(format!("a{}", index).as_str()).unwrap();
+            let overwrite_name: TokenStream = parse_str(format!("o{}", index).as_str()).unwrap();
+            let remove_name: TokenStream = parse_str(format!("or{}", index).as_str()).unwrap();
+            let lock_name: TokenStream = parse_str(format!("la{}", index).as_str()).unwrap();
+
+            let mut c = TokenStream::new();
+            for arch in arch_type {
+                c.extend(parse_str::<TokenStream>(format!("{},", arch).as_str()).unwrap());
+            }
+            arch_code.extend(quote! {
+                let #name: RwLock<Vec<(#c)>> = RwLock::new(Vec::new());
+                let #overwrite_name: RwLock<Vec<(#c)>> = RwLock::new(Vec::new());
+                let #remove_name: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
+                let #lock_name: AtomicU8 = AtomicU8::new(0);
+            });
+        }
+
+        for signal in &arch_types.signals {
+            let name: TokenStream = parse_str(format!("s_{}", signal).as_str()).unwrap();
+            let overwrite_name: TokenStream = parse_str(format!("so_{}", signal).as_str()).unwrap();
+
+            arch_code.extend(quote! {
+                let #name: AtomicBool = AtomicBool::new(false);
+                let #overwrite_name: AtomicBool = AtomicBool::new(false);
+            });
+        }
+
+        for state in &arch_types.states {
+            let name: TokenStream = parse_str(format!("st_{}", state).as_str()).unwrap();
+            let t: TokenStream = parse_str(state.as_str()).unwrap();
+
+            arch_code.extend(quote! {
+                let #name: RwLock<#t> = RwLock::new(#t::default());
+            });
+        }
+
+        for resource in &arch_types.resources {
+            let name: TokenStream = parse_str(format!("r_{}", resource).as_str()).unwrap();
+            let t: TokenStream = parse_str(resource.as_str()).unwrap();
+
+            arch_code.extend(quote! {
+                let #name: RwLock<#t> = RwLock::new(#t::default());
+            });
+        }
+        return quote! {
+            use std::cmp::PartialEq;
+            use std::collections::HashSet;
+            use std::mem::take;
+            use std::sync::atomic::Ordering::SeqCst;
+            use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+            use std::sync::{Arc, RwLock};
+            use std::thread;
+            use std::thread::{Scope, ScopedJoinHandle};
+            use std::time::Instant;
+
+            let mut last_time = Instant::now();
+            let mut current_time = Instant::now();
+            let delta_time = AtomicU64::new(0.0f64.to_bits());
+
+            let fixed_time = AtomicU64::new(0.1f64.to_bits());
+            let mut fixed_delta_time: u64 = 0.0f64 as u64;
+            let is_fixed = AtomicBool::new(false);
+
+            let reset: AtomicBool = AtomicBool::new(false);
+
+            #arch_code
+        };
+    }
+
+    fn generate_app_overwrite(arch_types: &ArchTypes) -> TokenStream {
+        let mut overwrite_thread_code: TokenStream = TokenStream::new();
+        let mut overwrite_join_code: TokenStream = TokenStream::new();
+        let mut signal_code: TokenStream = TokenStream::new();
+
+        for i in 0..arch_types.arch_types.len() {
+            let thread_name: TokenStream = parse_str(format!("m_{}", i).as_str()).unwrap();
+            let arch_name: TokenStream = parse_str(format!("a_{}", i).as_str()).unwrap();
+            let overwrite_name: TokenStream = parse_str(format!("o_{}", i).as_str()).unwrap();
+            let remove_name: TokenStream = parse_str(format!("or_{}", i).as_str()).unwrap();
+            let lock_name: TokenStream = parse_str(format!("la_{}", i).as_str()).unwrap();
+            let mut expire: TokenStream = TokenStream::new();
+
+            for j in 0..arch_types.arch_types[i].len() {
+                if arch_types.arch_types[i][j].starts_with("Ref<")
+                    || arch_types.arch_types[i][j].starts_with("LockedRef<")
+                {
+                    let index: TokenStream = parse_str(format!("{}", j).as_str()).unwrap();
+                    expire.extend(quote! {item.#index.expire();})
+                }
+            }
+
+            overwrite_thread_code.extend(quote! {
+                let #thread_name = s.spawn(|| {
+                    if #lock_name.load(Ordering::SeqCst) > 0 {
+                        return;
+                        }
+                    let mut write = #arch_name.write().unwrap();
+                    let vlen = write.len();
+
+                    if vlen > 0 {
+                        let indices_to_remove = take(&mut *#remove_name.write().unwrap());
+                        let mut new = Vec::with_capacity(vlen);
+
+                        for (i, mut item) in write.drain(..).enumerate() {
+                            if !indices_to_remove.contains(&i) {
+                                new.push(item);
+                                continue;
+                            }
+                            #expire
+                        }
+
+                        *write = new;
+                    }
+                    write.extend(#overwrite_name.write().unwrap().drain(..));
+                });
+            });
+
+            let error: LitStr = LitStr::new(
+                format!(
+                    "Failed to update archetype of type -> {:?}",
+                    arch_types.arch_types[i]
+                )
+                .as_str(),
+                Span::call_site(),
+            );
+            overwrite_join_code.extend(quote! {#thread_name.join().expect(#error);});
+        }
+
+        for signal in &arch_types.signals {
+            let signal_name: TokenStream = parse_str(format!("s_{}", signal).as_str()).unwrap();
+            let overwrite_name: TokenStream = parse_str(format!("so_{}", signal).as_str()).unwrap();
+
+            signal_code.extend(quote! {
+                #signal_name.store(#overwrite_name.load(Ordering::Relaxed), Ordering::Relaxed);
+                #overwrite_name.store(false, Ordering::Relaxed);
+            })
+        }
+
+        quote! {
+            #overwrite_thread_code
+            #signal_code
+            #overwrite_join_code
+        }
     }
 }

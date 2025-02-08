@@ -1,15 +1,6 @@
 #![allow(warnings)]
 
 use corrosive_ecs_core_macro::corrosive_engine_builder;
-use std::cmp::PartialEq;
-use std::collections::HashSet;
-use std::mem::take;
-use std::sync::atomic::Ordering::SeqCst;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
-use std::sync::{Arc, RwLock};
-use std::thread;
-use std::thread::{Scope, ScopedJoinHandle};
-use std::time::Instant;
 
 mod comp;
 mod core_test;
@@ -26,19 +17,23 @@ use crate::task::*;
 use corrosive_engine::auto_prelude::*;
 
 fn main() {
+    use std::cmp::PartialEq;
+    use std::collections::HashSet;
+    use std::mem::take;
+    use std::sync::atomic::Ordering::SeqCst;
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+    use std::sync::{Arc, RwLock};
+    use std::thread;
+    use std::thread::{Scope, ScopedJoinHandle};
+    use std::time::Instant;
+
     //corrosive_engine!(| update , sss|, | ss);
-    corrosive_engine_builder!(
+    /*corrosive_engine_builder!(
         path "./src",
-        update "macro_test",
-        fixed_update "setup" in_group "example_task" if !"sss" ||  State::new && !( Resorse{main: "mahdi"}),
-        group setup "example_task" before "macro_test"
-    );
-    //lll!(f);
-    /*corrosive_engine![
-        path "sss",
-        add u
-    ];*/
-    //e!(add update : ss, add Task);
+        update "setup1",
+        update "macro_test" in_group "group",
+        fixed_update "setup" in_group "group" if !"sss" ||  State::new && !( Resorse{main: "mahdi"})
+    );*/
 
     let mut last_time = Instant::now();
     let mut current_time = Instant::now();
@@ -95,7 +90,6 @@ fn main() {
     let resources: RwLock<MarkedResources> = RwLock::new(MarkedResources::default());
 
     let state: RwLock<StateExample> = RwLock::new(StateExample::default());
-    let state_o: RwLock<StateExample> = RwLock::new(StateExample::default());
 
     loop {
         thread::scope(|s: &Scope| {
@@ -334,7 +328,7 @@ fn main() {
                                     &or3,
                                 ),
                                 TestUtArch2::new(&*a1.read().unwrap(), &*a3.read().unwrap()),
-                                State::new(&state_o),
+                                State::new(&state),
                             );
                         }))
                     } else {
