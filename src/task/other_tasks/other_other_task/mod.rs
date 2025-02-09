@@ -8,6 +8,6 @@ pub fn long_task(inp: TestUtArch2) -> bool {
     let mut reset = false;
     sleep(Duration::from_secs(2));
     println!("Long");
-    //reset = true;
+    reset = true;
     (reset)
 }

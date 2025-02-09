@@ -7,6 +7,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bus = "2.4.1"
 corrosive-ecs-core = {path = "corrosive-ecs-core"}
 corrosive_ecs_core_macro = {path = "corrosive_ecs_core_macro"}
 rand = "0.9.0-alpha.2"

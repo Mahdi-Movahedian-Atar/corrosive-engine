@@ -4,7 +4,12 @@ pub mod build;
 #[cfg(feature = "core")]
 pub mod ecs_core {
     use crate::ecs_core::Reference::Expired;
-    use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
+    use bus::{Bus, BusReader};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::{Receiver, Sender};
+    use std::sync::{mpsc, Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
+    use std::thread;
+    use std::thread::Scope;
 
     pub enum Reference<T> {
         Some(T),
@@ -210,6 +215,27 @@ pub mod ecs_core {
         }
     }
     pub type DeltaTime<'a> = &'a f64;
+
+    pub struct Trigger(Bus<()>);
+    pub struct TriggerReader(BusReader<()>);
+    impl Trigger {
+        pub fn new() -> Trigger {
+            Trigger(Bus::new(1))
+        }
+
+        pub fn add_trigger(&mut self) -> TriggerReader {
+            TriggerReader(self.0.add_rx())
+        }
+
+        pub fn trigger(&mut self) {
+            self.0.broadcast(())
+        }
+    }
+    impl TriggerReader {
+        pub fn read(&mut self, message: &str) {
+            self.0.recv().expect(message);
+        }
+    }
 
     #[macro_export]
     macro_rules! add_entity {
