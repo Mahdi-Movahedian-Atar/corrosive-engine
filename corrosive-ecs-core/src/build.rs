@@ -669,15 +669,6 @@ pub mod app_scan {
         pub dependents: HashMap<DependencyType, Vec<DependencyType>>,
         pub in_degrees: HashMap<DependencyType, usize>,
     }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct DependencyTreeNode {
-        pub node: DependencyType,
-        pub children: Vec<DependencyTreeNode>,
-    }
-    pub struct Dependency {
-        members: Vec<Dependency>,
-        next: Option<Box<Dependency>>,
-    }
     impl DependencyGraph {
         pub fn new() -> Self {
             DependencyGraph {
@@ -691,7 +682,7 @@ pub mod app_scan {
             self.in_degrees.entry(node).or_insert(0);
         }
 
-        pub fn add_dependency(&mut self, to: DependencyType, from: DependencyType) {
+        pub fn add_dependency(&mut self, from: DependencyType, to: DependencyType) {
             self.dependents
                 .entry(to.clone())
                 .or_default()
@@ -746,161 +737,6 @@ pub mod app_scan {
                 Err("Circular dependency detected")
             }
         }
-
-        pub fn print_dependency_tree(&self) {
-            let roots = self
-                .in_degrees
-                .iter()
-                .filter(|(_, &degree)| degree == 0)
-                .map(|(node, _)| node)
-                .collect::<Vec<_>>();
-
-            for root in roots {
-                self.print_tree(root, 0, &mut HashSet::new(), &mut vec![]);
-            }
-        }
-
-        fn print_tree(
-            &self,
-            node: &DependencyType,
-            depth: usize,
-            visited: &mut HashSet<DependencyType>,
-            path: &mut Vec<DependencyType>,
-        ) {
-            let indent = "    ".repeat(depth);
-            let prefix = if depth == 0 { "" } else { "└── " };
-            println!("{}{}{:?}", indent, prefix, node);
-
-            if path.contains(&node) {
-                println!("{}    ⤷ CYCLE DETECTED", "    ".repeat(depth + 1));
-                return;
-            }
-
-            if visited.contains(node) {
-                return;
-            }
-
-            visited.insert(node.clone());
-            path.push(node.clone());
-
-            if let Some(dependents) = self.dependents.get(node) {
-                for (i, dependent) in dependents.iter().enumerate() {
-                    let is_last = i == dependents.len() - 1;
-                    let new_prefix = if is_last { "└── " } else { "├── " };
-                    print!("{}{}", indent, new_prefix);
-                    self.print_tree(dependent, depth + 1, visited, path);
-                }
-            }
-
-            path.pop();
-        }
-        pub fn build_tree(&self) -> DependencyTreeNode {
-            let forest = self.build_forest();
-            DependencyTreeNode {
-                node: DependencyType::GroupStart("ROOT".to_string()), // Dummy root node
-                children: forest,
-            }
-        }
-
-        pub fn build_forest(&self) -> Vec<DependencyTreeNode> {
-            // Find all nodes with in-degree 0.
-            let mut all_nodes = HashSet::new();
-            for node in self.in_degrees.keys() {
-                all_nodes.insert(node.clone());
-            }
-            for node in self.dependents.keys() {
-                all_nodes.insert(node.clone());
-            }
-            for children in self.dependents.values() {
-                for node in children {
-                    all_nodes.insert(node.clone());
-                }
-            }
-
-            // Make sure every node appears in the in_degrees map, with a default of 0 if missing.
-            let mut complete_in_degrees = self.in_degrees.clone();
-            for node in &all_nodes {
-                complete_in_degrees.entry(node.clone()).or_insert(0);
-            }
-
-            // Find all nodes with in-degree 0 (they have no dependencies).
-            let roots: Vec<_> = complete_in_degrees
-                .iter()
-                .filter(|(_, &deg)| deg == 0)
-                .map(|(node, _)| node.clone())
-                .collect();
-
-            // Build a subtree for each root.
-            roots
-                .into_iter()
-                .map(|node| self.build_subtree(&node, &mut HashSet::new()))
-                .collect()
-        }
-
-        fn build_subtree(
-            &self,
-            node: &DependencyType,
-            visited: &mut HashSet<DependencyType>,
-        ) -> DependencyTreeNode {
-            // Prevent cycles: if the node was already visited, return a node with no children.
-            if !visited.insert(node.clone()) {
-                return DependencyTreeNode {
-                    node: node.clone(),
-                    children: vec![],
-                };
-            }
-
-            let children = self
-                .dependents
-                .get(node)
-                .unwrap_or(&Vec::new())
-                .iter()
-                .map(|child| self.build_subtree(child, visited))
-                .collect();
-
-            // Remove from visited to allow different branches to use this node if needed.
-            visited.remove(node);
-
-            DependencyTreeNode {
-                node: node.clone(),
-                children,
-            }
-        }
-    }
-    impl DependencyTreeNode {
-        pub fn print(&self) {
-            print!("  ");
-
-            // Print the current node in a friendly way.
-            match &self.node {
-                DependencyType::GroupStart(s) => println!("GroupStart({})", s),
-                DependencyType::GroupEnd(s) => println!("GroupEnd({})", s),
-                DependencyType::Task(s) => println!("Task({})", s),
-            }
-
-            // Recursively print children.
-            for child in &self.children {
-                child.print_tree(1);
-            }
-        }
-        fn print_tree(&self, indent: usize) {
-            // Print indentation
-            for _ in 0..indent {
-                print!("  ");
-            }
-
-            // Print the current node in a friendly way.
-            match &self.node {
-                DependencyType::GroupStart(s) => println!("GroupStart({})", s),
-                DependencyType::GroupEnd(s) => println!("GroupEnd({})", s),
-                DependencyType::Task(s) => println!("Task({})", s),
-            }
-
-            // Recursively print children.
-            for child in &self.children {
-                child.print_tree(indent + 1);
-            }
-        }
     }
     #[derive(Debug)]
     pub struct AppPackage {
@@ -908,6 +744,7 @@ pub mod app_scan {
         pub path: String,
         pub setup_dependency: DependencyGraph,
         pub runtime_dependency: DependencyGraph,
+        pub sync_dependency: DependencyGraph,
         pub tasks: HashMap<String, (TaskType, Option<LogicalExpression>)>,
         pub packages: Vec<String>,
     }
@@ -918,6 +755,7 @@ pub mod app_scan {
                 path: "./src".to_string(),
                 setup_dependency: DependencyGraph::new(),
                 runtime_dependency: DependencyGraph::new(),
+                sync_dependency: DependencyGraph::new(),
                 tasks: HashMap::new(),
                 packages: vec![],
             }
@@ -997,9 +835,15 @@ pub mod app_scan {
 
     impl Parse for AppPackage {
         fn parse(input: ParseStream) -> Result<Self> {
+            enum InternalTaskType {
+                Runtime,
+                Setup,
+                Sync,
+            }
+
             let mut app_package: AppPackage = AppPackage::default();
             let mut task_name: Option<(String, TaskType)> = None;
-            let mut is_setup = false;
+            let mut internal_task_type: InternalTaskType = InternalTaskType::Runtime;
             let mut nodes: Vec<DependencyType> = vec![];
             let mut dependencies: Vec<(DependencyType, DependencyType)> = vec![];
 
@@ -1051,7 +895,10 @@ pub mod app_scan {
                     }
                 },
                 "sync_update" => match input.parse::<Lit>() {
-                    Ok(Lit::Str(T)) => task_name = Some((T.value(), TaskType::Sync)),
+                    Ok(Lit::Str(T)) => {
+                        internal_task_type = InternalTaskType::Sync;
+                        task_name = Some((T.value(), TaskType::Sync));
+                    }
                     T => {
                         return Err(Error::new_spanned(
                         match T {
@@ -1072,9 +919,9 @@ pub mod app_scan {
                         "String literal of name of a task.\nExample: (long_update \"long_task\")"));
                     }
                 },
-                "setup" => match input.parse::<Lit>() {
+                "Setup" => match input.parse::<Lit>() {
                     Ok(Lit::Str(T)) => {
-                        is_setup = true;
+                        internal_task_type = InternalTaskType::Setup;
                         task_name = Some((T.value(), TaskType::Setup))
                     }
                     T => {
@@ -1083,7 +930,7 @@ pub mod app_scan {
                                 Ok(T) => T.to_token_stream(),
                                 Err(E) => E.into_compile_error(),
                             },
-                            "String literal of name of a task.\nExample: (setup \"setup_task\")",
+                            "String literal of name of a task.\nExample: (Setup \"setup_task\")",
                         ));
                     }
                 },
@@ -1092,17 +939,26 @@ pub mod app_scan {
                         match input.parse::<Ident>() {
                             Ok(T) => {
                                 if (T.to_string().as_str()) == "setup" {
-                                    is_setup = true
+                                    internal_task_type = InternalTaskType::Setup
                                 } else {
                                     return Err(Error::new_spanned(
                                 T.to_token_stream(),
                                 "Expected setup.\nExample: (group setup \"example_group\" before \"example_task\")"));
                                 }
                             }
+                            Ok(T) => {
+                                if (T.to_string().as_str()) == "sync" {
+                                    internal_task_type = InternalTaskType::Sync
+                                } else {
+                                    return Err(Error::new_spanned(
+                                        T.to_token_stream(),
+                                        "Expected sync.\nExample: (group sync \"example_group\" before \"example_task\")"));
+                                }
+                            }
                             Err(E) => {
                                 return Err(Error::new_spanned(
                                     E.into_compile_error(),
-                                    "Expected setup.\nExample: (group setup \"example_group\" before \"example_task\")",
+                                    "Expected sync or setup.\nExample: (group setup \"example_group\" before \"example_task\")",
                                 ));
                             }
                         };
@@ -1255,16 +1111,16 @@ pub mod app_scan {
                 _ => {
                     return Err(Error::new_spanned(
                 ident,
-                "Expected path, update, fixed_update, sync_update, long_update, setup, group or package."));
+                "Expected path, update, fixed_update, sync_update, long_update, Setup, group or package."));
                 }
             }
 
             if let Some(J) = task_name {
                 nodes.push(DependencyType::Task(J.0.clone()));
                 if input.peek(syn::Ident) {
-                    if J.1 == TaskType::Setup {
-                        is_setup == true;
-                    }
+                    /*if J.1 == TaskType::Setup {
+                        internal_task_type == true;
+                    }*/
 
                     let ident: Ident = match input.parse::<Ident>() {
                         Ok(T) => T,
@@ -1366,7 +1222,7 @@ pub mod app_scan {
                                 Ok(T) => T.to_token_stream(),
                                 Err(E) => E.into_compile_error(),
                             },
-                            "String literal of name of a group.\nExample: (setup \"example_task\" in_group \"example_group\")",
+                            "String literal of name of a group.\nExample: (Setup \"example_task\" in_group \"example_group\")",
                         ));
                             }
                         },
@@ -1400,23 +1256,36 @@ pub mod app_scan {
                 app_package = sub;
             }
 
-            if is_setup {
-                for node in nodes {
-                    app_package.setup_dependency.add_node(node);
+            match internal_task_type {
+                InternalTaskType::Setup => {
+                    for node in nodes {
+                        app_package.setup_dependency.add_node(node);
+                    }
+                    for dependency in dependencies {
+                        app_package
+                            .setup_dependency
+                            .add_dependency(dependency.0, dependency.1)
+                    }
                 }
-                for dependency in dependencies {
-                    app_package
-                        .setup_dependency
-                        .add_dependency(dependency.0, dependency.1)
+                InternalTaskType::Runtime => {
+                    for node in nodes {
+                        app_package.runtime_dependency.add_node(node);
+                    }
+                    for dependency in dependencies {
+                        app_package
+                            .runtime_dependency
+                            .add_dependency(dependency.0, dependency.1)
+                    }
                 }
-            } else {
-                for node in nodes {
-                    app_package.runtime_dependency.add_node(node);
-                }
-                for dependency in dependencies {
-                    app_package
-                        .runtime_dependency
-                        .add_dependency(dependency.0, dependency.1)
+                InternalTaskType::Sync => {
+                    for node in nodes {
+                        app_package.sync_dependency.add_node(node);
+                    }
+                    for dependency in dependencies {
+                        app_package
+                            .sync_dependency
+                            .add_dependency(dependency.0, dependency.1)
+                    }
                 }
             }
 
@@ -1427,7 +1296,7 @@ pub mod app_scan {
 
 pub mod codegen {
     use crate::build::app_scan::{
-        AppPackage, DependencyGraph, LogicalExpression, LogicalOperator, TaskType,
+        AppPackage, DependencyGraph, DependencyType, LogicalExpression, LogicalOperator, TaskType,
     };
     use crate::build::components_scan::ComponentMap;
     use crate::build::tasks_scan::{Task, TaskMap};
@@ -1457,6 +1326,7 @@ pub mod codegen {
         arch_type_type: Vec<String>,
         task_index: usize,
         input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
+        output_arch_type_indexes: Vec<(usize, Vec<usize>)>,
     }
 
     pub fn create_app(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
@@ -2013,7 +1883,7 @@ pub mod codegen {
             stmts.insert(0, s);
         }
         stmts.push(
-            parse2(quote! {return (#out_arch #out_signals # out_reset); })
+            parse2(quote! {return (#out_arch #out_signals #out_reset); })
                 .expect("Failed to parse TokenStream into Stmt"),
         );
 
@@ -2033,10 +1903,73 @@ pub mod codegen {
     ) -> TokenStream {
         //println!("{}", generate_app_variables(arch_types).to_string());
         //println!("{}", generate_app_overwrite(arch_types).to_string());
-        println!("{:?}", runtime_dependency_map.in_degrees);
+        generate_app_task_body(&all_tasks, &task_options, &arch_types);
         //println!("{:?}", runtime_dependency_map.topological_sort());
-        runtime_dependency_map.build_tree().print();
         TokenStream::new()
+    }
+    fn generate_app_task_body<'a>(
+        tasks: &'a HashMap<&String, Task>,
+        task_options: &'a HashMap<&String, &(TaskType, Option<LogicalExpression>)>,
+        arch_types: &ArchTypes,
+    ) -> HashMap<&'a String, TokenStream> {
+        let mut task_codes: HashMap<&'a String, TokenStream> = HashMap::new();
+
+        /*for task in tasks {
+            let name: TokenStream = parse_str(format!("{}", task.0).as_str()).unwrap();
+            arch_types.tasks
+            println!("{}", name.to_string());
+        }*/
+        println!("{:?}", arch_types.arch_types);
+        for task in &arch_types.tasks {
+            let task_name: TokenStream = parse_str(format!("{}", task.0).as_str()).unwrap();
+
+            let mut code: TokenStream = TokenStream::new();
+
+            //call function
+
+            for t in task.1 {
+                let arch_name: TokenStream =
+                    parse_str(format!("{}{}", task.0, t.task_index).as_str()).unwrap();
+                let mut arch_inputs: TokenStream = TokenStream::new();
+                for input_arch_type_index in &t.input_arch_type_indexes {
+                    let name: TokenStream =
+                        parse_str(format!("a{}", input_arch_type_index.0).as_str()).unwrap();
+                    let remove: TokenStream =
+                        parse_str(format!("or{}", input_arch_type_index.0).as_str()).unwrap();
+
+                    arch_inputs.extend(quote! {&*#name.read().unwrap(),});
+                    arch_inputs.extend(quote! {&#remove,});
+                }
+
+                code.extend(quote! {
+                    Arch::new(&mut #arch_name::new(
+                    #arch_inputs
+                    )),
+                });
+            }
+
+            for input_resource in &tasks[task.0].input_resources {
+                let resource_name: TokenStream =
+                    parse_str(format!("r_{}", input_resource.1).as_str()).unwrap();
+                code.extend(quote! {Res::new(&#resource_name),})
+            }
+
+            for input_state in &tasks[task.0].input_states {
+                let state_name: TokenStream =
+                    parse_str(format!("r_{}", input_state.1).as_str()).unwrap();
+                code.extend(quote! {Res::new(&#state_name),})
+            }
+
+            if tasks[task.0].input_delta_time != None {
+                code.extend(quote! {&f64::from_bits(delta_time.load(Ordering::Relaxed)),});
+            }
+
+            //output
+
+            println!("{}", quote! {let o = #task_name(#code);}.to_string());
+        }
+
+        task_codes
     }
     fn generate_app_variables(arch_types: &ArchTypes) -> TokenStream {
         let mut arch_code = TokenStream::new();
@@ -2113,7 +2046,6 @@ pub mod codegen {
             #arch_code
         };
     }
-
     fn generate_app_overwrite(arch_types: &ArchTypes) -> TokenStream {
         let mut overwrite_thread_code: TokenStream = TokenStream::new();
         let mut overwrite_join_code: TokenStream = TokenStream::new();

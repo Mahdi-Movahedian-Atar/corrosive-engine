@@ -41,16 +41,17 @@ pub fn setup() -> (
 
 #[task]
 pub fn macro_test(
+    delta_time: DeltaTime,
     b: Arch<(&LockedRef<Position3>,)>,
     a: Arch<(&LockedRef<Position3>, &Ref<Position2>)>,
     aa: Arch<(&Ref<Position2>, &LockedRef<Position3>)>,
-    c: Res<MarkedResources>,
     d: State<StateExample>,
+    c: Res<MarkedResources>,
 ) {
+    signal!("sss");
     add_entity!(Ref<Position2> = Ref::new(Position2 { x: 1.0, y: 1.0 }),LockedRef<Position3>= LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
     add_entity!(Ref<Position2> = Ref::new(Position2 { x: 1.0, y: 1.0 }),Position3= Position3 { x: 1.0, y: 1.0 },LockedRef<Position3>= LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
     add_entity!(LockedRef<Position3> = LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
-    signal!("sss");
     reset!();
 }
 
