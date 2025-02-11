@@ -53,12 +53,8 @@ pub mod task_macro {
         let out = generate_task_body(&mut body.block.stmts);
         body.sig.output = ReturnType::Type(parse_quote!(->), Box::new(parse_quote!((#out))));
 
-        println!("\n=======================\n");
-        println!("{}", out);
-        println!("\n=======================\n");
-
         let new_body: TokenStream = quote! {#body}.into();
 
-        original
+        new_body.into()
     }
 }

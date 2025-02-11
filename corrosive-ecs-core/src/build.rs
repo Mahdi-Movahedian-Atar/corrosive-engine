@@ -630,7 +630,7 @@ pub mod tasks_scan {
 pub mod app_scan {
     use proc_macro2::{TokenStream, TokenTree};
     use quote::{quote, quote_spanned, ToTokens};
-    use std::collections::{HashMap, HashSet, VecDeque};
+    use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
     use std::ops::Deref;
     use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
     use syn::token::{Group, Paren};
@@ -658,7 +658,7 @@ pub mod app_scan {
         Long,
         Setup,
     }
-    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    #[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Clone, Hash)]
     pub enum DependencyType {
         GroupStart(String),
         GroupEnd(String),
@@ -707,16 +707,16 @@ pub mod app_scan {
         pub fn topological_sort(&self) -> core::result::Result<Vec<DependencyType>, &str> {
             let mut in_degrees = self.in_degrees.clone();
             let mut dependents = self.dependents.clone();
-            let mut queue = VecDeque::new();
+            let mut queue = BinaryHeap::new();
 
             for (node, &degree) in &in_degrees {
                 if degree == 0 {
-                    queue.push_back(node.clone());
+                    queue.push((degree, node.clone()));
                 }
             }
 
             let mut sorted = Vec::new();
-            while let Some(node) = queue.pop_front() {
+            while let Some((_, node)) = queue.pop() {
                 sorted.push(node.clone());
 
                 if let Some(dependent_nodes) = dependents.get(&node) {
@@ -724,7 +724,7 @@ pub mod app_scan {
                         if let Some(degree) = in_degrees.get_mut(dependent) {
                             *degree -= 1;
                             if *degree == 0 {
-                                queue.push_back(dependent.clone());
+                                queue.push((*degree, dependent.clone()));
                             }
                         }
                     }
@@ -736,6 +736,18 @@ pub mod app_scan {
             } else {
                 Err("Circular dependency detected")
             }
+        }
+
+        pub fn get_task_leaves(&self, node: &DependencyType) -> Vec<&String> {
+            let mut nodes: Vec<&String> = vec![];
+            for node in &self.dependents[node] {
+                if let DependencyType::Task(s) = node {
+                    nodes.push(&s);
+                } else {
+                    nodes.extend(self.get_task_leaves(node));
+                }
+            }
+            nodes
         }
     }
     #[derive(Debug)]
@@ -919,7 +931,7 @@ pub mod app_scan {
                         "String literal of name of a task.\nExample: (long_update \"long_task\")"));
                     }
                 },
-                "Setup" => match input.parse::<Lit>() {
+                "setup" => match input.parse::<Lit>() {
                     Ok(Lit::Str(T)) => {
                         internal_task_type = InternalTaskType::Setup;
                         task_name = Some((T.value(), TaskType::Setup))
@@ -930,7 +942,7 @@ pub mod app_scan {
                                 Ok(T) => T.to_token_stream(),
                                 Err(E) => E.into_compile_error(),
                             },
-                            "String literal of name of a task.\nExample: (Setup \"setup_task\")",
+                            "String literal of name of a task.\nExample: (setup \"setup_task\")",
                         ));
                     }
                 },
@@ -1111,7 +1123,7 @@ pub mod app_scan {
                 _ => {
                     return Err(Error::new_spanned(
                 ident,
-                "Expected path, update, fixed_update, sync_update, long_update, Setup, group or package."));
+                "Expected path, update, fixed_update, sync_update, long_update, setup, group or package."));
                 }
             }
 
@@ -1316,7 +1328,7 @@ pub mod codegen {
     #[derive(Debug)]
     pub struct ArchTypes {
         arch_types: Vec<Vec<String>>,
-        tasks: HashMap<String, Vec<TaskArchType>>,
+        tasks: HashMap<String, TasksInputOutput>,
         signals: HashSet<String>,
         resources: HashSet<String>,
         states: HashSet<String>,
@@ -1326,7 +1338,11 @@ pub mod codegen {
         arch_type_type: Vec<String>,
         task_index: usize,
         input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
-        output_arch_type_indexes: Vec<(usize, Vec<usize>)>,
+    }
+    #[derive(Debug)]
+    pub struct TasksInputOutput {
+        input: Vec<TaskArchType>,
+        output: Vec<usize>,
     }
 
     pub fn create_app(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
@@ -1334,6 +1350,7 @@ pub mod codegen {
         let mut task_options: HashMap<&String, &(TaskType, Option<LogicalExpression>)> =
             HashMap::new();
         let mut setup_dependency_map: DependencyGraph = DependencyGraph::new();
+        let mut sync_dependency_map: DependencyGraph = DependencyGraph::new();
         let mut runtime_dependency_map: DependencyGraph = DependencyGraph::new();
 
         {
@@ -1363,6 +1380,12 @@ pub mod codegen {
                         } else {
                             runtime_dependency_map.merge(&app_package.runtime_dependency);
                         }
+
+                        if sync_dependency_map.dependents.len() == 0 {
+                            sync_dependency_map = app_package.sync_dependency.clone();
+                        } else {
+                            sync_dependency_map.merge(&app_package.sync_dependency);
+                        }
                         app_package.tasks.iter().for_each(|x| {
                             task_options.insert(x.0, x.1);
                             tasks.insert(
@@ -1379,92 +1402,19 @@ pub mod codegen {
         }
         let arch_types = get_all_archetypes(tasks.values().collect::<Vec<&Task>>());
 
-        generate_app_body(
-            &tasks,
-            &task_options,
-            &setup_dependency_map,
-            &runtime_dependency_map,
-            &arch_types,
+        println!(
+            "{}",
+            generate_app_body(
+                &tasks,
+                &task_options,
+                &setup_dependency_map,
+                &sync_dependency_map,
+                &runtime_dependency_map,
+                &arch_types,
+            )
+            .to_string()
         );
     }
-
-    /*pub struct AppMap {
-        arch_types: ArchTypes,
-        dependency_graph: DependencyGraph,
-        tasks: HashMap<String, Task>,
-        states: Vec<String>,
-        resources: Vec<String>,
-        signals: Vec<String>,
-    }
-
-    impl AppMap {
-        pub fn new(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
-            let mut tasks_types: Vec<&TaskType> = vec![];
-            let mut tasks_logical: Vec<&Option<LogicalExpression>> = vec![];
-            let tasks: HashMap<String, Task> = task_maps
-                .into_iter()
-                .flat_map(|task_map| task_map.get_all())
-                .collect();
-
-            let mut packages: Vec<&str> = vec!["main"];
-            let mut index = 0;
-
-            while index < packages.len() {
-                let package = packages[index];
-                for app_package in &app_packages {
-                    if package == app_package.name {
-                        for v in &app_package.packages {
-                            if !packages.contains(&v.as_str()) {
-                                packages.push(v.as_str());
-                            }
-                        }
-                        /*app_package.tasks.iter().for_each(|x| tasks_types.push(x));
-                        app_package
-                            .task_schedule
-                            .iter()
-                            .for_each(|x| tasks_schedule.push(x));
-                        app_package
-                            .task_conditions
-                            .iter()
-                            .for_each(|x| tasks_logical.push(x));
-                        app_package.groups.iter().for_each(|x| {
-                            if !groups.contains_key(x.0) {
-                                groups.insert(x.0, x.1);
-                            }
-                        })*/
-                    }
-                }
-                index += 1;
-            }
-
-            println!("{:?}", app_packages[0].setup_dependency.topological_sort());
-            println!("{:?}", tasks_types);
-            println!("{:?}", tasks_logical);
-            println!("{:?}", tasks.keys());
-
-            /*'outer: for i in 0..tasks_schedule.len() {
-                let p1: (usize,usize) = (0,0);
-                let p2: (usize,usize) = (0,0);
-
-                match tasks_schedule[i] {
-                    TaskSchedule::In(T)=>{
-                        if let TaskType::Setup(T)= tasks_types[i] {
-                            for j in 0..startup_tasks.len() {
-                                for k in 0..startup_tasks[j].len() {
-
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }*/
-
-            /*for _ in main_app_package.task_schedule[0] {
-
-            }*/
-        }
-    }*/
 
     pub fn write_rust_file(token_stream: TokenStream, path: &str) -> io::Result<()> {
         let token_stream_str = token_stream.to_string();
@@ -1505,86 +1455,54 @@ pub mod codegen {
                 .states
                 .extend(task.input_states.iter().map(|x| x.1.clone()));
         }
-        for task in tasks {
+        for task in &tasks {
+            let mut new = TasksInputOutput {
+                input: vec![],
+                output: task
+                    .output_archs
+                    .iter()
+                    .map(|x| x.iter().map(|x| x.0.clone()).collect::<Vec<String>>())
+                    .filter_map(|x| archetypes.arch_types.iter().position(|y| y == &x))
+                    .collect::<Vec<usize>>(),
+            };
+
             let mut index: usize = 0;
+
             for input_arch in &task.input_archs {
-                match archetypes.tasks.get_mut(&task.name) {
-                    Some(T) => T.push(TaskArchType {
-                        arch_type_type: input_arch.1.clone(),
-                        task_index: index,
-                        input_arch_type_indexes: archetypes
-                            .arch_types
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(outer_index, sub_vec)| {
-                                if input_arch.1.iter().all(|b_elem| sub_vec.contains(b_elem)) {
-                                    Some((
-                                        outer_index,
-                                        input_arch
-                                            .1
-                                            .iter()
-                                            .enumerate()
-                                            .filter_map(|a| {
-                                                if let Some(t) =
-                                                    sub_vec.iter().position(|i| i == a.1)
-                                                {
-                                                    Some(t)
-                                                } else {
-                                                    None
-                                                }
-                                            })
-                                            .collect(),
-                                    ))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect(),
-                    }),
-                    _ => {
-                        archetypes.tasks.insert(
-                            task.name.clone(),
-                            vec![TaskArchType {
-                                arch_type_type: input_arch.1.clone(),
-                                task_index: index,
-                                input_arch_type_indexes: archetypes
-                                    .arch_types
-                                    .iter()
-                                    .enumerate()
-                                    .filter_map(|(outer_index, sub_vec)| {
-                                        if input_arch
-                                            .1
-                                            .iter()
-                                            .all(|b_elem| sub_vec.contains(b_elem))
-                                        {
-                                            Some((
-                                                outer_index,
-                                                input_arch
-                                                    .1
-                                                    .iter()
-                                                    .enumerate()
-                                                    .filter_map(|a| {
-                                                        if let Some(t) =
-                                                            sub_vec.iter().position(|i| i == a.1)
-                                                        {
-                                                            Some(t)
-                                                        } else {
-                                                            None
-                                                        }
-                                                    })
-                                                    .collect(),
-                                            ))
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect(),
-                            }],
-                        );
-                    }
-                };
+                new.input.push(TaskArchType {
+                    arch_type_type: input_arch.1.clone(),
+                    task_index: index,
+                    input_arch_type_indexes: archetypes
+                        .arch_types
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(outer_index, sub_vec)| {
+                            if input_arch.1.iter().all(|b_elem| sub_vec.contains(b_elem)) {
+                                Some((
+                                    outer_index,
+                                    input_arch
+                                        .1
+                                        .iter()
+                                        .enumerate()
+                                        .filter_map(|a| {
+                                            if let Some(t) = sub_vec.iter().position(|i| i == a.1) {
+                                                Some(t)
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .collect(),
+                                ))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                });
                 index += 1;
             }
+
+            archetypes.tasks.insert(task.name.clone(), new);
         }
         archetypes
     }
@@ -1618,7 +1536,7 @@ pub mod codegen {
 
         for task in &arch_types.tasks {
             let exact_name = parse_str::<TokenStream>(format!("\"{}\"", &task.0).as_str()).unwrap();
-            for input_arch_type in task.1 {
+            for input_arch_type in &task.1.input {
                 let arch_type_name: TokenStream =
                     parse_str(format!("{}{}", &task.0, input_arch_type.task_index).as_str())
                         .unwrap();
@@ -1898,38 +1816,118 @@ pub mod codegen {
         all_tasks: &HashMap<&String, Task>,
         task_options: &HashMap<&String, &(TaskType, Option<LogicalExpression>)>,
         setup_dependency_map: &DependencyGraph,
+        sync_dependency_map: &DependencyGraph,
         runtime_dependency_map: &DependencyGraph,
         arch_types: &ArchTypes,
     ) -> TokenStream {
-        //println!("{}", generate_app_variables(arch_types).to_string());
-        //println!("{}", generate_app_overwrite(arch_types).to_string());
-        generate_app_task_body(&all_tasks, &task_options, &arch_types);
-        //println!("{:?}", runtime_dependency_map.topological_sort());
-        TokenStream::new()
+        let variables = generate_app_variables(arch_types);
+        let overwrite = generate_app_overwrite(arch_types);
+        let mut runtime_bus = generate_bus_channels(runtime_dependency_map);
+        let setup_bus = generate_bus_channels(setup_dependency_map);
+        let mut runtime_tasks: TokenStream = TokenStream::new();
+        let mut runtime_joins: TokenStream = TokenStream::new();
+        let mut setup_tasks: TokenStream = TokenStream::new();
+        let mut setup_joins: TokenStream = TokenStream::new();
+        let mut sync_tasks: TokenStream = TokenStream::new();
+        for task in generate_app_task_body(
+            &all_tasks,
+            &task_options,
+            &arch_types,
+            &runtime_dependency_map,
+        ) {
+            runtime_tasks.extend(task.1);
+            let name: TokenStream = parse_str(format!("{}_end", task.0).as_str()).unwrap();
+            let update_name: TokenStream = parse_str(format!("ut_{}", task.0).as_str()).unwrap();
+            runtime_joins.extend(quote! {#name.read("failed");});
+            runtime_bus.extend(quote! {let mut #update_name = loop_trigger.add_trigger();});
+        }
+        for task in generate_app_task_body(
+            &all_tasks,
+            &task_options,
+            &arch_types,
+            &setup_dependency_map,
+        ) {
+            let name: TokenStream = parse_str(format!("handle_{}", task.0).as_str()).unwrap();
+            let task: TokenStream = task.1;
+            setup_tasks.extend(quote! {let #name = #task});
+            setup_joins.extend(quote! {#name.join().expect("TODO: panic message");})
+        }
+        for task in sync_dependency_map.topological_sort().unwrap() {
+            let tasks = generate_app_task_body(
+                &all_tasks,
+                &task_options,
+                &arch_types,
+                &sync_dependency_map,
+            );
+            if let DependencyType::Task(v) = task {
+                sync_tasks.extend(tasks[&v].clone())
+            }
+        }
+
+        quote! {
+            #variables
+            let mut loop_trigger = Trigger::new();
+            #runtime_bus
+            thread::scope(|s: &Scope| {
+                #runtime_tasks
+                if reset.load(SeqCst) {
+                    #setup_bus
+                    thread::scope(|s: &Scope| {
+                    reset.store(false, Ordering::SeqCst);
+                    #setup_tasks
+                    #setup_joins
+                    });
+                }
+
+                #overwrite
+
+                current_time = Instant::now();
+                let new_current_time = current_time
+                    .duration_since(last_time)
+                    .as_secs_f64()
+                    .to_bits();
+                delta_time.store(new_current_time.clone(), Ordering::Relaxed);
+                last_time = current_time;
+
+                fixed_delta_time += new_current_time;
+                if (fixed_time.load(Ordering::Relaxed) <= fixed_delta_time) {
+                    fixed_delta_time = 0;
+                    is_fixed.store(true, SeqCst);
+                } else {
+                    is_fixed.store(false, SeqCst);
+                }
+
+                #sync_tasks
+
+                loop_trigger.trigger();
+
+                #runtime_joins
+            });
+        }
     }
     fn generate_app_task_body<'a>(
         tasks: &'a HashMap<&String, Task>,
         task_options: &'a HashMap<&String, &(TaskType, Option<LogicalExpression>)>,
         arch_types: &ArchTypes,
+        dependency_graph: &'a DependencyGraph,
     ) -> HashMap<&'a String, TokenStream> {
         let mut task_codes: HashMap<&'a String, TokenStream> = HashMap::new();
 
-        /*for task in tasks {
-            let name: TokenStream = parse_str(format!("{}", task.0).as_str()).unwrap();
-            arch_types.tasks
-            println!("{}", name.to_string());
-        }*/
-        println!("{:?}", arch_types.arch_types);
-        for task in &arch_types.tasks {
-            let task_name: TokenStream = parse_str(format!("{}", task.0).as_str()).unwrap();
+        for task in &dependency_graph.dependents {
+            let task_name = match task.0 {
+                DependencyType::GroupStart(_) => continue,
+                DependencyType::GroupEnd(_) => continue,
+                DependencyType::Task(v) => v,
+            };
+
+            let task_name_code: TokenStream = parse_str(format!("{}", task_name).as_str()).unwrap();
 
             let mut code: TokenStream = TokenStream::new();
 
             //call function
-
-            for t in task.1 {
+            for t in &arch_types.tasks[task_name].input {
                 let arch_name: TokenStream =
-                    parse_str(format!("{}{}", task.0, t.task_index).as_str()).unwrap();
+                    parse_str(format!("{}{}", task_name, t.task_index).as_str()).unwrap();
                 let mut arch_inputs: TokenStream = TokenStream::new();
                 for input_arch_type_index in &t.input_arch_type_indexes {
                     let name: TokenStream =
@@ -1948,36 +1946,246 @@ pub mod codegen {
                 });
             }
 
-            for input_resource in &tasks[task.0].input_resources {
+            for input_resource in &tasks[task_name].input_resources {
                 let resource_name: TokenStream =
                     parse_str(format!("r_{}", input_resource.1).as_str()).unwrap();
                 code.extend(quote! {Res::new(&#resource_name),})
             }
 
-            for input_state in &tasks[task.0].input_states {
+            for input_state in &tasks[task_name].input_states {
                 let state_name: TokenStream =
                     parse_str(format!("r_{}", input_state.1).as_str()).unwrap();
                 code.extend(quote! {Res::new(&#state_name),})
             }
 
-            if tasks[task.0].input_delta_time != None {
+            if tasks[task_name].input_delta_time != None {
                 code.extend(quote! {&f64::from_bits(delta_time.load(Ordering::Relaxed)),});
             }
 
-            //output
+            code = quote! {
+                let o = #task_name_code(
+                    TestUtArch::new(
+                        #code
+                    ),
+                    TestUtArch2::new(&*a1.read().unwrap(), &*a3.read().unwrap()),
+                    State::new(&state),
+                );
+            };
 
-            println!("{}", quote! {let o = #task_name(#code);}.to_string());
+            //output
+            let mut index: usize = 0;
+
+            for output in &arch_types.tasks[task_name].output {
+                let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
+                let arch_name: TokenStream = parse_str(format!("o{}", output).as_str()).unwrap();
+
+                code.extend(quote! {
+                    (&#arch_name).write().unwrap().extend(#name);
+                });
+                index += 1;
+            }
+
+            for task in &tasks[task_name].output_signals {
+                let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
+                let signal_name: TokenStream = parse_str(format!("s_{}", task).as_str()).unwrap();
+
+                code.extend(quote! {
+                    if #name {
+                        #signal_name.store(#name, Ordering::Relaxed);
+                    }
+                });
+                index += 1
+            }
+
+            if tasks[task_name].output_reset {
+                let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
+
+                code.extend(quote! {
+                    if #name {
+                        reset.store(#name, Ordering::Relaxed);
+                    }
+                });
+            }
+
+            //condition
+            if task_options[task_name].0 == TaskType::Long {
+                let mut lock_add_code: TokenStream = TokenStream::new();
+                let mut lock_sub_code: TokenStream = TokenStream::new();
+
+                let mut lock_names: HashSet<String> = HashSet::new();
+                for t in &arch_types.tasks[task_name].input {
+                    for input_arch_type_index in &t.input_arch_type_indexes {
+                        lock_names.insert(format!("la{}", input_arch_type_index.0));
+                    }
+                }
+                for lock_name in lock_names {
+                    let lock_name = parse_str::<TokenStream>(lock_name.as_str()).unwrap();
+                    lock_add_code.extend(quote! {#lock_name.fetch_add(1, Ordering::SeqCst);});
+                    lock_sub_code.extend(quote! {#lock_name.fetch_sub(1, Ordering::SeqCst);});
+                }
+
+                code = quote! {
+                    match lock.take() {
+                        Some(task) if task.is_finished() => {
+                            task.join().expect("Task finished but failed to join");
+                        }
+                        Some(task) => {
+                            lock = Some(task);
+                        }
+                        None => {
+                            lock = Some(s.spawn(|| {
+                                #lock_add_code
+
+                                #code
+
+                                #lock_sub_code
+                            }));
+                        }
+                    }
+                };
+            }
+
+            if let Some(t) = &task_options[task_name].1 {
+                let c = t.get_code();
+                code = quote! {
+                    if #c{
+                        #code
+                    }
+                };
+            }
+
+            if task_options[task_name].0 == TaskType::Fixed {
+                code = quote! {
+                    if is_fixed.load(SeqCst) {
+                        #code
+                    }
+                }
+            }
+
+            //dependency
+            if task_options[task_name].0 != TaskType::Sync {
+                let start_signal = if task_options[task_name].0 == TaskType::Update
+                    || task_options[task_name].0 == TaskType::Long
+                    || task_options[task_name].0 == TaskType::Fixed
+                {
+                    let name: TokenStream =
+                        parse_str(format!("ut_{}", task_name).as_str()).unwrap();
+                    quote! {#name.read("failed");}
+                } else {
+                    TokenStream::new()
+                };
+
+                let end_signal = {
+                    let name: TokenStream =
+                        parse_str(format!("bus_{}", task_name).as_str()).unwrap();
+                    quote! {#name.trigger();}
+                };
+
+                let mut dependency: TokenStream = TokenStream::new();
+
+                for get_task_leaf in dependency_graph.get_task_leaves(task.0) {
+                    let name: TokenStream =
+                        parse_str(format!("{}_{}", task_name, get_task_leaf).as_str()).unwrap();
+                    dependency.extend(quote! {#name.read("failed");});
+                }
+
+                let long_task_handle: TokenStream = if task_options[task_name].0 == TaskType::Long {
+                    quote! {let mut lock: Option<ScopedJoinHandle<_>> = None::<ScopedJoinHandle<'_, _>>;}
+                } else {
+                    quote! {}
+                };
+
+                if task_options[task_name].0 == TaskType::Setup
+                    || task_options[task_name].0 == TaskType::Sync
+                {
+                    code = quote! {
+                        s.spawn(|| {
+                            #start_signal
+                            #dependency
+                            #code
+                            #end_signal
+                        });
+                    }
+                } else {
+                    code = quote! {
+                        s.spawn(|| {
+                            #long_task_handle
+                            loop {
+                                #start_signal
+                                #dependency
+                                #code
+                                #end_signal
+                            }
+                        });
+                    }
+                }
+            }
+
+            task_codes.insert(task_name, code);
         }
 
         task_codes
+    }
+    fn generate_bus_channels(dependency_graph: &DependencyGraph) -> TokenStream {
+        let mut trigger_code: TokenStream = TokenStream::new();
+        let mut bus_code: TokenStream = TokenStream::new();
+
+        for dependency in &dependency_graph.dependents {
+            if let DependencyType::Task(v) = dependency.0 {
+                let trigger: TokenStream = parse_str(format!("bus_{}", v).as_str()).unwrap();
+                let trigger_end: TokenStream = parse_str(format!("{}_end", v).as_str()).unwrap();
+
+                trigger_code.extend(quote! {let mut #trigger_end = #trigger.add_trigger();});
+                bus_code.extend(quote! {let mut #trigger = Trigger::new();});
+
+                for task_leaf in dependency_graph.get_task_leaves(dependency.0) {
+                    let trigger: TokenStream =
+                        parse_str(format!("{}_{}", v, task_leaf).as_str()).unwrap();
+
+                    let buss: TokenStream =
+                        parse_str(format!("bus_{}", task_leaf).as_str()).unwrap();
+
+                    trigger_code.extend(quote! {let mut #trigger = #buss.add_trigger();});
+                }
+            }
+        }
+        quote! {
+            #bus_code
+            #trigger_code
+        }
+    }
+    impl LogicalExpression {
+        pub fn get_code(&self) -> TokenStream {
+            match self {
+                LogicalExpression::Grouped(v) => {
+                    let mut code: TokenStream = TokenStream::new();
+                    for value in v {
+                        code.extend(value.get_code());
+                    }
+                    quote! {(#code)}
+                }
+                LogicalExpression::Signal(v) => parse_str(format!("s_{}", v).as_str()).unwrap(),
+                LogicalExpression::State(n, t) => {
+                    let n: TokenStream = parse_str(format!("st_{}", n).as_str()).unwrap();
+                    let t: TokenStream = parse_str(t.as_str()).unwrap();
+                    quote! {(#n == #t)}
+                }
+                LogicalExpression::Not(v) => {
+                    let v = v.get_code();
+                    quote! {!#v}
+                }
+                LogicalExpression::Operator(v) => match v {
+                    LogicalOperator::And => quote! {&&},
+                    LogicalOperator::Or => quote! {||},
+                },
+            }
+        }
     }
     fn generate_app_variables(arch_types: &ArchTypes) -> TokenStream {
         let mut arch_code = TokenStream::new();
         let mut index: usize = 0;
 
         for arch_type in &arch_types.arch_types {
-            index += 1;
-
             let name: TokenStream = parse_str(format!("a{}", index).as_str()).unwrap();
             let overwrite_name: TokenStream = parse_str(format!("o{}", index).as_str()).unwrap();
             let remove_name: TokenStream = parse_str(format!("or{}", index).as_str()).unwrap();
@@ -1993,6 +2201,7 @@ pub mod codegen {
                 let #remove_name: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
                 let #lock_name: AtomicU8 = AtomicU8::new(0);
             });
+            index += 1;
         }
 
         for signal in &arch_types.signals {
@@ -2023,15 +2232,18 @@ pub mod codegen {
             });
         }
         return quote! {
+            use corrosive_ecs_core::ecs_core::Trigger;
             use std::cmp::PartialEq;
             use std::collections::HashSet;
             use std::mem::take;
             use std::sync::atomic::Ordering::SeqCst;
             use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
-            use std::sync::{Arc, RwLock};
+            use std::sync::RwLock;
             use std::thread;
             use std::thread::{Scope, ScopedJoinHandle};
             use std::time::Instant;
+            use corrosive_ecs_core_macro::corrosive_engine_builder;
+            use std::sync::mpsc;
 
             let mut last_time = Instant::now();
             let mut current_time = Instant::now();
@@ -2053,10 +2265,10 @@ pub mod codegen {
 
         for i in 0..arch_types.arch_types.len() {
             let thread_name: TokenStream = parse_str(format!("m_{}", i).as_str()).unwrap();
-            let arch_name: TokenStream = parse_str(format!("a_{}", i).as_str()).unwrap();
-            let overwrite_name: TokenStream = parse_str(format!("o_{}", i).as_str()).unwrap();
-            let remove_name: TokenStream = parse_str(format!("or_{}", i).as_str()).unwrap();
-            let lock_name: TokenStream = parse_str(format!("la_{}", i).as_str()).unwrap();
+            let arch_name: TokenStream = parse_str(format!("a{}", i).as_str()).unwrap();
+            let overwrite_name: TokenStream = parse_str(format!("o{}", i).as_str()).unwrap();
+            let remove_name: TokenStream = parse_str(format!("or{}", i).as_str()).unwrap();
+            let lock_name: TokenStream = parse_str(format!("la{}", i).as_str()).unwrap();
             let mut expire: TokenStream = TokenStream::new();
 
             for j in 0..arch_types.arch_types[i].len() {

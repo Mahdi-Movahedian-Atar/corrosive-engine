@@ -1,7 +1,6 @@
 #![allow(warnings)]
 
-use corrosive_ecs_core_macro::corrosive_engine_builder;
-use std::sync::mpsc;
+use corrosive_engine::auto_prelude::*;
 
 mod comp;
 mod core_test;
@@ -15,15 +14,16 @@ mod task;
 use crate::task::other_tasks::other_other_task::*;
 use crate::task::other_tasks::*;
 use crate::task::*;
-use corrosive_engine::auto_prelude::*;
 
 fn main() {
     use corrosive_ecs_core::ecs_core::Trigger;
+    use corrosive_ecs_core_macro::corrosive_engine_builder;
     use std::cmp::PartialEq;
     use std::collections::HashSet;
     use std::mem::take;
     use std::sync::atomic::Ordering::SeqCst;
     use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+    use std::sync::mpsc;
     use std::sync::RwLock;
     use std::thread;
     use std::thread::{Scope, ScopedJoinHandle};
@@ -32,9 +32,9 @@ fn main() {
     //corrosive_engine!(| update , sss|, | ss);
     corrosive_engine_builder!(
         path "./src",
-        update "setup1",
-        update "macro_test" in_group "group",
-        fixed_update "setup" in_group "group" if !"sss" ||  State::new && !( Resorse{main: "mahdi"})
+        long_update "setup1" before_group "group",
+        long_update "macro_test" in_group "group",
+        fixed_update "setup" in_group "group" if !"sss" ||  State::new && !( State::Old{main: "mahdi"})
     );
 
     let mut last_time = Instant::now();
@@ -182,6 +182,7 @@ fn main() {
                                 &*a3.read().unwrap(),
                             ));
 
+                            if o {}
                             reset.store(o, Ordering::SeqCst);
 
                             la1.fetch_sub(1, Ordering::SeqCst);

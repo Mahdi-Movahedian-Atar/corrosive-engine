@@ -41,7 +41,6 @@ pub fn setup() -> (
 
 #[task]
 pub fn macro_test(
-    delta_time: DeltaTime,
     b: Arch<(&LockedRef<Position3>,)>,
     a: Arch<(&LockedRef<Position3>, &Ref<Position2>)>,
     aa: Arch<(&Ref<Position2>, &LockedRef<Position3>)>,
