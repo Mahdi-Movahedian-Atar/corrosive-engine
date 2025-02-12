@@ -25,7 +25,7 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     //component scan
 
     let mut components_path_map = get_path_map(
-        format!("{}/corrosive-components/components_path_map.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/components_path_map.json", app_path).as_str(),
         format!("{}/comp", args.path).as_str(),
     );
     if !components_path_map.path.ends_with("comp") {
@@ -40,7 +40,7 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     .expect("Failed to scan comp directory");
 
     let mut component_map = get_component_map(
-        format!("{}/corrosive-components/components.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/components.json", app_path).as_str(),
         format!("{}/comp", args.path).as_str(),
     );
     if !component_map.path.ends_with("comp") {
@@ -51,20 +51,20 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
 
     write_component_map(
         &component_map,
-        format!("{}/corrosive-components/components.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/components.json", app_path).as_str(),
     )
     .expect("Filed to write component map file");
 
     write_path_map(
         &components_path_map,
-        format!("{}/corrosive-components/components_path_map.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/components_path_map.json", app_path).as_str(),
     )
     .expect("Filed to write path map file");
 
     //task scan
 
     let mut tasks_path_map = get_path_map(
-        format!("{}/corrosive-components/tasks_path_map.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/tasks_path_map.json", app_path).as_str(),
         format!("{}/task", args.path).as_str(),
     );
     if !tasks_path_map.path.ends_with("task") {
@@ -75,7 +75,7 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
         .expect("Failed to scan task directory");
 
     let mut task_map = get_task_map(
-        format!("{}/corrosive-components/tasks.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/tasks.json", app_path).as_str(),
         format!("{}/task", args.path).as_str(),
     );
     if !task_map.path.ends_with("task") {
@@ -86,13 +86,13 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
 
     write_task_map(
         &task_map,
-        format!("{}/corrosive-components/tasks.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/tasks.json", app_path).as_str(),
     )
     .expect("Filed to write component map file");
 
     write_path_map(
         &tasks_path_map,
-        format!("{}/corrosive-components/tasks_path_map.json", app_path).as_str(),
+        format!("{}/.corrosive_engine/tasks_path_map.json", app_path).as_str(),
     )
     .expect("Filed to write path map file");
 
@@ -107,14 +107,13 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     )
     .expect("failed to create auto_prelude.ts");
 
-    /*let arch_types = get_all_archetypes(&task_map);
+    let app = create_app(vec![args], vec![task_map]);
+
     write_rust_file(
-        generate_arch_types(&arch_types),
-        format!("{}/corrosive-components/arch_types.rs", app_path).as_str(),
+        generate_arch_types(&app.1),
+        format!("{}/.corrosive_engine/arch_types.rs", app_path).as_str(),
     )
-    .expect("failed to create arch_types.ts");*/
+    .expect("failed to create arch_types.ts");
 
-    create_app(vec![args], vec![task_map]);
-
-    TokenStream::new()
+    app.0.into()
 }

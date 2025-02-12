@@ -301,9 +301,10 @@ pub mod tasks_scan {
     use std::{fs, io};
     use syn::punctuated::Punctuated;
     use syn::token::Comma;
+    use syn::visit::Visit;
     use syn::{
-        Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat, PathArguments, Stmt,
-        Type, TypeTuple,
+        visit_mut, Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat,
+        PathArguments, Stmt, Type, TypeTuple,
     };
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
@@ -554,13 +555,17 @@ pub mod tasks_scan {
         }
         (input_arch, input_resource, input_state, input_delta_time)
     }
-    fn get_task_output(stmts: Vec<Stmt>) -> (Vec<Vec<(String, String)>>, Vec<String>, bool) {
-        let mut output_arch: Vec<Vec<(String, String)>> = Vec::new();
-        let mut output_signals: Vec<String> = Vec::new();
-        let mut output_reset: bool = false;
 
-        for st in stmts {
-            if let Stmt::Macro(mac) = st {
+    struct MacroReader {
+        output_arch: Vec<Vec<(String, String)>>,
+        output_signals: Vec<String>,
+        output_reset: bool,
+    }
+
+    impl<'ast> Visit<'ast> for MacroReader {
+        // This method is called for every statement in the syntax tree.
+        fn visit_stmt(&mut self, stmt: &'ast Stmt) {
+            if let Stmt::Macro(mac) = stmt {
                 match mac
                     .mac
                     .path
@@ -575,7 +580,7 @@ pub mod tasks_scan {
                         let mut type_flag = true;
                         let mut ty: Vec<String> = vec!["".to_string()];
                         let mut va: Vec<String> = vec!["".to_string()];
-                        for token in mac.mac.tokens {
+                        for token in mac.mac.tokens.clone() {
                             let t = token.to_string().replace(" ", "");
                             if t == "," {
                                 type_flag = true;
@@ -601,29 +606,121 @@ pub mod tasks_scan {
 
                         tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
 
-                        if output_arch.contains(&tuples) {
-                            break;
+                        if self.output_arch.contains(&tuples) {
+                            return;
                         }
 
-                        output_arch.push(tuples);
+                        self.output_arch.push(tuples);
                     }
                     "signal" => {
                         let signal: LitStr = mac.mac.parse_body().unwrap();
 
-                        if output_signals.contains(&signal.value()) {
-                            break;
+                        if self.output_signals.contains(&signal.value()) {
+                            return;
                         }
 
-                        output_signals.push(signal.value())
+                        self.output_signals.push(signal.value())
                     }
                     "reset" => {
-                        output_reset = true;
+                        self.output_reset = true;
                     }
                     _ => {}
                 }
+            };
+            syn::visit::visit_stmt(self, stmt);
+        }
+    }
+
+    impl MacroReader {
+        fn new() -> MacroReader {
+            MacroReader {
+                output_arch: Vec::new(),
+                output_signals: Vec::new(),
+                output_reset: false,
             }
         }
-        (output_arch, output_signals, output_reset)
+
+        fn visit(&mut self, stmt: &Stmt) {
+            // Process nested statements first
+            println!("ssssss");
+
+            if let Stmt::Macro(mac) = stmt {
+                match mac
+                    .mac
+                    .path
+                    .segments
+                    .last()
+                    .unwrap()
+                    .ident
+                    .to_string()
+                    .as_str()
+                {
+                    "add_entity" => {
+                        let mut type_flag = true;
+                        let mut ty: Vec<String> = vec!["".to_string()];
+                        let mut va: Vec<String> = vec!["".to_string()];
+                        for token in mac.mac.tokens.clone() {
+                            let t = token.to_string().replace(" ", "");
+                            if t == "," {
+                                type_flag = true;
+                                ty.push("".to_string());
+                                va.push("".to_string());
+                                continue;
+                            }
+                            if t == "=" {
+                                type_flag = false;
+                                continue;
+                            }
+                            if type_flag {
+                                if let Some(last) = ty.last_mut() {
+                                    last.push_str(&t);
+                                }
+                            } else {
+                                if let Some(last) = va.last_mut() {
+                                    last.push_str(&t);
+                                }
+                            }
+                        }
+                        let mut tuples: Vec<_> = ty.into_iter().zip(va.into_iter()).collect();
+
+                        tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+                        if self.output_arch.contains(&tuples) {
+                            return;
+                        }
+
+                        self.output_arch.push(tuples);
+                    }
+                    "signal" => {
+                        let signal: LitStr = mac.mac.parse_body().unwrap();
+
+                        if self.output_signals.contains(&signal.value()) {
+                            return;
+                        }
+
+                        self.output_signals.push(signal.value())
+                    }
+                    "reset" => {
+                        self.output_reset = true;
+                    }
+                    _ => {}
+                }
+            };
+            self.visit(stmt);
+        }
+    }
+
+    fn get_task_output(stmts: Vec<Stmt>) -> (Vec<Vec<(String, String)>>, Vec<String>, bool) {
+        let mut macro_reader = MacroReader::new();
+
+        for st in stmts.iter() {
+            macro_reader.visit_stmt(st);
+        }
+        (
+            macro_reader.output_arch,
+            macro_reader.output_signals,
+            macro_reader.output_reset,
+        )
     }
 }
 
@@ -1323,6 +1420,7 @@ pub mod codegen {
     use std::ops::Index;
     use std::{fs, io, vec};
     use syn::spanned::Spanned;
+    use syn::visit_mut::{self, VisitMut};
     use syn::{parse, parse2, parse_quote, parse_str, Expr, LitStr, ReturnType, Stmt, Token};
 
     #[derive(Debug)]
@@ -1345,7 +1443,10 @@ pub mod codegen {
         output: Vec<usize>,
     }
 
-    pub fn create_app(app_packages: Vec<AppPackage>, task_maps: Vec<TaskMap>) {
+    pub fn create_app(
+        app_packages: Vec<AppPackage>,
+        task_maps: Vec<TaskMap>,
+    ) -> (TokenStream, ArchTypes) {
         let mut tasks: HashMap<&String, Task> = HashMap::new();
         let mut task_options: HashMap<&String, &(TaskType, Option<LogicalExpression>)> =
             HashMap::new();
@@ -1414,6 +1515,17 @@ pub mod codegen {
             )
             .to_string()
         );
+        (
+            generate_app_body(
+                &tasks,
+                &task_options,
+                &setup_dependency_map,
+                &sync_dependency_map,
+                &runtime_dependency_map,
+                &arch_types,
+            ),
+            arch_types,
+        )
     }
 
     pub fn write_rust_file(token_stream: TokenStream, path: &str) -> io::Result<()> {
@@ -1526,7 +1638,7 @@ pub mod codegen {
 
         quote! {
             #code
-            pub use crate::corrosive_engine::arch_types::arch_types::*;
+            pub use crate::corrosive_engine::arch_types::*;
             pub use corrosive_ecs_core::ecs_core::{State, Res, Arch, Locked, LockedRef, Ref};
         }
     }
@@ -1653,6 +1765,186 @@ pub mod codegen {
                 }
     }
 
+    struct MacroReplacer {
+        var_arch: Vec<Stmt>,
+        var_signals: Vec<Stmt>,
+        var_reset: Option<Stmt>,
+
+        out_type: TokenStream,
+        bool_num: usize,
+
+        out_arch: TokenStream,
+        out_signals: TokenStream,
+        out_reset: TokenStream,
+
+        index_arch: HashMap<Vec<(String, String)>, usize>,
+        index_signals: HashMap<String, usize>,
+        is_reset: bool,
+    }
+
+    impl MacroReplacer {
+        fn new() -> MacroReplacer {
+            MacroReplacer {
+                var_arch: Vec::new(),
+                var_signals: Vec::new(),
+                var_reset: None,
+
+                out_type: TokenStream::new(),
+                bool_num: 0,
+
+                out_arch: TokenStream::new(),
+                out_signals: TokenStream::new(),
+                out_reset: TokenStream::new(),
+
+                index_arch: HashMap::new(),
+                index_signals: HashMap::new(),
+                is_reset: false,
+            }
+        }
+    }
+
+    impl VisitMut for MacroReplacer {
+        fn visit_stmt_mut(&mut self, stmt: &mut Stmt) {
+            // Process nested statements first
+            visit_mut::visit_stmt_mut(self, stmt);
+
+            let stmt = if let Stmt::Macro(mac) = stmt {
+                match mac
+                    .mac
+                    .path
+                    .segments
+                    .last()
+                    .unwrap()
+                    .ident
+                    .to_string()
+                    .as_str()
+                {
+                    "add_entity" => {
+                        let mut type_flag = true;
+                        let mut ty: Vec<String> = vec!["".to_string()];
+                        let mut va: Vec<String> = vec!["".to_string()];
+                        for token in mac.mac.tokens.clone() {
+                            let t = token.to_string().replace(" ", "");
+                            if t == "," {
+                                type_flag = true;
+                                ty.push("".to_string());
+                                va.push("".to_string());
+                                continue;
+                            }
+                            if t == "=" {
+                                type_flag = false;
+                                continue;
+                            }
+                            if type_flag {
+                                if let Some(last) = ty.last_mut() {
+                                    last.push_str(&t);
+                                }
+                            } else {
+                                if let Some(last) = va.last_mut() {
+                                    last.push_str(&t);
+                                }
+                            }
+                        }
+                        let mut tuples: Vec<_> = ty.into_iter().zip(va.into_iter()).collect();
+
+                        tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+                        let mut is_new = false;
+                        if !self.index_arch.contains_key(&tuples) {
+                            self.index_arch
+                                .insert(tuples.clone(), self.index_arch.len());
+                            is_new = true;
+                        }
+
+                        let mut vec_type = TokenStream::new();
+                        let mut vec_input = TokenStream::new();
+                        let mut vec_name: TokenStream = parse_str(
+                            format!("engine_add_arch{}", self.index_arch[&tuples]).as_str(),
+                        )
+                        .unwrap();
+
+                        for tuple in tuples {
+                            let v: TokenStream = parse_str(tuple.1.as_str()).unwrap();
+                            vec_input.extend(quote! {#v,});
+                            if is_new {
+                                let t: TokenStream = parse_str(tuple.0.as_str()).unwrap();
+                                vec_type.extend(quote! {#t,});
+                            }
+                        }
+
+                        if is_new {
+                            self.var_arch.push(
+                                parse2(quote! {let mut #vec_name: Vec<(#vec_type)> = Vec::new();})
+                                    .expect("Failed to parse TokenStream into Stmt"),
+                            );
+                            self.out_arch.extend(quote! {#vec_name,});
+                            self.out_type.extend(quote! {Vec<(#vec_type)>,})
+                        }
+
+                        (&mut parse2(quote! { #vec_name.push((#vec_input)); })
+                            .expect("Failed to parse TokenStream into Stmt"))
+                    }
+                    "signal" => {
+                        let signal: LitStr = mac.mac.parse_body().unwrap();
+
+                        let mut is_new = false;
+                        if !self.index_signals.contains_key(&signal.value()) {
+                            self.index_signals
+                                .insert(signal.value(), self.index_signals.len());
+                            is_new = true;
+                            self.bool_num += 1;
+                        }
+
+                        let mut vec_name: TokenStream = parse_str(
+                            format!(
+                                "engine_trigger_signal{}",
+                                self.index_signals[&signal.value()]
+                            )
+                            .as_str(),
+                        )
+                        .unwrap();
+
+                        if is_new {
+                            self.var_signals.push(
+                                parse2(quote! {let mut #vec_name: bool = false;})
+                                    .expect("Failed to parse TokenStream into Stmt"),
+                            );
+                            self.out_signals.extend(quote! {#vec_name,});
+                        }
+
+                        (&mut parse2(quote! { #vec_name = true; })
+                            .expect("Failed to parse TokenStream into Stmt"))
+                    }
+                    "reset" => {
+                        if !self.is_reset {
+                            self.var_reset = Some(
+                                parse2(quote! {let mut engine_signal_trigger: bool = false;})
+                                    .expect("Failed to parse TokenStream into Stmt"),
+                            );
+                            self.out_reset.extend(quote! {engine_signal_trigger,});
+                            self.is_reset = true;
+                            self.bool_num += 1;
+                        }
+
+                        (&mut parse2(quote! { engine_signal_trigger = true; })
+                            .expect("Failed to parse TokenStream into Stmt"))
+                    }
+                    _ => stmt,
+                }
+            } else {
+                stmt
+            };
+        }
+
+        fn visit_expr_mut(&mut self, expr: &mut Expr) {
+            // Handle macros in expressions
+            if let Expr::Macro(em) = expr {
+                // Process expression macros
+            }
+            visit_mut::visit_expr_mut(self, expr);
+        }
+    }
+
     pub fn generate_task_body(stmts: &mut Vec<Stmt>) -> TokenStream {
         let mut var_arch: Vec<Stmt> = Vec::new();
         let mut var_signals: Vec<Stmt> = Vec::new();
@@ -1669,7 +1961,12 @@ pub mod codegen {
         let mut index_signals: HashMap<String, usize> = HashMap::new();
         let mut is_reset = false;
 
-        for i in 0..stmts.len() {
+        let mut replacer: MacroReplacer = MacroReplacer::new();
+        for stmt in stmts.iter_mut() {
+            replacer.visit_stmt_mut(stmt);
+        }
+
+        /*for j in 0..stmts.len() {
             if let Stmt::Macro(mac) = &stmts[i] {
                 match mac
                     .mac
@@ -1788,7 +2085,7 @@ pub mod codegen {
                     _ => {}
                 }
             }
-        }
+        }*/
 
         let mut var = var_arch;
         var.extend(var_signals);
@@ -1820,7 +2117,7 @@ pub mod codegen {
         runtime_dependency_map: &DependencyGraph,
         arch_types: &ArchTypes,
     ) -> TokenStream {
-        let variables = generate_app_variables(arch_types);
+        let variables = generate_app_variables(arch_types, task_options);
         let overwrite = generate_app_overwrite(arch_types);
         let mut runtime_bus = generate_bus_channels(runtime_dependency_map);
         let setup_bus = generate_bus_channels(setup_dependency_map);
@@ -1954,8 +2251,8 @@ pub mod codegen {
 
             for input_state in &tasks[task_name].input_states {
                 let state_name: TokenStream =
-                    parse_str(format!("r_{}", input_state.1).as_str()).unwrap();
-                code.extend(quote! {Res::new(&#state_name),})
+                    parse_str(format!("st_{}", input_state.1).as_str()).unwrap();
+                code.extend(quote! {State::new(&#state_name),})
             }
 
             if tasks[task_name].input_delta_time != None {
@@ -1964,11 +2261,7 @@ pub mod codegen {
 
             code = quote! {
                 let o = #task_name_code(
-                    TestUtArch::new(
-                        #code
-                    ),
-                    TestUtArch2::new(&*a1.read().unwrap(), &*a3.read().unwrap()),
-                    State::new(&state),
+                    #code
                 );
             };
 
@@ -2008,6 +2301,15 @@ pub mod codegen {
             }
 
             //condition
+            if let Some(t) = &task_options[task_name].1 {
+                let c = t.get_code();
+                code = quote! {
+                    if #c{
+                        #code
+                    }
+                };
+            }
+
             if task_options[task_name].0 == TaskType::Long {
                 let mut lock_add_code: TokenStream = TokenStream::new();
                 let mut lock_sub_code: TokenStream = TokenStream::new();
@@ -2041,15 +2343,6 @@ pub mod codegen {
                                 #lock_sub_code
                             }));
                         }
-                    }
-                };
-            }
-
-            if let Some(t) = &task_options[task_name].1 {
-                let c = t.get_code();
-                code = quote! {
-                    if #c{
-                        #code
                     }
                 };
             }
@@ -2164,11 +2457,14 @@ pub mod codegen {
                     }
                     quote! {(#code)}
                 }
-                LogicalExpression::Signal(v) => parse_str(format!("s_{}", v).as_str()).unwrap(),
+                LogicalExpression::Signal(v) => {
+                    let v: TokenStream = parse_str(format!("s_{}", v).as_str()).unwrap();
+                    quote! {#v.load(Ordering::Relaxed)}
+                }
                 LogicalExpression::State(n, t) => {
                     let n: TokenStream = parse_str(format!("st_{}", n).as_str()).unwrap();
                     let t: TokenStream = parse_str(t.as_str()).unwrap();
-                    quote! {(#n == #t)}
+                    quote! {*#n.read().unwrap() == #t}
                 }
                 LogicalExpression::Not(v) => {
                     let v = v.get_code();
@@ -2180,10 +2476,40 @@ pub mod codegen {
                 },
             }
         }
+        pub fn get_states(&self) -> HashSet<&String> {
+            let mut values: HashSet<&String> = HashSet::new();
+            if let LogicalExpression::State(t, _) = self {
+                values.insert(t);
+            }
+            if let LogicalExpression::Grouped(v) = self {
+                for v in v {
+                    values.extend(v.get_states());
+                }
+            }
+            values
+        }
+        pub fn get_signals(&self) -> HashSet<&String> {
+            let mut values: HashSet<&String> = HashSet::new();
+            if let LogicalExpression::Signal(t) = self {
+                values.insert(t);
+            }
+            if let LogicalExpression::Grouped(v) = self {
+                for v in v {
+                    values.extend(v.get_signals());
+                }
+            }
+            values
+        }
     }
-    fn generate_app_variables(arch_types: &ArchTypes) -> TokenStream {
+    fn generate_app_variables(
+        arch_types: &ArchTypes,
+        task_options: &HashMap<&String, &(TaskType, Option<LogicalExpression>)>,
+    ) -> TokenStream {
         let mut arch_code = TokenStream::new();
         let mut index: usize = 0;
+
+        let mut signals: HashSet<&String> = HashSet::new();
+        let mut states: HashSet<&String> = HashSet::new();
 
         for arch_type in &arch_types.arch_types {
             let name: TokenStream = parse_str(format!("a{}", index).as_str()).unwrap();
@@ -2204,7 +2530,17 @@ pub mod codegen {
             index += 1;
         }
 
+        for task_option in task_options {
+            if let Some(T) = &task_option.1 .1 {
+                signals.extend(T.get_signals());
+                states.extend(T.get_states());
+            }
+        }
+
         for signal in &arch_types.signals {
+            signals.insert(signal);
+        }
+        for signal in signals {
             let name: TokenStream = parse_str(format!("s_{}", signal).as_str()).unwrap();
             let overwrite_name: TokenStream = parse_str(format!("so_{}", signal).as_str()).unwrap();
 
@@ -2215,6 +2551,9 @@ pub mod codegen {
         }
 
         for state in &arch_types.states {
+            states.insert(state);
+        }
+        for state in states {
             let name: TokenStream = parse_str(format!("st_{}", state).as_str()).unwrap();
             let t: TokenStream = parse_str(state.as_str()).unwrap();
 
