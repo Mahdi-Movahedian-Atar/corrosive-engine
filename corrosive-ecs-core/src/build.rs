@@ -1,17 +1,143 @@
-use quote::ToTokens;
-use std::cmp::PartialEq;
-use std::io::Write;
-
-pub const IGNORE_DIR: &str = ".corrosive-components";
+pub const ENGINE_DIR: &str = ".corrosive-components";
 
 pub mod general_helper {
-    use std::fs::OpenOptions;
+    use crate::build::app_scan::AppPackage;
+    use crate::build::codegen::{
+        create_app, generate_arch_types, generate_prelude, write_rust_file,
+    };
+    use crate::build::components_scan::{get_component_map, scan_components, write_component_map};
+    use crate::build::general_scan::{get_path_map, scan_directory, write_path_map};
+    use crate::build::tasks_scan::{get_task_map, scan_tasks, write_task_map};
+    use std::path::{Path, PathBuf};
+    use std::{env, fs};
+    use syn::{parse2, parse_file, Item};
 
     pub fn log_message(message: String) {}
+
+    pub fn create_engine() {
+        let main_rs = PathBuf::from("src/main.rs");
+        let content = fs::read_to_string(&main_rs).expect("Failed to read main.rs");
+
+        let ast = parse_file(&content).expect("Failed to parse main.rs");
+
+        let mut args: Option<AppPackage> = None;
+        for item in ast.items {
+            if let Item::Macro(ref macro_item) = item {
+                if macro_item.mac.path.segments.last().unwrap().ident == "corrosive_engine_builder"
+                {
+                    let tokens = macro_item.mac.tokens.clone();
+                    args = Some(parse2::<AppPackage>(tokens).expect("Failed to parse macro input"))
+                }
+            }
+        }
+
+        if args.is_none() {
+            panic!("Failed to find corrosive_engine_builder macro in main.rs");
+        }
+        let args = args.unwrap();
+
+        let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");
+        app_path.push_str("/src");
+
+        //component scan
+
+        let mut components_path_map = get_path_map(
+            format!("{}/.corrosive_engine/components_path_map.json", app_path).as_str(),
+            format!("{}/comp", args.path).as_str(),
+        );
+        if !components_path_map.path.ends_with("comp") {
+            components_path_map.path =
+                Path::new(format!("{}/comp", args.path).as_str()).to_path_buf();
+        }
+
+        scan_directory(
+            &mut components_path_map,
+            format!("{}/comp", args.path).as_str(),
+        )
+        .expect("Failed to scan comp directory");
+
+        let mut component_map = get_component_map(
+            format!("{}/.corrosive_engine/components.json", app_path).as_str(),
+            format!("{}/comp", args.path).as_str(),
+        );
+        if !component_map.path.ends_with("comp") {
+            component_map.path = Path::new(format!("{}/comp", args.path).as_str()).to_path_buf();
+        }
+
+        scan_components(&components_path_map, &mut component_map)
+            .expect("Failed to scan components");
+
+        write_component_map(
+            &component_map,
+            format!("{}/.corrosive_engine/components.json", app_path).as_str(),
+        )
+        .expect("Filed to write component map file");
+
+        write_path_map(
+            &components_path_map,
+            format!("{}/.corrosive_engine/components_path_map.json", app_path).as_str(),
+        )
+        .expect("Filed to write path map file");
+
+        let mut tasks_path_map = get_path_map(
+            format!("{}/.corrosive_engine/tasks_path_map.json", app_path).as_str(),
+            format!("{}/task", args.path).as_str(),
+        );
+        if !tasks_path_map.path.ends_with("task") {
+            tasks_path_map.path = Path::new(format!("{}/task", args.path).as_str()).to_path_buf();
+        }
+
+        scan_directory(&mut tasks_path_map, format!("{}/task", args.path).as_str())
+            .expect("Failed to scan task directory");
+
+        let mut task_map = get_task_map(
+            format!("{}/.corrosive_engine/tasks.json", app_path).as_str(),
+            format!("{}/task", args.path).as_str(),
+        );
+        if !task_map.path.ends_with("task") {
+            task_map.path = Path::new(format!("{}/task", args.path).as_str()).to_path_buf();
+        }
+
+        scan_tasks(&tasks_path_map, &mut task_map).expect("Failed to scan tasks");
+
+        write_task_map(
+            &task_map,
+            format!("{}/.corrosive_engine/tasks.json", app_path).as_str(),
+        )
+        .expect("Filed to write component map file");
+
+        write_path_map(
+            &tasks_path_map,
+            format!("{}/.corrosive_engine/tasks_path_map.json", app_path).as_str(),
+        )
+        .expect("Filed to write path map file");
+
+        let auto_prelude_code = generate_prelude(&component_map, &task_map);
+
+        write_rust_file(
+            auto_prelude_code,
+            format!("{}/.corrosive_engine/auto_prelude.rs", app_path).as_str(),
+        )
+        .expect("failed to create auto_prelude.ts");
+
+        let app = create_app(vec![args], vec![task_map]);
+
+        write_rust_file(
+            generate_arch_types(&app.1),
+            format!("{}/.corrosive_engine/arch_types.rs", app_path).as_str(),
+        )
+        .expect("failed to create arch_types.ts");
+
+        write_rust_file(
+            app.0,
+            format!("{}/.corrosive_engine/engine.rs", app_path).as_str(),
+        )
+        .expect("failed to create arch_types.ts");
+    }
 }
 
 pub mod general_scan {
-    use crate::build::IGNORE_DIR;
+    use crate::build::ENGINE_DIR;
     use std::path::{Path, PathBuf};
     use std::time::SystemTime;
     use std::{fs, io};
@@ -80,7 +206,7 @@ pub mod general_scan {
     }
 
     pub fn scan_directory(path_map: &mut PathMap, start_path: &str) -> io::Result<()> {
-        if path_map.path.as_path().is_dir() && !path_map.path.as_path().ends_with(IGNORE_DIR) {
+        if path_map.path.as_path().is_dir() && !path_map.path.as_path().ends_with(ENGINE_DIR) {
             let mut files = Vec::new();
             for entry in fs::read_dir(path_map.path.as_path())? {
                 let entry = entry?;
@@ -303,7 +429,7 @@ pub mod tasks_scan {
     use syn::token::Comma;
     use syn::visit::Visit;
     use syn::{
-        visit_mut, Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat,
+        Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat,
         PathArguments, Stmt, Type, TypeTuple,
     };
 
@@ -730,9 +856,8 @@ pub mod app_scan {
     use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
     use std::ops::Deref;
     use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
-    use syn::token::{Group, Paren};
-    use syn::Stmt::Expr;
-    use syn::{braced, Error, Ident, Lit, LitStr, Token};
+    use syn::token::{ Paren};
+    use syn::{ Error, Ident, Lit, LitStr, Token};
 
     #[derive(Debug, Eq, PartialEq, Clone)]
     pub enum LogicalOperator {
@@ -1420,6 +1545,7 @@ pub mod codegen {
     use std::ops::Index;
     use std::{fs, io, vec};
     use syn::spanned::Spanned;
+    use syn::token::{Semi, Token};
     use syn::visit_mut::{self, VisitMut};
     use syn::{parse, parse2, parse_quote, parse_str, Expr, LitStr, ReturnType, Stmt, Token};
 
@@ -1804,11 +1930,11 @@ pub mod codegen {
     }
 
     impl VisitMut for MacroReplacer {
-        fn visit_stmt_mut(&mut self, stmt: &mut Stmt) {
+        fn visit_stmt_mut(&mut self, mut stmt: &mut Stmt) {
             // Process nested statements first
             visit_mut::visit_stmt_mut(self, stmt);
 
-            let stmt = if let Stmt::Macro(mac) = stmt {
+            let new_stmt: Stmt = if let Stmt::Macro(mac) = stmt {
                 match mac
                     .mac
                     .path
@@ -1881,7 +2007,7 @@ pub mod codegen {
                             self.out_type.extend(quote! {Vec<(#vec_type)>,})
                         }
 
-                        (&mut parse2(quote! { #vec_name.push((#vec_input)); })
+                        (parse2(quote! { #vec_name.push((#vec_input)); })
                             .expect("Failed to parse TokenStream into Stmt"))
                     }
                     "signal" => {
@@ -1912,7 +2038,7 @@ pub mod codegen {
                             self.out_signals.extend(quote! {#vec_name,});
                         }
 
-                        (&mut parse2(quote! { #vec_name = true; })
+                        (parse2(quote! { #vec_name = true; })
                             .expect("Failed to parse TokenStream into Stmt"))
                     }
                     "reset" => {
@@ -1926,14 +2052,15 @@ pub mod codegen {
                             self.bool_num += 1;
                         }
 
-                        (&mut parse2(quote! { engine_signal_trigger = true; })
-                            .expect("Failed to parse TokenStream into Stmt"))
+                        parse2(quote! { engine_signal_trigger = true; })
+                            .expect("Failed to parse TokenStream into Stmt")
                     }
-                    _ => stmt,
+                    _ => stmt.clone(),
                 }
             } else {
-                stmt
+                stmt.clone()
             };
+            *stmt = new_stmt;
         }
 
         fn visit_expr_mut(&mut self, expr: &mut Expr) {
@@ -1946,21 +2073,6 @@ pub mod codegen {
     }
 
     pub fn generate_task_body(stmts: &mut Vec<Stmt>) -> TokenStream {
-        let mut var_arch: Vec<Stmt> = Vec::new();
-        let mut var_signals: Vec<Stmt> = Vec::new();
-        let mut var_reset: Option<Stmt> = None;
-
-        let mut out_type: TokenStream = TokenStream::new();
-        let mut bool_num: usize = 0;
-
-        let mut out_arch: TokenStream = TokenStream::new();
-        let mut out_signals: TokenStream = TokenStream::new();
-        let mut out_reset: TokenStream = TokenStream::new();
-
-        let mut index_arch: HashMap<Vec<(String, String)>, usize> = HashMap::new();
-        let mut index_signals: HashMap<String, usize> = HashMap::new();
-        let mut is_reset = false;
-
         let mut replacer: MacroReplacer = MacroReplacer::new();
         for stmt in stmts.iter_mut() {
             replacer.visit_stmt_mut(stmt);
@@ -2087,26 +2199,38 @@ pub mod codegen {
             }
         }*/
 
-        let mut var = var_arch;
-        var.extend(var_signals);
+        let out_arch = replacer.out_arch;
+        let out_signals = replacer.out_signals;
+        let out_reset = replacer.out_reset;
 
-        if let Some(t) = var_reset {
-            var.push(t);
+        for i in replacer.var_arch {
+            stmts.insert(0, i);
+        }
+        for i in replacer.var_signals {
+            stmts.insert(0, i);
+        }
+        if let Some(t) = replacer.var_reset {
+            stmts.insert(0, t);
         }
 
-        for s in var {
-            stmts.insert(0, s);
+        if let Some(last_stmt) = stmts.last_mut() {
+            if let Stmt::Expr(expr, None) = last_stmt {
+                *last_stmt = Stmt::Expr(
+                    expr.clone(),
+                    Some(Semi {
+                        spans: [expr.span()],
+                    }),
+                );
+            }
         }
-        stmts.push(
-            parse2(quote! {return (#out_arch #out_signals #out_reset); })
-                .expect("Failed to parse TokenStream into Stmt"),
-        );
+        let new_stmt: Stmt = syn::parse_quote! {return (#out_arch #out_signals #out_reset);};
+        stmts.push(new_stmt);
 
-        for _ in 0..bool_num {
-            out_type.extend(quote! {bool, })
+        for _ in 0..replacer.bool_num {
+            replacer.out_type.extend(quote! {bool, })
         }
 
-        out_type
+        replacer.out_type
     }
 
     pub fn generate_app_body(
@@ -2162,6 +2286,7 @@ pub mod codegen {
         }
 
         quote! {
+            pub fn run_engine(){
             #variables
             let mut loop_trigger = Trigger::new();
             #runtime_bus
@@ -2175,31 +2300,32 @@ pub mod codegen {
                     #setup_joins
                     });
                 }
+                loop{
+                    #overwrite
 
-                #overwrite
+                    current_time = Instant::now();
+                    let new_current_time = current_time
+                        .duration_since(last_time)
+                        .as_secs_f64()
+                        .to_bits();
+                    delta_time.store(new_current_time.clone(), Ordering::Relaxed);
+                    last_time = current_time;
 
-                current_time = Instant::now();
-                let new_current_time = current_time
-                    .duration_since(last_time)
-                    .as_secs_f64()
-                    .to_bits();
-                delta_time.store(new_current_time.clone(), Ordering::Relaxed);
-                last_time = current_time;
+                    fixed_delta_time += new_current_time;
+                    if (fixed_time.load(Ordering::Relaxed) <= fixed_delta_time) {
+                        fixed_delta_time = 0;
+                        is_fixed.store(true, SeqCst);
+                    } else {
+                        is_fixed.store(false, SeqCst);
+                    }
 
-                fixed_delta_time += new_current_time;
-                if (fixed_time.load(Ordering::Relaxed) <= fixed_delta_time) {
-                    fixed_delta_time = 0;
-                    is_fixed.store(true, SeqCst);
-                } else {
-                    is_fixed.store(false, SeqCst);
+                    #sync_tasks
+
+                    loop_trigger.trigger();
+
+                    #runtime_joins
                 }
-
-                #sync_tasks
-
-                loop_trigger.trigger();
-
-                #runtime_joins
-            });
+            });}
         }
     }
     fn generate_app_task_body<'a>(
@@ -2571,7 +2697,8 @@ pub mod codegen {
             });
         }
         return quote! {
-            use corrosive_ecs_core::ecs_core::Trigger;
+            use crate::corrosive_engine::auto_prelude::{*};
+            use corrosive_ecs_core::ecs_core::{*};
             use std::cmp::PartialEq;
             use std::collections::HashSet;
             use std::mem::take;
@@ -2592,7 +2719,7 @@ pub mod codegen {
             let mut fixed_delta_time: u64 = 0.0f64 as u64;
             let is_fixed = AtomicBool::new(false);
 
-            let reset: AtomicBool = AtomicBool::new(false);
+            let reset: AtomicBool = AtomicBool::new(true);
 
             #arch_code
         };

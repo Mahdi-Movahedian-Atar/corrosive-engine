@@ -33,7 +33,7 @@ pub fn remove_entity(_item: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
-    app::corrosive_engine_builder(item)
+    app::corrosive_engine_builder(item).into()
 }
 
 #[proc_macro_derive(Component)]

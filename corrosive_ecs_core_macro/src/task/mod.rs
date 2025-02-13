@@ -55,7 +55,7 @@ pub mod task_macro {
 
         let new_body: TokenStream = quote! {#body}.into();
 
-        //println!("\n{}\n", new_body.to_string());
+        println!("\n{}\n", new_body.to_string());
 
         new_body.into()
     }

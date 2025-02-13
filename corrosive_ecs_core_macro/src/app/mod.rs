@@ -5,9 +5,10 @@ use corrosive_ecs_core::build::codegen::{
 use corrosive_ecs_core::build::components_scan::{
     get_component_map, scan_components, write_component_map,
 };
+use corrosive_ecs_core::build::general_helper::create_engine;
 use corrosive_ecs_core::build::general_scan::{get_path_map, scan_directory, write_path_map};
 use corrosive_ecs_core::build::tasks_scan::{get_task_map, scan_tasks, write_task_map};
-use proc_macro::{TokenStream, TokenTree};
+use proc_macro::TokenStream;
 use proc_macro_error::emit_error;
 use quote::{quote, ToTokens};
 use std::ptr::write;
@@ -17,8 +18,9 @@ use syn::token::Token;
 use syn::{parse_macro_input, token, Error, Ident, Lit, Result, Token};
 
 pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(item as AppPackage);
-
+    //let args = parse_macro_input!(item as AppPackage);
+    quote! {}.into()
+    /*
     let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");
     app_path.push_str("/src");
 
@@ -115,5 +117,5 @@ pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     )
     .expect("failed to create arch_types.ts");
 
-    app.0.into()
+    app.0.into()*/
 }

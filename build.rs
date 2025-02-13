@@ -1,10 +1,12 @@
-use corrosive_ecs_core_macro::corrosive_engine_builder;
+use corrosive_ecs_core::build::general_helper::create_engine;
+use std::env;
 use std::process::Command;
 
 pub fn main() {
-    //corrosive_engine_builder!(p "./src" );
-    //update_task
-    let status = Command::new("cargo")
+    let current_dir = env::current_dir().expect("Failed to get current directory");
+    env::set_var("CORROSIVE_APP_ROOT", &current_dir);
+    create_engine();
+    Command::new("cargo")
         .arg("fmt")
         .status()
         .expect("Failed to execute cargo fmt");

@@ -50,7 +50,7 @@ pub fn setup1() {
     for _i in 0..10000 {
         add_entity!(
             Ref<Position2>=Ref::new(Position2 { x: 1.0, y: 1.0 }),
-            LockedRef<Position3>=ockedRef::new(Position3 { x: 2.0, y: 2.0 }));
+            LockedRef<Position3>=LockedRef::new(Position3 { x: 2.0, y: 2.0 }));
         add_entity!(
             Ref<Position2>=Ref::new(Position2 { x: 1.0, y: 1.0 }),
             Position4=Position4 { x: 2.0, y: 2.0 });

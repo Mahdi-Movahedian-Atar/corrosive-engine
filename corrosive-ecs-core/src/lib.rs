@@ -147,7 +147,6 @@ pub mod ecs_core {
         pub arch: &'a dyn EngineArch<T>,
         pub index: usize,
     }
-
     impl<'a, T> Iterator for ArchIterator<'a, T> {
         type Item = T;
 
