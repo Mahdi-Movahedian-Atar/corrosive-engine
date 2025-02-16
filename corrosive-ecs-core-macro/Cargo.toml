@@ -1,5 +1,5 @@
 [package]
-name = "corrosive_ecs_core_macro"
+name = "corrosive-ecs-core-macro"
 version = "0.1.0"
 edition = "2021"
 

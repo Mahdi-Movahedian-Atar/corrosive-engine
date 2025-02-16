@@ -5,11 +5,8 @@ pub mod build;
 pub mod ecs_core {
     use crate::ecs_core::Reference::Expired;
     use bus::{Bus, BusReader};
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::mpsc::{Receiver, Sender};
-    use std::sync::{mpsc, Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
-    use std::thread;
-    use std::thread::Scope;
+
+    use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
     pub enum Reference<T> {
         Some(T),

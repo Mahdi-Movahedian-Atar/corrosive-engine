@@ -1,7 +1,7 @@
 pub const ENGINE_DIR: &str = ".corrosive-components";
 
 pub mod general_helper {
-    use crate::build::app_scan::AppPackage;
+    use crate::build::app_scan::{get_app_package, write_app_package, AppPackage};
     use crate::build::codegen::{
         create_app, generate_arch_types, generate_prelude, write_rust_file,
     };
@@ -12,13 +12,11 @@ pub mod general_helper {
     use std::{env, fs};
     use syn::{parse2, parse_file, Item};
 
-    pub fn log_message(message: String) {}
-
     pub fn create_engine() {
         let main_rs = PathBuf::from("src/main.rs");
-        let content = fs::read_to_string(&main_rs).expect("Failed to read main.rs");
+        let content = fs::read_to_string(&main_rs).expect("Failed to read lib");
 
-        let ast = parse_file(&content).expect("Failed to parse main.rs");
+        let ast = parse_file(&content).expect("Failed to parse lib");
 
         let mut args: Option<AppPackage> = None;
         for item in ast.items {
@@ -39,29 +37,27 @@ pub mod general_helper {
         let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");
         app_path.push_str("/src");
 
+        let path = args.path.clone();
+
         //component scan
 
         let mut components_path_map = get_path_map(
             format!("{}/.corrosive_engine/components_path_map.json", app_path).as_str(),
-            format!("{}/comp", args.path).as_str(),
+            format!("{}/comp", path).as_str(),
         );
         if !components_path_map.path.ends_with("comp") {
-            components_path_map.path =
-                Path::new(format!("{}/comp", args.path).as_str()).to_path_buf();
+            components_path_map.path = Path::new(format!("{}/comp", path).as_str()).to_path_buf();
         }
 
-        scan_directory(
-            &mut components_path_map,
-            format!("{}/comp", args.path).as_str(),
-        )
-        .expect("Failed to scan comp directory");
+        scan_directory(&mut components_path_map, format!("{}/comp", path).as_str())
+            .expect("Failed to scan comp directory");
 
         let mut component_map = get_component_map(
             format!("{}/.corrosive_engine/components.json", app_path).as_str(),
-            format!("{}/comp", args.path).as_str(),
+            format!("{}/comp", path).as_str(),
         );
         if !component_map.path.ends_with("comp") {
-            component_map.path = Path::new(format!("{}/comp", args.path).as_str()).to_path_buf();
+            component_map.path = Path::new(format!("{}/comp", path).as_str()).to_path_buf();
         }
 
         scan_components(&components_path_map, &mut component_map)
@@ -81,21 +77,21 @@ pub mod general_helper {
 
         let mut tasks_path_map = get_path_map(
             format!("{}/.corrosive_engine/tasks_path_map.json", app_path).as_str(),
-            format!("{}/task", args.path).as_str(),
+            format!("{}/task", path).as_str(),
         );
         if !tasks_path_map.path.ends_with("task") {
-            tasks_path_map.path = Path::new(format!("{}/task", args.path).as_str()).to_path_buf();
+            tasks_path_map.path = Path::new(format!("{}/task", path).as_str()).to_path_buf();
         }
 
-        scan_directory(&mut tasks_path_map, format!("{}/task", args.path).as_str())
+        scan_directory(&mut tasks_path_map, format!("{}/task", path).as_str())
             .expect("Failed to scan task directory");
 
         let mut task_map = get_task_map(
             format!("{}/.corrosive_engine/tasks.json", app_path).as_str(),
-            format!("{}/task", args.path).as_str(),
+            format!("{}/task", path).as_str(),
         );
         if !task_map.path.ends_with("task") {
-            task_map.path = Path::new(format!("{}/task", args.path).as_str()).to_path_buf();
+            task_map.path = Path::new(format!("{}/task", path).as_str()).to_path_buf();
         }
 
         scan_tasks(&tasks_path_map, &mut task_map).expect("Failed to scan tasks");
@@ -112,7 +108,65 @@ pub mod general_helper {
         )
         .expect("Filed to write path map file");
 
-        let auto_prelude_code = generate_prelude(&component_map, &task_map);
+        let mut tasks = vec![task_map.clone()];
+        let mut component_map = vec![(component_map, "crate".to_string())];
+        let mut task_map = vec![(task_map, "crate".to_string())];
+        let mut app_packages = vec![args];
+
+        match fs::read_dir(Path::new(
+            format!("{}/.corrosive_engine/packages/", app_path).as_str(),
+        )) {
+            Ok(entries) => {
+                for entry in entries {
+                    if let Ok(entry) = entry {
+                        let entry_path = entry.path();
+                        if entry_path.is_dir() {
+                            if let Some(folder_name) =
+                                entry_path.file_name().and_then(|n| n.to_str())
+                            {
+                                let component = get_component_map(
+                                    format!(
+                                        "{}/.corrosive_engine/packages/{}/components.json",
+                                        app_path, folder_name
+                                    )
+                                    .as_str(),
+                                    format!("{}/comp", path).as_str(),
+                                );
+                                let task = get_task_map(
+                                    format!(
+                                        "{}/.corrosive_engine/packages/{}/tasks.json",
+                                        app_path, folder_name
+                                    )
+                                    .as_str(),
+                                    format!("{}/task", path).as_str(),
+                                );
+                                let app_package = get_app_package(
+                                    format!(
+                                        "{}/.corrosive_engine/packages/{}/app_package.json",
+                                        app_path, folder_name
+                                    )
+                                    .as_str(),
+                                );
+                                tasks.push(task.clone());
+                                task_map.push((task, folder_name.to_string()));
+                                component_map.push((component, folder_name.to_string()));
+                                app_packages.push(app_package)
+                            }
+                        }
+                    } else {
+                        panic!("Failed to read an entry.");
+                    }
+                }
+            }
+            Err(_) => {
+                panic!(
+                    "{}",
+                    format!("{}/.corrosive_engine/packages/", app_path).as_str()
+                );
+            }
+        }
+
+        let auto_prelude_code = generate_prelude(component_map, task_map);
 
         write_rust_file(
             auto_prelude_code,
@@ -120,7 +174,7 @@ pub mod general_helper {
         )
         .expect("failed to create auto_prelude.ts");
 
-        let app = create_app(vec![args], vec![task_map]);
+        let app = create_app(app_packages, tasks);
 
         write_rust_file(
             generate_arch_types(&app.1),
@@ -133,6 +187,147 @@ pub mod general_helper {
             format!("{}/.corrosive_engine/engine.rs", app_path).as_str(),
         )
         .expect("failed to create arch_types.ts");
+    }
+    pub fn create_engine_package(package_name: &str, crate_root: &str) {
+        let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");
+        app_path.push_str(format!("/src/.corrosive_engine/packages/{}", package_name).as_str());
+        fs::create_dir_all(&app_path).unwrap();
+
+        //app package
+
+        let main_rs = PathBuf::from(format!("{}/src/lib.rs", crate_root).as_str());
+        let content = fs::read_to_string(&main_rs).expect("Failed to read lib");
+
+        let ast = parse_file(&content).expect("Failed to parse lib");
+
+        let mut app_package: Option<AppPackage> = None;
+        for item in ast.items {
+            if let Item::Macro(ref macro_item) = item {
+                if macro_item.mac.path.segments.last().unwrap().ident == "corrosive_engine_builder"
+                {
+                    let tokens = macro_item.mac.tokens.clone();
+                    app_package =
+                        Some(parse2::<AppPackage>(tokens).expect("Failed to parse macro input"))
+                }
+            }
+        }
+
+        if app_package.is_none() {
+            panic!("Failed to find corrosive_engine_builder macro in lib.rs");
+        }
+
+        let mut app = app_package.unwrap();
+        app.name = package_name.to_string();
+
+        write_app_package(&app, format!("{}/app_package.json", app_path).as_str())
+            .expect("Failed to write app package");
+
+        //component scan
+
+        let mut components_path_map = get_path_map("", format!("{}/src/comp", crate_root).as_str());
+        scan_directory(
+            &mut components_path_map,
+            format!("{}/src/comp", crate_root).as_str(),
+        )
+        .expect("Failed to scan comp directory");
+        let mut component_map = get_component_map("", format!("{}/src/comp", crate_root).as_str());
+        scan_components(&components_path_map, &mut component_map)
+            .expect("Failed to scan components");
+        write_component_map(
+            &component_map,
+            format!("{}/components.json", app_path).as_str(),
+        )
+        .expect("Filed to write component map file");
+
+        //task_scan
+
+        let mut tasks_path_map = get_path_map("", format!("{}/src/task", crate_root).as_str());
+
+        scan_directory(
+            &mut tasks_path_map,
+            format!("{}/src/task", crate_root).as_str(),
+        )
+        .expect("Failed to scan task directory");
+
+        let mut task_map = get_task_map("", format!("{}/src/task", crate_root).as_str());
+        scan_tasks(&tasks_path_map, &mut task_map).expect("Failed to scan tasks");
+
+        write_task_map(&task_map, format!("{}/tasks.json", app_path).as_str())
+            .expect("Filed to write component map file");
+        /*if !component_map.path.ends_with("comp") {
+                component_map.path = Path::new(format!("{}/comp", args.path).as_str()).to_path_buf();
+            }
+
+            scan_components(&components_path_map, &mut component_map)
+                .expect("Failed to scan components");
+
+            write_component_map(
+                &component_map,
+                format!("{}/.corrosive_engine/components.json", app_path).as_str(),
+            )
+                .expect("Filed to write component map file");
+
+            write_path_map(
+                &components_path_map,
+                format!("{}/.corrosive_engine/components_path_map.json", app_path).as_str(),
+            )
+                .expect("Filed to write path map file");
+
+            let mut tasks_path_map = get_path_map(
+                format!("{}/.corrosive_engine/tasks_path_map.json", app_path).as_str(),
+                format!("{}/task", args.path).as_str(),
+            );
+            if !tasks_path_map.path.ends_with("task") {
+                tasks_path_map.path = Path::new(format!("{}/task", args.path).as_str()).to_path_buf();
+            }
+
+            scan_directory(&mut tasks_path_map, format!("{}/task", args.path).as_str())
+                .expect("Failed to scan task directory");
+
+            let mut task_map = get_task_map(
+                format!("{}/.corrosive_engine/tasks.json", app_path).as_str(),
+                format!("{}/task", args.path).as_str(),
+            );
+            if !task_map.path.ends_with("task") {
+                task_map.path = Path::new(format!("{}/task", args.path).as_str()).to_path_buf();
+            }
+
+            scan_tasks(&tasks_path_map, &mut task_map).expect("Failed to scan tasks");
+
+            write_task_map(
+                &task_map,
+                format!("{}/.corrosive_engine/tasks.json", app_path).as_str(),
+            )
+                .expect("Filed to write component map file");
+
+            write_path_map(
+                &tasks_path_map,
+                format!("{}/.corrosive_engine/tasks_path_map.json", app_path).as_str(),
+            )
+                .expect("Filed to write path map file");
+
+            let auto_prelude_code = generate_prelude(&component_map, &task_map);
+
+            write_rust_file(
+                auto_prelude_code,
+                format!("{}/.corrosive_engine/auto_prelude.rs", app_path).as_str(),
+            )
+                .expect("failed to create auto_prelude.ts");
+
+            let app = create_app(vec![args], vec![task_map]);
+
+            write_rust_file(
+                generate_arch_types(&app.1),
+                format!("{}/.corrosive_engine/arch_types.rs", app_path).as_str(),
+            )
+                .expect("failed to create arch_types.ts");
+
+            write_rust_file(
+                app.0,
+                format!("{}/.corrosive_engine/engine.rs", app_path).as_str(),
+            )
+                .expect("failed to create arch_types.ts");
+        }*/
     }
 }
 
@@ -429,8 +624,8 @@ pub mod tasks_scan {
     use syn::token::Comma;
     use syn::visit::Visit;
     use syn::{
-        Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat,
-        PathArguments, Stmt, Type, TypeTuple,
+        Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat, PathArguments, Stmt,
+        Type, TypeTuple,
     };
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
@@ -445,7 +640,7 @@ pub mod tasks_scan {
         pub output_reset: bool,
     }
 
-    #[derive(serde::Serialize, serde::Deserialize, Debug)]
+    #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
     pub struct TaskMap {
         pub path: PathBuf,
         pub sub_maps: Vec<TaskMap>,
@@ -768,8 +963,6 @@ pub mod tasks_scan {
 
         fn visit(&mut self, stmt: &Stmt) {
             // Process nested statements first
-            println!("ssssss");
-
             if let Stmt::Macro(mac) = stmt {
                 match mac
                     .mac
@@ -851,20 +1044,24 @@ pub mod tasks_scan {
 }
 
 pub mod app_scan {
+    use crate::build::tasks_scan::TaskMap;
     use proc_macro2::{TokenStream, TokenTree};
-    use quote::{quote, quote_spanned, ToTokens};
-    use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
-    use std::ops::Deref;
+    use quote::ToTokens;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::collections::{BinaryHeap, HashMap};
+    use std::path::Path;
+    use std::str::FromStr;
+    use std::{fmt, fs, io};
     use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
-    use syn::token::{ Paren};
-    use syn::{ Error, Ident, Lit, LitStr, Token};
+    use syn::token::Paren;
+    use syn::{Error, Ident, Lit, LitStr, Token};
 
-    #[derive(Debug, Eq, PartialEq, Clone)]
+    #[derive(serde::Serialize, serde::Deserialize, Debug, Eq, PartialEq, Clone)]
     pub enum LogicalOperator {
         And,
         Or,
     }
-    #[derive(Debug, Eq, PartialEq, Clone)]
+    #[derive(serde::Serialize, serde::Deserialize, Debug, Eq, PartialEq, Clone)]
     pub enum LogicalExpression {
         Signal(String),
         State(String, String),
@@ -872,7 +1069,7 @@ pub mod app_scan {
         Not(Box<LogicalExpression>),
         Grouped(Vec<LogicalExpression>),
     }
-    #[derive(Debug, PartialEq, Eq, Clone, Hash)]
+    #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
     pub enum TaskType {
         Update,
         Fixed,
@@ -886,7 +1083,55 @@ pub mod app_scan {
         GroupEnd(String),
         Task(String),
     }
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    impl fmt::Display for DependencyType {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                DependencyType::GroupStart(s) => write!(f, "GroupStart({})", s),
+                DependencyType::GroupEnd(s) => write!(f, "GroupEnd({})", s),
+                DependencyType::Task(s) => write!(f, "Task({})", s),
+            }
+        }
+    }
+    impl Serialize for DependencyType {
+        fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let s = match self {
+                DependencyType::GroupStart(inner) => format!("GroupStart({})", inner),
+                DependencyType::GroupEnd(inner) => format!("GroupEnd({})", inner),
+                DependencyType::Task(inner) => format!("Task({})", inner),
+            };
+            serializer.serialize_str(&s)
+        }
+    }
+    impl FromStr for DependencyType {
+        type Err = String;
+        fn from_str(s: &str) -> core::result::Result<Self, Self::Err> {
+            if s.starts_with("GroupStart(") && s.ends_with(")") {
+                let inner = &s["GroupStart(".len()..s.len() - 1];
+                Ok(DependencyType::GroupStart(inner.to_string()))
+            } else if s.starts_with("GroupEnd(") && s.ends_with(")") {
+                let inner = &s["GroupEnd(".len()..s.len() - 1];
+                Ok(DependencyType::GroupEnd(inner.to_string()))
+            } else if s.starts_with("Task(") && s.ends_with(")") {
+                let inner = &s["Task(".len()..s.len() - 1];
+                Ok(DependencyType::Task(inner.to_string()))
+            } else {
+                Err(format!("Invalid dependency type string: {}", s))
+            }
+        }
+    }
+    impl<'de> Deserialize<'de> for DependencyType {
+        fn deserialize<D>(deserializer: D) -> core::result::Result<DependencyType, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let s = String::deserialize(deserializer)?;
+            DependencyType::from_str(&s).map_err(serde::de::Error::custom)
+        }
+    }
+    #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
     pub struct DependencyGraph {
         pub dependents: HashMap<DependencyType, Vec<DependencyType>>,
         pub in_degrees: HashMap<DependencyType, usize>,
@@ -972,7 +1217,7 @@ pub mod app_scan {
             nodes
         }
     }
-    #[derive(Debug)]
+    #[derive(serde::Serialize, serde::Deserialize, Debug)]
     pub struct AppPackage {
         pub name: String,
         pub path: String,
@@ -993,6 +1238,18 @@ pub mod app_scan {
                 tasks: HashMap::new(),
                 packages: vec![],
             }
+        }
+    }
+
+    pub fn write_app_package(app_package: &AppPackage, file_path: &str) -> io::Result<()> {
+        let serialized = serde_json::to_string_pretty(app_package)?;
+        fs::write(file_path, serialized)?;
+        Ok(())
+    }
+    pub fn get_app_package(file_path: &str) -> AppPackage {
+        match fs::read_to_string(file_path) {
+            Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
+            Err(_) => AppPackage::default(),
         }
     }
 
@@ -1069,6 +1326,9 @@ pub mod app_scan {
 
     impl Parse for AppPackage {
         fn parse(input: ParseStream) -> Result<Self> {
+            if input.is_empty() {
+                return Ok(AppPackage::default());
+            }
             enum InternalTaskType {
                 Runtime,
                 Setup,
@@ -1102,7 +1362,7 @@ pub mod app_scan {
                         Ok(T) => { T.to_token_stream() }
                         Err(E) => {E.into_compile_error()}
                     },
-                    "String literal of the path of the package.\nExample: (path \"./src/main.rs\")"));
+                    "String literal of the path of the package.\nExample: (path \"./src/lib\")"));
                     }
                 },
                 "update" => match input.parse::<Lit>() {
@@ -1178,15 +1438,6 @@ pub mod app_scan {
                                     return Err(Error::new_spanned(
                                 T.to_token_stream(),
                                 "Expected setup.\nExample: (group setup \"example_group\" before \"example_task\")"));
-                                }
-                            }
-                            Ok(T) => {
-                                if (T.to_string().as_str()) == "sync" {
-                                    internal_task_type = InternalTaskType::Sync
-                                } else {
-                                    return Err(Error::new_spanned(
-                                        T.to_token_stream(),
-                                        "Expected sync.\nExample: (group sync \"example_group\" before \"example_task\")"));
                                 }
                             }
                             Err(E) => {
@@ -1536,18 +1787,15 @@ pub mod codegen {
     use crate::build::tasks_scan::{Task, TaskMap};
     use proc_macro2::{Span, TokenStream};
     use quote::{quote, ToTokens};
-    use std::cmp::PartialEq;
     use std::collections::{HashMap, HashSet};
     use std::fmt::Debug;
     use std::fs::File;
     use std::io::Write;
-    use std::iter::zip;
-    use std::ops::Index;
-    use std::{fs, io, vec};
+    use std::{io, vec};
     use syn::spanned::Spanned;
-    use syn::token::{Semi, Token};
+    use syn::token::Semi;
     use syn::visit_mut::{self, VisitMut};
-    use syn::{parse, parse2, parse_quote, parse_str, Expr, LitStr, ReturnType, Stmt, Token};
+    use syn::{parse2, parse_str, LitStr, Stmt, Token};
 
     #[derive(Debug)]
     pub struct ArchTypes {
@@ -1745,21 +1993,48 @@ pub mod codegen {
         archetypes
     }
 
-    pub fn generate_prelude(component_map: &ComponentMap, task_map: &TaskMap) -> TokenStream {
-        let all_components: HashMap<String, String> = component_map.get_all();
-        let all_tasks: HashMap<Task, String> = task_map.get_all_with_path();
-
+    pub fn generate_prelude(
+        component_map: Vec<(ComponentMap, String)>,
+        task_map: Vec<(TaskMap, String)>,
+    ) -> TokenStream {
         let mut code: TokenStream = TokenStream::new();
 
-        for component in all_components {
-            let name: TokenStream =
-                parse_str(component.1.as_str()).expect("Failed to parse component map");
-            code.extend(quote!(pub use crate::#name;).into_iter());
+        for component in component_map {
+            let all_components: HashMap<String, String> = component.0.get_all();
+            if component.1 == "crate" {
+                for component in all_components {
+                    let name: TokenStream =
+                        parse_str(component.1.as_str()).expect("Failed to parse component map");
+                    code.extend(quote!(pub use crate::#name;).into_iter());
+                }
+            } else {
+                let prefix: TokenStream = parse_str(component.1.replace("-", "_").as_str())
+                    .expect("Failed to parse component map prefix");
+                for component in all_components {
+                    let name: TokenStream =
+                        parse_str(component.1.as_str()).expect("Failed to parse component map");
+                    code.extend(quote!(pub use #prefix::#name;).into_iter());
+                }
+            };
         }
-        for task in all_tasks {
-            let name: TokenStream =
-                parse_str(task.1.as_str()).expect("Failed to parse component map");
-            code.extend(quote!(pub use crate::#name;).into_iter());
+
+        for task in task_map {
+            let all_tasks: HashMap<Task, String> = task.0.get_all_with_path();
+            if task.1 == "crate" {
+                for task in all_tasks {
+                    let name: TokenStream =
+                        parse_str(task.1.as_str()).expect("Failed to parse component map");
+                    code.extend(quote!(pub use crate::#name;).into_iter());
+                }
+            } else {
+                let prefix: TokenStream = parse_str(task.1.replace("-", "_").as_str())
+                    .expect("Failed to parse component map prefix");
+                for task in all_tasks {
+                    let name: TokenStream =
+                        parse_str(task.1.as_str()).expect("Failed to parse component map");
+                    code.extend(quote!(pub use #prefix::#name;).into_iter());
+                }
+            };
         }
 
         quote! {
@@ -2007,8 +2282,8 @@ pub mod codegen {
                             self.out_type.extend(quote! {Vec<(#vec_type)>,})
                         }
 
-                        (parse2(quote! { #vec_name.push((#vec_input)); })
-                            .expect("Failed to parse TokenStream into Stmt"))
+                        parse2(quote! { #vec_name.push((#vec_input)); })
+                            .expect("Failed to parse TokenStream into Stmt")
                     }
                     "signal" => {
                         let signal: LitStr = mac.mac.parse_body().unwrap();
@@ -2038,8 +2313,8 @@ pub mod codegen {
                             self.out_signals.extend(quote! {#vec_name,});
                         }
 
-                        (parse2(quote! { #vec_name = true; })
-                            .expect("Failed to parse TokenStream into Stmt"))
+                        parse2(quote! { #vec_name = true; })
+                            .expect("Failed to parse TokenStream into Stmt")
                     }
                     "reset" => {
                         if !self.is_reset {
@@ -2062,14 +2337,6 @@ pub mod codegen {
             };
             *stmt = new_stmt;
         }
-
-        fn visit_expr_mut(&mut self, expr: &mut Expr) {
-            // Handle macros in expressions
-            if let Expr::Macro(em) = expr {
-                // Process expression macros
-            }
-            visit_mut::visit_expr_mut(self, expr);
-        }
     }
 
     pub fn generate_task_body(stmts: &mut Vec<Stmt>) -> TokenStream {
@@ -2077,127 +2344,6 @@ pub mod codegen {
         for stmt in stmts.iter_mut() {
             replacer.visit_stmt_mut(stmt);
         }
-
-        /*for j in 0..stmts.len() {
-            if let Stmt::Macro(mac) = &stmts[i] {
-                match mac
-                    .mac
-                    .path
-                    .segments
-                    .last()
-                    .unwrap()
-                    .ident
-                    .to_string()
-                    .as_str()
-                {
-                    "add_entity" => {
-                        let mut type_flag = true;
-                        let mut ty: Vec<String> = vec!["".to_string()];
-                        let mut va: Vec<String> = vec!["".to_string()];
-                        for token in mac.mac.tokens.clone() {
-                            let t = token.to_string().replace(" ", "");
-                            if t == "," {
-                                type_flag = true;
-                                ty.push("".to_string());
-                                va.push("".to_string());
-                                continue;
-                            }
-                            if t == "=" {
-                                type_flag = false;
-                                continue;
-                            }
-                            if type_flag {
-                                if let Some(last) = ty.last_mut() {
-                                    last.push_str(&t);
-                                }
-                            } else {
-                                if let Some(last) = va.last_mut() {
-                                    last.push_str(&t);
-                                }
-                            }
-                        }
-                        let mut tuples: Vec<_> = ty.into_iter().zip(va.into_iter()).collect();
-
-                        tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-                        let mut is_new = false;
-                        if !index_arch.contains_key(&tuples) {
-                            index_arch.insert(tuples.clone(), index_arch.len());
-                            is_new = true;
-                        }
-
-                        let mut vec_type = TokenStream::new();
-                        let mut vec_input = TokenStream::new();
-                        let mut vec_name: TokenStream =
-                            parse_str(format!("engine_add_arch{}", index_arch[&tuples]).as_str())
-                                .unwrap();
-
-                        for tuple in tuples {
-                            let v: TokenStream = parse_str(tuple.1.as_str()).unwrap();
-                            vec_input.extend(quote! {#v,});
-                            if is_new {
-                                let t: TokenStream = parse_str(tuple.0.as_str()).unwrap();
-                                vec_type.extend(quote! {#t,});
-                            }
-                        }
-
-                        if is_new {
-                            var_arch.push(
-                                parse2(quote! {let mut #vec_name: Vec<(#vec_type)> = Vec::new();})
-                                    .expect("Failed to parse TokenStream into Stmt"),
-                            );
-                            out_arch.extend(quote! {#vec_name,});
-                            out_type.extend(quote! {Vec<(#vec_type)>,})
-                        }
-
-                        stmts[i] = parse2(quote! { #vec_name.push((#vec_input)); })
-                            .expect("Failed to parse TokenStream into Stmt");
-                    }
-                    "signal" => {
-                        let signal: LitStr = mac.mac.parse_body().unwrap();
-
-                        let mut is_new = false;
-                        if !index_signals.contains_key(&signal.value()) {
-                            index_signals.insert(signal.value(), index_signals.len());
-                            is_new = true;
-                            bool_num += 1;
-                        }
-
-                        let mut vec_name: TokenStream = parse_str(
-                            format!("engine_trigger_signal{}", index_signals[&signal.value()])
-                                .as_str(),
-                        )
-                        .unwrap();
-
-                        if is_new {
-                            var_signals.push(
-                                parse2(quote! {let mut #vec_name: bool = false;})
-                                    .expect("Failed to parse TokenStream into Stmt"),
-                            );
-                            out_signals.extend(quote! {#vec_name,});
-                        }
-
-                        stmts[i] = parse2(quote! { #vec_name = true; })
-                            .expect("Failed to parse TokenStream into Stmt");
-                    }
-                    "reset" => {
-                        if !is_reset {
-                            var_reset = Some(
-                                parse2(quote! {let mut engine_signal_trigger: bool = false;})
-                                    .expect("Failed to parse TokenStream into Stmt"),
-                            );
-                            out_reset.extend(quote! {engine_signal_trigger,});
-                            is_reset = true;
-                            bool_num += 1;
-                        }
-
-                        stmts[i] = parse2(quote! { engine_signal_trigger = true; })
-                            .expect("Failed to parse TokenStream into Stmt");
-                    }
-                    _ => {}
-                }
-            }
-        }*/
 
         let out_arch = replacer.out_arch;
         let out_signals = replacer.out_signals;
@@ -2696,7 +2842,7 @@ pub mod codegen {
                 let #name: RwLock<#t> = RwLock::new(#t::default());
             });
         }
-        return quote! {
+        quote! {
             use crate::corrosive_engine::auto_prelude::{*};
             use corrosive_ecs_core::ecs_core::{*};
             use std::cmp::PartialEq;
@@ -2722,7 +2868,7 @@ pub mod codegen {
             let reset: AtomicBool = AtomicBool::new(true);
 
             #arch_code
-        };
+        }
     }
     fn generate_app_overwrite(arch_types: &ArchTypes) -> TokenStream {
         let mut overwrite_thread_code: TokenStream = TokenStream::new();

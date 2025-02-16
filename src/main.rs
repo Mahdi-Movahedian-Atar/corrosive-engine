@@ -14,11 +14,7 @@ mod corrosive_engine;
 mod e;
 mod task;
 
-use crate::task::other_tasks::other_other_task::*;
-use crate::task::other_tasks::*;
-use crate::task::*;
-
-corrosive_engine_builder!(
+/*corrosive_engine_builder!(
     path "./src",
     setup "setup",
     setup "setup1",
@@ -28,6 +24,11 @@ corrosive_engine_builder!(
     long_update "long_task" before_group "a",
     update "update_task",
     sync_update "sync_task"
+);*/
+
+corrosive_engine_builder!(
+    update "sync_task",
+    package "corrosive-renderer"
 );
 
 fn main() {

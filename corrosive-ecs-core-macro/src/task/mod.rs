@@ -1,20 +1,14 @@
 pub mod task_macro {
-    use corrosive_ecs_core::build::codegen::{generate_task_body, write_rust_file};
+    use corrosive_ecs_core::build::codegen::generate_task_body;
     use corrosive_ecs_core::build::tasks_scan::get_task_input;
     use proc_macro2::TokenStream;
-    use quote::{quote, quote_spanned, ToTokens};
-    use std::env;
-    use syn::token::RArrow;
-    use syn::{
-        parse2, parse_macro_input, parse_quote, parse_str, Item, ItemFn, ReturnType, Stmt, Token,
-        Type,
-    };
+    use quote::{quote, ToTokens};
+    use syn::{parse_macro_input, parse_quote, parse_str, ItemFn, ReturnType};
 
     pub fn task_fn(
-        attr: proc_macro::TokenStream,
+        _: proc_macro::TokenStream,
         item: proc_macro::TokenStream,
     ) -> proc_macro::TokenStream {
-        let original = item.clone();
         let mut body = parse_macro_input!(item as ItemFn);
 
         let old_inputs = get_task_input(body.sig.inputs.clone());
@@ -54,8 +48,6 @@ pub mod task_macro {
         body.sig.output = ReturnType::Type(parse_quote!(->), Box::new(parse_quote!((#out))));
 
         let new_body: TokenStream = quote! {#body}.into();
-
-        println!("\n{}\n", new_body.to_string());
 
         new_body.into()
     }

@@ -15,3 +15,5 @@ pub use crate::task::setup2;
 pub use crate::task::update_task;
 pub use crate::task::update_task_signal;
 pub use corrosive_ecs_core::ecs_core::{Arch, Locked, LockedRef, Ref, Res, State};
+pub use corrosive_renderer::comp::Renderer;
+pub use corrosive_renderer::task::run_renderer;
