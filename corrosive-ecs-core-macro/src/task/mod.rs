@@ -2,7 +2,7 @@ pub mod task_macro {
     use corrosive_ecs_core::build::codegen::generate_task_body;
     use corrosive_ecs_core::build::tasks_scan::get_task_input;
     use proc_macro2::TokenStream;
-    use quote::{quote, ToTokens};
+    use quote::quote;
     use syn::{parse_macro_input, parse_quote, parse_str, ItemFn, ReturnType};
 
     pub fn task_fn(
@@ -14,7 +14,6 @@ pub mod task_macro {
         let old_inputs = get_task_input(body.sig.inputs.clone());
         let mut new_input: TokenStream = TokenStream::new();
 
-        let mut index: usize = 0;
         for old_input in old_inputs.0 {
             let name: TokenStream = parse_str(old_input.0.as_str()).unwrap();
             let mut i_type: TokenStream = TokenStream::new();
@@ -22,8 +21,6 @@ pub mod task_macro {
                 i_type.extend(parse_str::<TokenStream>(format!("&{},", v).as_str()).unwrap());
             });
             new_input.extend(quote! {#name: corrosive_ecs_core::ecs_core::Arch<(#i_type)>,});
-
-            index += 1;
         }
         for old_input in old_inputs.1 {
             let name: TokenStream = parse_str(old_input.0.as_str()).unwrap();

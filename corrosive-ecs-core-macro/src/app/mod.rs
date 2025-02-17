@@ -1,26 +1,9 @@
-use corrosive_ecs_core::build::app_scan::{AppPackage, DependencyGraph};
-use corrosive_ecs_core::build::codegen::{
-    create_app, generate_arch_types, generate_prelude, get_all_archetypes, write_rust_file,
-};
-use corrosive_ecs_core::build::components_scan::{
-    get_component_map, scan_components, write_component_map,
-};
-use corrosive_ecs_core::build::general_helper::{create_engine, create_engine_package};
-use corrosive_ecs_core::build::general_scan::{get_path_map, scan_directory, write_path_map};
-use corrosive_ecs_core::build::tasks_scan::{get_task_map, scan_tasks, write_task_map};
 use proc_macro::TokenStream;
-use proc_macro_error::emit_error;
-use quote::{quote, ToTokens};
-use std::collections::HashMap;
-use std::ptr::write;
-use std::{env, fs, path};
-use syn::parse::{Parse, ParseStream};
-use syn::token::Token;
-use syn::{parse_macro_input, token, Error, Ident, Lit, Result, Token};
+use quote::quote;
 
-pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
+pub fn corrosive_engine_builder(_item: TokenStream) -> TokenStream {
     //let args = parse_macro_input!(item as AppPackage);
-    quote! {}.into()
+    (quote! {}).into()
     /*
     let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");
     app_path.push_str("/src");

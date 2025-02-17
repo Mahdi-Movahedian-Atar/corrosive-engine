@@ -1,5 +1,5 @@
 pub const ENGINE_DIR: &str = ".corrosive-components";
-
+#[allow(non_snake_case)]
 pub mod general_helper {
     use crate::build::app_scan::{get_app_package, write_app_package, AppPackage};
     use crate::build::codegen::{
@@ -330,7 +330,7 @@ pub mod general_helper {
         }*/
     }
 }
-
+#[allow(non_snake_case)]
 pub mod general_scan {
     use crate::build::ENGINE_DIR;
     use std::path::{Path, PathBuf};
@@ -367,7 +367,7 @@ pub mod general_scan {
     impl PathMap {
         fn remove(&mut self) {
             self.modified_state = ModifiedState::Removed;
-            for mut m in &mut self.sub_maps {
+            for m in &mut self.sub_maps {
                 m.modified_state = ModifiedState::Removed;
                 m.remove()
             }
@@ -375,7 +375,7 @@ pub mod general_scan {
 
         fn none(&mut self) {
             self.modified_state = ModifiedState::None;
-            for mut m in &mut self.sub_maps {
+            for m in &mut self.sub_maps {
                 m.modified_state = ModifiedState::None;
                 m.none()
             }
@@ -434,7 +434,7 @@ pub mod general_scan {
                 .sub_maps
                 .iter_mut()
                 .filter(|item| !files.contains(&item.path))
-                .for_each(|mut item| item.remove());
+                .for_each(|item| item.remove());
             path_map
                 .sub_maps
                 .retain(|item| item.modified_state != ModifiedState::Removed);
@@ -451,7 +451,7 @@ pub mod general_scan {
         Ok(())
     }
 }
-
+#[allow(non_snake_case)]
 pub mod components_scan {
     use crate::build::general_scan::{ModifiedState, PathMap};
     use quote::ToTokens;
@@ -613,7 +613,7 @@ pub mod components_scan {
         false
     }
 }
-
+#[allow(non_snake_case)]
 pub mod tasks_scan {
     use crate::build::general_scan::{ModifiedState, PathMap};
     use quote::ToTokens;
@@ -827,7 +827,7 @@ pub mod tasks_scan {
                             {
                                 if segment.ident == "Arch" {
                                     if let Type::Tuple(TypeTuple { elems, .. }) = inner_type {
-                                        let mut elems: Vec<String> = elems
+                                        let elems: Vec<String> = elems
                                             .iter()
                                             .map(|elem| {
                                                 elem.to_token_stream()
@@ -960,73 +960,6 @@ pub mod tasks_scan {
                 output_reset: false,
             }
         }
-
-        fn visit(&mut self, stmt: &Stmt) {
-            // Process nested statements first
-            if let Stmt::Macro(mac) = stmt {
-                match mac
-                    .mac
-                    .path
-                    .segments
-                    .last()
-                    .unwrap()
-                    .ident
-                    .to_string()
-                    .as_str()
-                {
-                    "add_entity" => {
-                        let mut type_flag = true;
-                        let mut ty: Vec<String> = vec!["".to_string()];
-                        let mut va: Vec<String> = vec!["".to_string()];
-                        for token in mac.mac.tokens.clone() {
-                            let t = token.to_string().replace(" ", "");
-                            if t == "," {
-                                type_flag = true;
-                                ty.push("".to_string());
-                                va.push("".to_string());
-                                continue;
-                            }
-                            if t == "=" {
-                                type_flag = false;
-                                continue;
-                            }
-                            if type_flag {
-                                if let Some(last) = ty.last_mut() {
-                                    last.push_str(&t);
-                                }
-                            } else {
-                                if let Some(last) = va.last_mut() {
-                                    last.push_str(&t);
-                                }
-                            }
-                        }
-                        let mut tuples: Vec<_> = ty.into_iter().zip(va.into_iter()).collect();
-
-                        tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-                        if self.output_arch.contains(&tuples) {
-                            return;
-                        }
-
-                        self.output_arch.push(tuples);
-                    }
-                    "signal" => {
-                        let signal: LitStr = mac.mac.parse_body().unwrap();
-
-                        if self.output_signals.contains(&signal.value()) {
-                            return;
-                        }
-
-                        self.output_signals.push(signal.value())
-                    }
-                    "reset" => {
-                        self.output_reset = true;
-                    }
-                    _ => {}
-                }
-            };
-            self.visit(stmt);
-        }
     }
 
     fn get_task_output(stmts: Vec<Stmt>) -> (Vec<Vec<(String, String)>>, Vec<String>, bool) {
@@ -1042,14 +975,12 @@ pub mod tasks_scan {
         )
     }
 }
-
+#[allow(non_snake_case)]
 pub mod app_scan {
-    use crate::build::tasks_scan::TaskMap;
     use proc_macro2::{TokenStream, TokenTree};
     use quote::ToTokens;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
     use std::collections::{BinaryHeap, HashMap};
-    use std::path::Path;
     use std::str::FromStr;
     use std::{fmt, fs, io};
     use syn::parse::{Parse, ParseBuffer, ParseStream, Result};
@@ -1173,7 +1104,7 @@ pub mod app_scan {
 
         pub fn topological_sort(&self) -> core::result::Result<Vec<DependencyType>, &str> {
             let mut in_degrees = self.in_degrees.clone();
-            let mut dependents = self.dependents.clone();
+            let dependents = self.dependents.clone();
             let mut queue = BinaryHeap::new();
 
             for (node, &degree) in &in_degrees {
@@ -1778,7 +1709,7 @@ pub mod app_scan {
         }
     }
 }
-
+#[allow(non_snake_case)]
 pub mod codegen {
     use crate::build::app_scan::{
         AppPackage, DependencyGraph, DependencyType, LogicalExpression, LogicalOperator, TaskType,
@@ -1786,7 +1717,7 @@ pub mod codegen {
     use crate::build::components_scan::ComponentMap;
     use crate::build::tasks_scan::{Task, TaskMap};
     use proc_macro2::{Span, TokenStream};
-    use quote::{quote, ToTokens};
+    use quote::quote;
     use std::collections::{HashMap, HashSet};
     use std::fmt::Debug;
     use std::fs::File;
@@ -1795,7 +1726,7 @@ pub mod codegen {
     use syn::spanned::Spanned;
     use syn::token::Semi;
     use syn::visit_mut::{self, VisitMut};
-    use syn::{parse2, parse_str, LitStr, Stmt, Token};
+    use syn::{parse2, parse_str, LitStr, Stmt};
 
     #[derive(Debug)]
     pub struct ArchTypes {
@@ -2205,7 +2136,7 @@ pub mod codegen {
     }
 
     impl VisitMut for MacroReplacer {
-        fn visit_stmt_mut(&mut self, mut stmt: &mut Stmt) {
+        fn visit_stmt_mut(&mut self, stmt: &mut Stmt) {
             // Process nested statements first
             visit_mut::visit_stmt_mut(self, stmt);
 
@@ -2259,7 +2190,7 @@ pub mod codegen {
 
                         let mut vec_type = TokenStream::new();
                         let mut vec_input = TokenStream::new();
-                        let mut vec_name: TokenStream = parse_str(
+                        let vec_name: TokenStream = parse_str(
                             format!("engine_add_arch{}", self.index_arch[&tuples]).as_str(),
                         )
                         .unwrap();
@@ -2296,7 +2227,7 @@ pub mod codegen {
                             self.bool_num += 1;
                         }
 
-                        let mut vec_name: TokenStream = parse_str(
+                        let vec_name: TokenStream = parse_str(
                             format!(
                                 "engine_trigger_signal{}",
                                 self.index_signals[&signal.value()]

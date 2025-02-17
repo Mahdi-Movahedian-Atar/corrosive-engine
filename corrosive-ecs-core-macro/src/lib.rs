@@ -1,9 +1,6 @@
 use crate::task::task_macro::task_fn;
 use proc_macro::TokenStream;
-use quote::ToTokens;
-use std::sync::{mpsc, Arc, LazyLock, Mutex, RwLock};
 use syn::__private::quote::quote;
-use syn::parse::Parse;
 use syn::{parse_macro_input, Ident};
 
 mod app;

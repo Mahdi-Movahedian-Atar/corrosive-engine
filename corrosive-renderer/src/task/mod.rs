@@ -1,6 +1,6 @@
 use crate::comp;
+use crate::comp::App;
 use crate::comp::Renderer;
-use crate::comp::{App, UserEvent};
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
 use std::thread;
@@ -13,7 +13,17 @@ pub fn run_renderer(re: Res<Renderer>) {
         re.f_write().0 = Some(thread::spawn(|| {
             env_logger::init();
 
-            let mut event_loop_builder = EventLoop::<UserEvent>::with_user_event();
+            let mut event_loop_builder = EventLoop::<()>::with_user_event();
+            #[cfg(all(target_os = "linux", feature = "x11"))]
+            {
+                use winit::platform::x11::EventLoopBuilderExtX11;
+                event_loop_builder.with_any_thread(true);
+            }
+            #[cfg(all(target_os = "linux", feature = "wayland"))]
+            {
+                use winit::platform::wayland::EventLoopBuilderExtWayland;
+                event_loop_builder.with_any_thread(true);
+            }
             #[cfg(target_os = "windows")]
             {
                 use winit::platform::windows::EventLoopBuilderExtWindows;

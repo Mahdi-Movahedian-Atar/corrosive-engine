@@ -129,15 +129,8 @@ pub struct App {
     state: Option<State>,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
-pub enum UserEvent {
-    WakeUp,
-}
-
-impl ApplicationHandler<UserEvent> for App {
+impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Create window object
         let window = Arc::new(
             event_loop
                 .create_window(Window::default_attributes())
