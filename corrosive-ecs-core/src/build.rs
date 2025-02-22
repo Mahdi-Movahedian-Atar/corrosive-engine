@@ -2449,7 +2449,7 @@ pub mod codegen {
             for input_resource in &tasks[task_name].input_resources {
                 let resource_name: TokenStream =
                     parse_str(format!("r_{}", input_resource.1).as_str()).unwrap();
-                code.extend(quote! {Res::new(&#resource_name),})
+                code.extend(quote! {#resource_name.clone(),})
             }
 
             for input_state in &tasks[task_name].input_states {
@@ -2667,7 +2667,7 @@ pub mod codegen {
                 LogicalExpression::State(n, t) => {
                     let n: TokenStream = parse_str(format!("st_{}", n).as_str()).unwrap();
                     let t: TokenStream = parse_str(t.as_str()).unwrap();
-                    quote! {*#n.read().unwrap() == #t}
+                    quote! {*#n.f_read() == #t}
                 }
                 LogicalExpression::Not(v) => {
                     let v = v.get_code();
@@ -2761,7 +2761,7 @@ pub mod codegen {
             let t: TokenStream = parse_str(state.as_str()).unwrap();
 
             arch_code.extend(quote! {
-                let #name: RwLock<#t> = RwLock::new(#t::default());
+                let #name: State<#t> = State::new(#t::default());
             });
         }
 
@@ -2770,7 +2770,7 @@ pub mod codegen {
             let t: TokenStream = parse_str(resource.as_str()).unwrap();
 
             arch_code.extend(quote! {
-                let #name: RwLock<#t> = RwLock::new(#t::default());
+                let #name: Res<#t> = Res::new(#t::default());
             });
         }
         quote! {

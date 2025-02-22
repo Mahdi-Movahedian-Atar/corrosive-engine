@@ -1,5 +1,5 @@
 [workspace]
-members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer"]
+members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer", "corrosive-ecs-renderer-backend"]
 
 [package]
 name = "corrosive-engine"
@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 corrosive-ecs-core = {path = "corrosive-ecs-core"}
 corrosive-ecs-core-macro = {path = "corrosive-ecs-core-macro" }
-corrosive-renderer= {path = "corrosive-renderer" }
+corrosive-ecs-renderer-backend= {path = "corrosive-ecs-renderer-backend" }
 rand = "0.9.0-alpha.2"
 
 

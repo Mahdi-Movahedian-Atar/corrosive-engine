@@ -19,24 +19,17 @@ pub fn run_engine() {
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
     let is_fixed = AtomicBool::new(false);
     let reset: AtomicBool = AtomicBool::new(true);
-    let r_Renderer: RwLock<Renderer> = RwLock::new(Renderer::default());
+    let r_WindowOptions: Res<WindowOptions> = Res::new(WindowOptions::default());
+    let r_Renderer: Res<Renderer> = Res::new(Renderer::default());
     let mut loop_trigger = Trigger::new();
-    let mut bus_sync_task = Trigger::new();
-    let mut sync_task_end = bus_sync_task.add_trigger();
-    let mut ut_sync_task = loop_trigger.add_trigger();
     thread::scope(|s: &Scope| {
-        s.spawn(|| loop {
-            ut_sync_task.read("failed");
-            let o = sync_task();
-            bus_sync_task.trigger();
-        });
         if reset.load(SeqCst) {
             let mut bus_run_renderer = Trigger::new();
             let mut run_renderer_end = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
                 let handle_run_renderer = s.spawn(|| {
-                    let o = run_renderer(Res::new(&r_Renderer));
+                    let o = run_renderer(r_Renderer.clone(), r_WindowOptions.clone());
                     bus_run_renderer.trigger();
                 });
                 handle_run_renderer.join().expect("TODO: panic message");
@@ -58,7 +51,6 @@ pub fn run_engine() {
                 is_fixed.store(false, SeqCst);
             }
             loop_trigger.trigger();
-            sync_task_end.read("failed");
         }
     });
 }

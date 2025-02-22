@@ -27,8 +27,8 @@ mod task;
 );*/
 
 corrosive_engine_builder!(
-    update "sync_task",
-    package "corrosive-renderer"
+    //update "sync_task",
+    package "corrosive-ecs-renderer-backend"
 );
 
 fn main() {

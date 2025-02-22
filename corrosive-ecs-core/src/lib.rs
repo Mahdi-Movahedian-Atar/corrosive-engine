@@ -154,12 +154,14 @@ pub mod ecs_core {
         }
     }
 
-    pub struct Res<'a, T> {
-        pub value: &'a RwLock<T>,
+    pub struct Res<T> {
+        pub value: Arc<RwLock<T>>,
     }
-    impl<T> Res<'_, T> {
-        pub fn new(value: &RwLock<T>) -> Res<T> {
-            Res { value }
+    impl<T> Res<T> {
+        pub fn new(value: T) -> Res<T> {
+            Res {
+                value: Arc::new(RwLock::new(value)),
+            }
         }
 
         pub fn read(&self) -> LockResult<RwLockReadGuard<'_, T>> {
@@ -181,13 +183,21 @@ pub mod ecs_core {
         pub fn f_write(&self) -> RwLockWriteGuard<'_, T> {
             self.value.write().expect("Failed to force write a lock")
         }
+
+        pub fn clone(&self) -> Res<T> {
+            Res {
+                value: self.value.clone(),
+            }
+        }
     }
-    pub struct State<'a, T> {
-        pub value: &'a RwLock<T>,
+    pub struct State<T> {
+        pub value: Arc<RwLock<T>>,
     }
-    impl<T> State<'_, T> {
-        pub fn new(value: &RwLock<T>) -> State<T> {
-            State { value }
+    impl<T> State<T> {
+        pub fn new(value: T) -> State<T> {
+            State {
+                value: Arc::new(RwLock::new(value)),
+            }
         }
 
         pub fn read(&self) -> LockResult<RwLockReadGuard<'_, T>> {
@@ -208,6 +218,12 @@ pub mod ecs_core {
         }
         pub fn f_write(&self) -> RwLockWriteGuard<'_, T> {
             self.value.write().expect("Failed to force write a lock")
+        }
+
+        pub fn clone(&self) -> State<T> {
+            State {
+                value: self.value.clone(),
+            }
         }
     }
     pub type DeltaTime<'a> = &'a f64;
