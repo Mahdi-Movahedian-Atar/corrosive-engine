@@ -1,17 +1,17 @@
 #![allow(warnings)]
 
+//use crate::corrosive_engine::engine::run_engine;
 use crate::corrosive_engine::engine::run_engine;
 use corrosive_ecs_core_macro::corrosive_engine_builder;
 use corrosive_engine::auto_prelude::*;
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::env;
 
 mod comp;
 mod core_test;
 #[path = ".corrosive_engine/mod.rs"]
 mod corrosive_engine;
-
-#[path = "corrosive-components/arch_types.rs"]
-mod e;
 mod task;
 
 /*corrosive_engine_builder!(
@@ -27,7 +27,7 @@ mod task;
 );*/
 
 corrosive_engine_builder!(
-    //update "sync_task",
+    update "sync_task",
     package "corrosive-ecs-renderer-backend"
 );
 

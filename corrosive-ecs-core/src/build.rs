@@ -2455,7 +2455,7 @@ pub mod codegen {
             for input_state in &tasks[task_name].input_states {
                 let state_name: TokenStream =
                     parse_str(format!("st_{}", input_state.1).as_str()).unwrap();
-                code.extend(quote! {State::new(&#state_name),})
+                code.extend(quote! {#state_name.clone(),})
             }
 
             if tasks[task_name].input_delta_time != None {

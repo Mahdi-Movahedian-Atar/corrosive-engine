@@ -1,5 +1,7 @@
+use crate::render_graph::GraphNode;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::Resource;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use wgpu::SurfaceTarget;
@@ -52,7 +54,6 @@ impl Default for WindowOptions {
                     WindowEvent::ThemeChanged(_) => {}
                     WindowEvent::Occluded(_) => {}
                     WindowEvent::RedrawRequested => {
-                        println!("sss");
                         if let Some(t) = &App.window_options.f_read().window {
                             t.request_redraw();
                         }
@@ -68,6 +69,14 @@ impl WindowOptions {
     }
 }
 
+#[derive(Resource, Default)]
+pub struct RenderGraph {
+    pub(crate) names: HashMap<String, usize>,
+    pub(crate) nodes: HashMap<usize, GraphNode>,
+    pub(crate) edges: Vec<(usize, usize)>,
+    pub(crate) sorted: Vec<usize>,
+}
+
 pub struct State<'a> {
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
@@ -75,10 +84,11 @@ pub struct State<'a> {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     window: Arc<Window>,
+    render_graph: Res<RenderGraph>,
 }
 
 impl<'a> State<'a> {
-    async fn new(&mut self, window: Arc<Window>) -> State<'a> {
+    async fn new(window: Arc<Window>, render_graph: Res<RenderGraph>) -> State<'a> {
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -143,19 +153,103 @@ impl<'a> State<'a> {
             config,
             size,
             window,
+            render_graph,
         }
+    }
+    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+        let output = self.surface.get_current_texture()?;
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        /*let mut encoder = self
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });*/
+
+        self.render_graph
+            .f_read()
+            .execute(&self.device, &self.queue);
+        /*{
+            // 1.
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[
+                    // This is what @location(0) in the fragment shader targets
+                    Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: 0.1,
+                                g: 0.2,
+                                b: 0.3,
+                                a: 1.0,
+                            }),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    }),
+                ],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(2, &self.light_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
+            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+            render_pass
+                .draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
+
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
+
+            use crate::model::DrawLight; // NEW!
+            render_pass.set_pipeline(&self.light_render_pipeline); // NEW!
+            render_pass.draw_light_model(
+                &self.obj_model,
+                &self.camera_bind_group,
+                &self.light_bind_group,
+            ); // NEW!
+
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw_light_model_instanced(
+                &self.obj_model,
+                0..self.instances.len() as u32,
+                &self.camera_bind_group,
+                &self.light_bind_group, // NEW
+            );
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));*/
+        output.present();
+
+        Ok(())
     }
 }
 
 pub struct App<'a> {
     state: Option<State<'a>>,
+    render_graph: Res<RenderGraph>,
     window_options: Res<WindowOptions>,
 }
 
 impl<'a> App<'a> {
-    pub(crate) fn new(window_options: Res<WindowOptions>) -> App<'a> {
+    pub(crate) fn new(
+        window_options: Res<WindowOptions>,
+        render_graph: Res<RenderGraph>,
+    ) -> App<'a> {
         App {
             state: None,
+            render_graph,
             window_options,
         }
     }
@@ -168,10 +262,11 @@ impl<'a> ApplicationHandler for App<'a> {
                 .create_window(Window::default_attributes())
                 .unwrap(),
         ));
+        self.render_graph.f_write().prepare();
 
-        /*let state = pollster::block_on(State::new(window.clone()));
-        self.state = Some(state);*/
         if let Some(t) = &self.window_options.f_read().window {
+            let state = pollster::block_on(State::new(t.clone(), self.render_graph.clone()));
+            self.state = Some(state);
             t.request_redraw();
         }
     }

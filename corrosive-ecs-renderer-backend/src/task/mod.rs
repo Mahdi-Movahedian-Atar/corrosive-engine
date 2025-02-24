@@ -1,4 +1,4 @@
-use crate::comp::{App, Renderer, WindowOptions};
+use crate::comp::{App, RenderGraph, Renderer, WindowOptions};
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
 use std::sync::Arc;
@@ -7,7 +7,11 @@ use winit::application::ApplicationHandler;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 #[task]
-pub fn run_renderer(re: Res<Renderer>, window_options: Res<WindowOptions>) {
+pub fn run_renderer(
+    re: Res<Renderer>,
+    window_options: Res<WindowOptions>,
+    render_graph: Res<RenderGraph>,
+) {
     if re.f_read().0.is_none() {
         re.f_write().0 = Some(thread::spawn(move || {
             env_logger::init();
@@ -33,7 +37,7 @@ pub fn run_renderer(re: Res<Renderer>, window_options: Res<WindowOptions>) {
 
             event_loop_builder.set_control_flow(ControlFlow::Poll);
 
-            let mut app = App::new(window_options);
+            let mut app = App::new(window_options, render_graph);
 
             event_loop_builder.run_app(&mut app).unwrap();
         }));
