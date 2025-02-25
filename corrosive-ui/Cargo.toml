@@ -5,3 +5,9 @@ edition = "2021"
 
 [lib]
 [dependencies]
+corrosive-ecs-core = { version = "0.1.0", path = "../corrosive-ecs-core" }
+corrosive-ecs-core-macro = { version = "0.1.0", path = "../corrosive-ecs-core-macro" }
+corrosive-ecs-renderer-backend = {path = "../corrosive-ecs-renderer-backend" }
+
+[build-dependencies]
+corrosive-ecs-core = {path = "../corrosive-ecs-core" , features = ["build"]}

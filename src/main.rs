@@ -1,7 +1,7 @@
 #![allow(warnings)]
 
-//use crate::corrosive_engine::engine::run_engine;
 use crate::corrosive_engine::engine::run_engine;
+use corrosive_ecs_core::build::general_helper::create_engine;
 use corrosive_ecs_core_macro::corrosive_engine_builder;
 use corrosive_engine::auto_prelude::*;
 use std::any::{Any, TypeId};
@@ -27,9 +27,13 @@ mod task;
 );*/
 
 corrosive_engine_builder!(
+    update "macro_test",
+);
+
+/*corrosive_engine_builder!(
     update "sync_task",
     package "corrosive-ecs-renderer-backend"
-);
+);*/
 
 fn main() {
     run_engine()

@@ -567,6 +567,11 @@ dependencies = [
 [[package]]
 name = "corrosive-ui"
 version = "0.1.0"
+dependencies = [
+ "corrosive-ecs-core",
+ "corrosive-ecs-core-macro",
+ "corrosive-ecs-renderer-backend",
+]
 
 [[package]]
 name = "crc32fast"

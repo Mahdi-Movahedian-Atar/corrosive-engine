@@ -1,8 +1,10 @@
+use corrosive_ecs_core::build::general_helper::create_engine;
 use proc_macro::TokenStream;
 use quote::quote;
 
 pub fn corrosive_engine_builder(_item: TokenStream) -> TokenStream {
     //let args = parse_macro_input!(item as AppPackage);
+    //create_engine();
     (quote! {}).into()
     /*
     let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");

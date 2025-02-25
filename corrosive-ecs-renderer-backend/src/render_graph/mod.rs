@@ -2,7 +2,6 @@ use crate::comp::RenderGraph;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use wgpu::util::DeviceExt;
 
 /// A trait representing a render graph node.
 /// Each node can record commands into a given command encoder.

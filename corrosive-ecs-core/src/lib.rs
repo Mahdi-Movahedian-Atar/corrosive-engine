@@ -5,6 +5,7 @@ pub mod build;
 pub mod ecs_core {
     use crate::ecs_core::Reference::Expired;
     use bus::{Bus, BusReader};
+    use std::collections::HashSet;
 
     use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
@@ -249,6 +250,51 @@ pub mod ecs_core {
         }
     }
 
+    pub struct RArch<T> {
+        pub vec: Vec<T>,
+    }
+    impl<T> Default for RArch<T> {
+        fn default() -> Self {
+            RArch { vec: Vec::new() }
+        }
+    }
+
+    impl<T> RArch<T> {
+        pub fn add(&mut self, t: T) {
+            self.vec.push(t);
+        }
+
+        pub fn add_multiple<I>(&mut self, items: I)
+        where
+            I: IntoIterator<Item = T>,
+        {
+            self.vec.extend(items)
+        }
+
+        pub fn get(&self) -> &Vec<T> {
+            &self.vec
+        }
+    }
+    #[derive(Default)]
+    pub struct Signal {
+        pub vec: HashSet<String>,
+    }
+    impl Signal {
+        pub fn trigger(&mut self, signal: &str) {
+            self.vec.insert(signal.to_string());
+        }
+    }
+    #[derive(Default)]
+    pub struct Reset(bool);
+    impl Reset {
+        pub fn trigger(&mut self) {
+            self.0 = true;
+        }
+        pub fn get(&self) -> bool {
+            self.0
+        }
+    }
+
     #[macro_export]
     macro_rules! add_entity {
     ($($x:ty = $y:expr),+ ) => {
@@ -264,7 +310,6 @@ pub mod ecs_core {
             println!("Warning: funtions must have the [tast] attrabute!");
         };
     }
-
     #[macro_export]
     macro_rules! reset {
         () => {

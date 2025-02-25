@@ -5,7 +5,7 @@ pub mod task_macro {
     use quote::quote;
     use syn::{parse_macro_input, parse_quote, parse_str, ItemFn, ReturnType};
 
-    pub fn task_fn(
+    /*pub fn task_fn(
         _: proc_macro::TokenStream,
         item: proc_macro::TokenStream,
     ) -> proc_macro::TokenStream {
@@ -47,5 +47,5 @@ pub mod task_macro {
         let new_body: TokenStream = quote! {#body}.into();
 
         new_body.into()
-    }
+    }*/
 }

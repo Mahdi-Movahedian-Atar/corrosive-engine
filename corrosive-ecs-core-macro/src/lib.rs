@@ -1,4 +1,3 @@
-use crate::task::task_macro::task_fn;
 use proc_macro::TokenStream;
 use syn::__private::quote::quote;
 use syn::{parse_macro_input, Ident};
@@ -10,7 +9,8 @@ mod task;
 #[doc = include_str!("../docs/task.md")]
 #[proc_macro_attribute]
 pub fn task(attr: TokenStream, item: TokenStream) -> TokenStream {
-    task_fn(attr, item)
+    //task_fn(attr, item)
+    item
 }
 
 #[proc_macro]

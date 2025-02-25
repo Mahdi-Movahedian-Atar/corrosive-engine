@@ -3,17 +3,36 @@ pub mod other_tasks;
 use crate::comp::sub::{MarkedResources, Position3, Position4, StateExample};
 use crate::comp::{Position1, Position2};
 use crate::corrosive_engine;
-use corrosive_ecs_core::ecs_core::{Arch, DeltaTime, Locked, LockedRef, Ref, Res, State};
+use corrosive_ecs_core::ecs_core::{
+    Arch, DeltaTime, Locked, LockedRef, RArch, Ref, Res, Reset, Signal, State,
+};
 use corrosive_ecs_core::{add_entity, reset, signal};
 use corrosive_ecs_core_macro::task;
 use rand::Rng;
+use std::iter::Map;
+use std::slice::Iter;
+use std::vec::IntoIter;
 
-#[task]
-pub fn setup() {
+//#[task]
+pub fn setup() -> (
+    RArch<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
+    RArch<(Locked<Position1>, LockedRef<Position3>)>,
+) {
     let mut rng = rand::thread_rng();
+    let mut r1: RArch<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)> = RArch::default();
+    let mut r2: RArch<(Locked<Position1>, LockedRef<Position3>)> = RArch::default();
 
     let random_number: u32 = rng.gen_range(0..10000);
     for i in 0..10000 {
+        r1.add((
+            Locked::new(if (random_number == i) {
+                Position1 { x: 10.0, y: 10.0 }
+            } else {
+                Position1 { x: 2.0, y: 2.0 }
+            }),
+            Ref::new(Position2 { x: 2.0, y: 2.0 }),
+            LockedRef::new(Position3 { x: 2.0, y: 2.0 }),
+        ));
         add_entity!(
             Locked<Position1>= Locked::new(if (random_number == i) {
                 Position1 { x: 10.0, y: 10.0 }
@@ -28,6 +47,7 @@ pub fn setup() {
             LockedRef<Position3>=LockedRef::new(Position3 { x: 2.0, y: 2.0 })
         );
     }
+    (r1, r2)
 }
 
 #[task]
@@ -37,12 +57,46 @@ pub fn macro_test(
     aa: Arch<(&Ref<Position2>, &LockedRef<Position3>)>,
     d: State<StateExample>,
     c: Res<MarkedResources>,
+) -> (
+    RArch<(Ref<Position2>, LockedRef<Position3>)>,
+    RArch<(Ref<Position2>, Position3, LockedRef<Position3>)>,
+    RArch<(LockedRef<Position3>,)>,
+    Signal,
+    Reset,
 ) {
-    signal!("sss");
-    add_entity!(Ref<Position2> = Ref::new(Position2 { x: 1.0, y: 1.0 }),LockedRef<Position3>= LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
-    add_entity!(Ref<Position2> = Ref::new(Position2 { x: 1.0, y: 1.0 }),Position3= Position3 { x: 1.0, y: 1.0 },LockedRef<Position3>= LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
-    add_entity!(LockedRef<Position3> = LockedRef::new(Position3 { x: 1.0, y: 1.0 }) );
-    reset!();
+    let mut r1: RArch<(Ref<Position2>, LockedRef<Position3>)> = RArch::default();
+    let mut r2: RArch<(Ref<Position2>, Position3, LockedRef<Position3>)> = RArch::default();
+    let mut r3: RArch<((LockedRef<Position3>,))> = RArch::default();
+    let mut signal = Signal::default();
+    let mut reset = Reset::default();
+    r1.add((
+        Ref::new(Position2 { x: 1.0, y: 1.0 }),
+        LockedRef::new(Position3 { x: 1.0, y: 1.0 }),
+    ));
+    r2.add((
+        Ref::new(Position2 { x: 1.0, y: 1.0 }),
+        Position3 { x: 1.0, y: 1.0 },
+        LockedRef::new(Position3 { x: 1.0, y: 1.0 }),
+    ));
+    r3.add((LockedRef::new(Position3 { x: 1.0, y: 1.0 }),));
+    signal.trigger("aa");
+    reset.trigger();
+    (r1, r2, r3, signal, reset)
+}
+pub fn wrapper_macro_test<'a>(
+    b: Arch<(&LockedRef<Position3>,)>,
+    a: Arch<(&LockedRef<Position3>, &Ref<Position2>)>,
+    aa: Arch<(&Ref<Position2>, &LockedRef<Position3>)>,
+    d: State<StateExample>,
+    c: Res<MarkedResources>,
+) -> (
+    Map<
+        IntoIter<(Ref<Position2>, LockedRef<Position3>)>,
+        fn((Ref<Position2>, LockedRef<Position3>)) -> (LockedRef<Position3>, Ref<Position2>),
+    >,
+) {
+    let o = macro_test(b, a, aa, d, c);
+    (o.0.vec.into_iter().map(|(a, b)| (b, a)),)
 }
 
 #[task]

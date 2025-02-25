@@ -624,20 +624,28 @@ pub mod tasks_scan {
     use syn::token::Comma;
     use syn::visit::Visit;
     use syn::{
-        Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat, PathArguments, Stmt,
-        Type, TypeTuple,
+        Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat, PathArguments,
+        PathSegment, ReturnType, Stmt, Type, TypeTuple,
     };
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
     pub struct Task {
         pub name: String,
-        pub input_archs: Vec<(String, Vec<String>)>,
-        pub input_resources: Vec<(String, String)>,
-        pub input_states: Vec<(String, String)>,
-        pub input_delta_time: Option<String>,
-        pub output_archs: Vec<Vec<(String, String)>>,
-        pub output_signals: Vec<String>,
-        pub output_reset: bool,
+        pub inputs: Vec<TaskInput>,
+        pub outputs: Vec<TaskOutput>,
+    }
+    #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
+    pub enum TaskInput {
+        Arch(String, Vec<String>),
+        Resources(String, String),
+        State(String, String),
+        DeltaTime(String),
+    }
+    #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
+    pub enum TaskOutput {
+        Arch(Vec<String>),
+        Signal,
+        Reset,
     }
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -769,17 +777,12 @@ pub mod tasks_scan {
             }) = item
             {
                 if has_task_attr(attrs) {
-                    let outputs = get_task_output(block.stmts);
+                    let outputs = get_task_output(sig.output);
                     let inputs = get_task_input(sig.inputs);
                     tasks.push(Task {
                         name: sig.ident.to_string(),
-                        input_archs: inputs.0,
-                        input_resources: inputs.1,
-                        input_states: inputs.2,
-                        input_delta_time: inputs.3,
-                        output_archs: outputs.0,
-                        output_signals: outputs.1,
-                        output_reset: outputs.2,
+                        inputs,
+                        outputs,
                     });
                 }
             }
@@ -798,18 +801,8 @@ pub mod tasks_scan {
         false
     }
 
-    pub fn get_task_input(
-        token_stream: Punctuated<FnArg, Comma>,
-    ) -> (
-        Vec<(String, Vec<String>)>,
-        Vec<(String, String)>,
-        Vec<(String, String)>,
-        Option<String>,
-    ) {
-        let mut input_arch: Vec<(String, Vec<String>)> = Vec::new();
-        let mut input_resource: Vec<(String, String)> = Vec::new();
-        let mut input_state: Vec<(String, String)> = Vec::new();
-        let mut input_delta_time: Option<String> = None;
+    pub fn get_task_input(token_stream: Punctuated<FnArg, Comma>) -> Vec<TaskInput> {
+        let mut inputs: Vec<TaskInput> = Vec::new();
 
         for input in token_stream.iter() {
             if let FnArg::Typed(pat_type) = input {
@@ -836,9 +829,9 @@ pub mod tasks_scan {
                                                     .replace("&", "")
                                             })
                                             .collect();
-                                        input_arch.push((name, elems));
+                                        inputs.push(TaskInput::Arch(name, elems));
                                     } else {
-                                        input_arch.push((
+                                        inputs.push(TaskInput::Arch(
                                             name,
                                             vec![inner_type
                                                 .to_token_stream()
@@ -850,7 +843,7 @@ pub mod tasks_scan {
                                 }
 
                                 if segment.ident == "Res" {
-                                    input_resource.push((
+                                    inputs.push(TaskInput::Resources(
                                         name,
                                         inner_type.to_token_stream().to_string().replace(" ", ""),
                                     ));
@@ -858,7 +851,7 @@ pub mod tasks_scan {
                                 }
 
                                 if segment.ident == "State" {
-                                    input_state.push((
+                                    inputs.push(TaskInput::State(
                                         name,
                                         inner_type.to_token_stream().to_string().replace(" ", ""),
                                     ));
@@ -868,13 +861,13 @@ pub mod tasks_scan {
                         }
                     }
                     if type_path.to_token_stream().to_string() == "DeltaTime" {
-                        input_delta_time = Some(name);
+                        inputs.push(TaskInput::DeltaTime(name));
                         continue;
                     }
                 }
             }
         }
-        (input_arch, input_resource, input_state, input_delta_time)
+        inputs
     }
 
     struct MacroReader {
@@ -942,7 +935,7 @@ pub mod tasks_scan {
 
                         self.output_signals.push(signal.value())
                     }
-                    "reset" => {
+                    "Reset" => {
                         self.output_reset = true;
                     }
                     _ => {}
@@ -962,17 +955,47 @@ pub mod tasks_scan {
         }
     }
 
-    fn get_task_output(stmts: Vec<Stmt>) -> (Vec<Vec<(String, String)>>, Vec<String>, bool) {
-        let mut macro_reader = MacroReader::new();
+    fn get_task_output(return_type: ReturnType) -> Vec<TaskOutput> {
+        let mut outputs: Vec<TaskOutput> = Vec::new();
+        /*let mut macro_reader = MacroReader::new();
 
         for st in stmts.iter() {
             macro_reader.visit_stmt(st);
+        }*/
+        if let ReturnType::Type(_, t) = return_type {
+            if let Type::Tuple(t) = *t {
+                for elem in t.elems {
+                    if let Type::Path(t) = elem {
+                        for segment in t.path.segments {
+                            match segment.ident.to_string().as_str() {
+                                "RArch" => {
+                                    if let PathArguments::AngleBracketed(a) = segment.arguments {
+                                        for arg in a.args {
+                                            if let GenericArgument::Type(Type::Tuple(elem)) = arg {
+                                                outputs.push(TaskOutput::Arch(
+                                                    elem.elems
+                                                        .iter()
+                                                        .map(|x| {
+                                                            x.to_token_stream()
+                                                                .to_string()
+                                                                .replace(" ", "")
+                                                        })
+                                                        .collect::<Vec<String>>(),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                                "Signal" => outputs.push(TaskOutput::Signal),
+                                "Reset" => outputs.push(TaskOutput::Reset),
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
         }
-        (
-            macro_reader.output_arch,
-            macro_reader.output_signals,
-            macro_reader.output_reset,
-        )
+        outputs
     }
 }
 #[allow(non_snake_case)]
@@ -1715,7 +1738,7 @@ pub mod codegen {
         AppPackage, DependencyGraph, DependencyType, LogicalExpression, LogicalOperator, TaskType,
     };
     use crate::build::components_scan::ComponentMap;
-    use crate::build::tasks_scan::{Task, TaskMap};
+    use crate::build::tasks_scan::{Task, TaskInput, TaskMap, TaskOutput};
     use proc_macro2::{Span, TokenStream};
     use quote::quote;
     use std::collections::{HashMap, HashSet};
@@ -1732,7 +1755,6 @@ pub mod codegen {
     pub struct ArchTypes {
         arch_types: Vec<Vec<String>>,
         tasks: HashMap<String, TasksInputOutput>,
-        signals: HashSet<String>,
         resources: HashSet<String>,
         states: HashSet<String>,
     }
@@ -1808,18 +1830,6 @@ pub mod codegen {
         }
         let arch_types = get_all_archetypes(tasks.values().collect::<Vec<&Task>>());
 
-        println!(
-            "{}",
-            generate_app_body(
-                &tasks,
-                &task_options,
-                &setup_dependency_map,
-                &sync_dependency_map,
-                &runtime_dependency_map,
-                &arch_types,
-            )
-            .to_string()
-        );
         (
             generate_app_body(
                 &tasks,
@@ -1846,77 +1856,90 @@ pub mod codegen {
         let mut archetypes: ArchTypes = ArchTypes {
             arch_types: vec![],
             tasks: HashMap::new(),
-            signals: Default::default(),
             resources: Default::default(),
             states: Default::default(),
         };
 
         for task in &tasks {
-            for output_arch in &task.output_archs {
-                let output = output_arch
-                    .iter()
-                    .map(|x| x.0.clone())
-                    .collect::<Vec<String>>();
-                if !archetypes
-                    .arch_types
-                    .contains(&output.iter().map(|x| x.clone()).collect::<Vec<String>>())
-                {
-                    archetypes.arch_types.push(output);
+            for output in &task.outputs {
+                match output {
+                    TaskOutput::Arch(v) => {
+                        let mut v = v.clone();
+                        v.sort();
+                        archetypes.arch_types.push(v)
+                    }
+                    _ => {}
                 }
             }
-            archetypes.signals.extend(task.output_signals.clone());
-            archetypes
-                .resources
-                .extend(task.input_resources.iter().map(|x| x.1.clone()));
-            archetypes
-                .states
-                .extend(task.input_states.iter().map(|x| x.1.clone()));
+            for input in &task.inputs {
+                match input {
+                    TaskInput::Resources(_, v) => {
+                        archetypes.resources.insert(v.clone());
+                    }
+                    TaskInput::State(_, v) => {
+                        archetypes.states.insert(v.clone());
+                    }
+                    _ => {}
+                }
+            }
         }
+
         for task in &tasks {
             let mut new = TasksInputOutput {
                 input: vec![],
                 output: task
-                    .output_archs
+                    .outputs
                     .iter()
-                    .map(|x| x.iter().map(|x| x.0.clone()).collect::<Vec<String>>())
+                    .filter_map(|x| {
+                        if let TaskOutput::Arch(v) = x {
+                            let mut v = v.clone();
+                            v.sort();
+                            Some(v)
+                        } else {
+                            None
+                        }
+                    })
                     .filter_map(|x| archetypes.arch_types.iter().position(|y| y == &x))
                     .collect::<Vec<usize>>(),
             };
 
             let mut index: usize = 0;
 
-            for input_arch in &task.input_archs {
-                new.input.push(TaskArchType {
-                    arch_type_type: input_arch.1.clone(),
-                    task_index: index,
-                    input_arch_type_indexes: archetypes
-                        .arch_types
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(outer_index, sub_vec)| {
-                            if input_arch.1.iter().all(|b_elem| sub_vec.contains(b_elem)) {
-                                Some((
-                                    outer_index,
-                                    input_arch
-                                        .1
-                                        .iter()
-                                        .enumerate()
-                                        .filter_map(|a| {
-                                            if let Some(t) = sub_vec.iter().position(|i| i == a.1) {
-                                                Some(t)
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .collect(),
-                                ))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect(),
-                });
-                index += 1;
+            for input_arch in &task.inputs {
+                if let TaskInput::Arch(_, input_arch) = input_arch {
+                    new.input.push(TaskArchType {
+                        arch_type_type: input_arch.clone(),
+                        task_index: index,
+                        input_arch_type_indexes: archetypes
+                            .arch_types
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(outer_index, sub_vec)| {
+                                if input_arch.iter().all(|b_elem| sub_vec.contains(b_elem)) {
+                                    Some((
+                                        outer_index,
+                                        input_arch
+                                            .iter()
+                                            .enumerate()
+                                            .filter_map(|a| {
+                                                if let Some(t) =
+                                                    sub_vec.iter().position(|i| i == a.1)
+                                                {
+                                                    Some(t)
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .collect(),
+                                    ))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect(),
+                    });
+                    index += 1;
+                }
             }
 
             archetypes.tasks.insert(task.name.clone(), new);
@@ -2247,7 +2270,7 @@ pub mod codegen {
                         parse2(quote! { #vec_name = true; })
                             .expect("Failed to parse TokenStream into Stmt")
                     }
-                    "reset" => {
+                    "Reset" => {
                         if !self.is_reset {
                             self.var_reset = Some(
                                 parse2(quote! {let mut engine_signal_trigger: bool = false;})
@@ -2425,41 +2448,48 @@ pub mod codegen {
             let mut code: TokenStream = TokenStream::new();
 
             //call function
-            for t in &arch_types.tasks[task_name].input {
-                let arch_name: TokenStream =
-                    parse_str(format!("{}{}", task_name, t.task_index).as_str()).unwrap();
-                let mut arch_inputs: TokenStream = TokenStream::new();
-                for input_arch_type_index in &t.input_arch_type_indexes {
-                    let name: TokenStream =
-                        parse_str(format!("a{}", input_arch_type_index.0).as_str()).unwrap();
-                    let remove: TokenStream =
-                        parse_str(format!("or{}", input_arch_type_index.0).as_str()).unwrap();
 
-                    arch_inputs.extend(quote! {&*#name.read().unwrap(),});
-                    arch_inputs.extend(quote! {&#remove,});
+            let mut arch_types_index: usize = 0;
+            for task in &tasks[task_name].inputs {
+                match task {
+                    TaskInput::Arch(_, _) => {
+                        let t = &arch_types.tasks[task_name].input[arch_types_index];
+                        let arch_name: TokenStream =
+                            parse_str(format!("{}{}", task_name, t.task_index).as_str()).unwrap();
+                        let mut arch_inputs: TokenStream = TokenStream::new();
+                        for input_arch_type_index in &t.input_arch_type_indexes {
+                            let name: TokenStream =
+                                parse_str(format!("a{}", input_arch_type_index.0).as_str())
+                                    .unwrap();
+                            let remove: TokenStream =
+                                parse_str(format!("or{}", input_arch_type_index.0).as_str())
+                                    .unwrap();
+
+                            arch_inputs.extend(quote! {&*#name.read().unwrap(),});
+                            arch_inputs.extend(quote! {&#remove,});
+                        }
+
+                        code.extend(quote! {
+                            Arch::new(&mut #arch_name::new(
+                            #arch_inputs
+                            )),
+                        });
+                        arch_types_index += 1;
+                    }
+                    TaskInput::Resources(_, v) => {
+                        let resource_name: TokenStream =
+                            parse_str(format!("r_{}", v).as_str()).unwrap();
+                        code.extend(quote! {#resource_name.clone(),})
+                    }
+                    TaskInput::State(_, v) => {
+                        let state_name: TokenStream =
+                            parse_str(format!("st_{}", v).as_str()).unwrap();
+                        code.extend(quote! {#state_name.clone(),})
+                    }
+                    TaskInput::DeltaTime(_) => {
+                        code.extend(quote! {&f64::from_bits(delta_time.load(Ordering::Relaxed)),});
+                    }
                 }
-
-                code.extend(quote! {
-                    Arch::new(&mut #arch_name::new(
-                    #arch_inputs
-                    )),
-                });
-            }
-
-            for input_resource in &tasks[task_name].input_resources {
-                let resource_name: TokenStream =
-                    parse_str(format!("r_{}", input_resource.1).as_str()).unwrap();
-                code.extend(quote! {#resource_name.clone(),})
-            }
-
-            for input_state in &tasks[task_name].input_states {
-                let state_name: TokenStream =
-                    parse_str(format!("st_{}", input_state.1).as_str()).unwrap();
-                code.extend(quote! {#state_name.clone(),})
-            }
-
-            if tasks[task_name].input_delta_time != None {
-                code.extend(quote! {&f64::from_bits(delta_time.load(Ordering::Relaxed)),});
             }
 
             code = quote! {
@@ -2470,37 +2500,60 @@ pub mod codegen {
 
             //output
             let mut index: usize = 0;
+            let mut arch_types_index: usize = 0;
 
-            for output in &arch_types.tasks[task_name].output {
-                let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
-                let arch_name: TokenStream = parse_str(format!("o{}", output).as_str()).unwrap();
+            for task in &tasks[task_name].outputs {
+                match task {
+                    TaskOutput::Arch(v) => {
+                        let output = &arch_types.tasks[task_name].output[arch_types_index];
+                        let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
+                        let arch_name: TokenStream =
+                            parse_str(format!("o{}", output).as_str()).unwrap();
 
-                code.extend(quote! {
-                    (&#arch_name).write().unwrap().extend(#name);
-                });
-                index += 1;
-            }
+                        let mut map_left: TokenStream = TokenStream::new();
+                        let mut map_right: TokenStream = TokenStream::new();
+                        let mut map_index: usize = 0;
 
-            for task in &tasks[task_name].output_signals {
-                let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
-                let signal_name: TokenStream = parse_str(format!("s_{}", task).as_str()).unwrap();
+                        let mut sorted = v.clone();
+                        sorted.sort();
 
-                code.extend(quote! {
-                    if #name {
-                        #signal_name.store(#name, Ordering::Relaxed);
+                        for val in v {
+                            let left_name: TokenStream =
+                                parse_str(format!("m{}", map_index).as_str()).unwrap();
+                            let right_name: TokenStream = parse_str(
+                                format!("m{}", sorted.iter().position(|x| x == val).unwrap())
+                                    .as_str(),
+                            )
+                            .unwrap();
+                            map_left.extend(quote! {#left_name,});
+                            map_right.extend(quote! {#right_name,});
+                            map_index += 1
+                        }
+
+                        code.extend(quote! {
+                            (&#arch_name).write().unwrap().extend(#name.vec.into_iter().map(|(#map_left)| (#map_right)));
+                        });
+                        index += 1;
+                        arch_types_index += 1;
                     }
-                });
-                index += 1
-            }
+                    TaskOutput::Signal => {
+                        let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
 
-            if tasks[task_name].output_reset {
-                let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
-
-                code.extend(quote! {
-                    if #name {
-                        reset.store(#name, Ordering::Relaxed);
+                        code.extend(quote! {
+                            o_signals.write().unwrap().extend(#name.vec);
+                        });
+                        index += 1
                     }
-                });
+                    TaskOutput::Reset => {
+                        let name: TokenStream = parse_str(format!("o.{}", index).as_str()).unwrap();
+
+                        code.extend(quote! {
+                            if #name.get() {
+                                reset.store(#name.get(), Ordering::Relaxed);
+                            }
+                        });
+                    }
+                }
             }
 
             //condition
@@ -2661,8 +2714,8 @@ pub mod codegen {
                     quote! {(#code)}
                 }
                 LogicalExpression::Signal(v) => {
-                    let v: TokenStream = parse_str(format!("s_{}", v).as_str()).unwrap();
-                    quote! {#v.load(Ordering::Relaxed)}
+                    let v: TokenStream = parse_str(format!("\"{}\"", v).as_str()).unwrap();
+                    quote! {signals.read().unwrap()[#v]}
                 }
                 LogicalExpression::State(n, t) => {
                     let n: TokenStream = parse_str(format!("st_{}", n).as_str()).unwrap();
@@ -2691,18 +2744,6 @@ pub mod codegen {
             }
             values
         }
-        pub fn get_signals(&self) -> HashSet<&String> {
-            let mut values: HashSet<&String> = HashSet::new();
-            if let LogicalExpression::Signal(t) = self {
-                values.insert(t);
-            }
-            if let LogicalExpression::Grouped(v) = self {
-                for v in v {
-                    values.extend(v.get_signals());
-                }
-            }
-            values
-        }
     }
     fn generate_app_variables(
         arch_types: &ArchTypes,
@@ -2711,7 +2752,6 @@ pub mod codegen {
         let mut arch_code = TokenStream::new();
         let mut index: usize = 0;
 
-        let mut signals: HashSet<&String> = HashSet::new();
         let mut states: HashSet<&String> = HashSet::new();
 
         for arch_type in &arch_types.arch_types {
@@ -2735,22 +2775,8 @@ pub mod codegen {
 
         for task_option in task_options {
             if let Some(T) = &task_option.1 .1 {
-                signals.extend(T.get_signals());
                 states.extend(T.get_states());
             }
-        }
-
-        for signal in &arch_types.signals {
-            signals.insert(signal);
-        }
-        for signal in signals {
-            let name: TokenStream = parse_str(format!("s_{}", signal).as_str()).unwrap();
-            let overwrite_name: TokenStream = parse_str(format!("so_{}", signal).as_str()).unwrap();
-
-            arch_code.extend(quote! {
-                let #name: AtomicBool = AtomicBool::new(false);
-                let #overwrite_name: AtomicBool = AtomicBool::new(false);
-            });
         }
 
         for state in &arch_types.states {
@@ -2788,6 +2814,8 @@ pub mod codegen {
             use corrosive_ecs_core_macro::corrosive_engine_builder;
             use std::sync::mpsc;
 
+            let mut signals = RwLock::new(HashSet::<String>::new());
+            let mut o_signals = RwLock::new(HashSet::<String>::new());
             let mut last_time = Instant::now();
             let mut current_time = Instant::now();
             let delta_time = AtomicU64::new(0.0f64.to_bits());
@@ -2804,7 +2832,6 @@ pub mod codegen {
     fn generate_app_overwrite(arch_types: &ArchTypes) -> TokenStream {
         let mut overwrite_thread_code: TokenStream = TokenStream::new();
         let mut overwrite_join_code: TokenStream = TokenStream::new();
-        let mut signal_code: TokenStream = TokenStream::new();
 
         for i in 0..arch_types.arch_types.len() {
             let thread_name: TokenStream = parse_str(format!("m_{}", i).as_str()).unwrap();
@@ -2860,19 +2887,10 @@ pub mod codegen {
             overwrite_join_code.extend(quote! {#thread_name.join().expect(#error);});
         }
 
-        for signal in &arch_types.signals {
-            let signal_name: TokenStream = parse_str(format!("s_{}", signal).as_str()).unwrap();
-            let overwrite_name: TokenStream = parse_str(format!("so_{}", signal).as_str()).unwrap();
-
-            signal_code.extend(quote! {
-                #signal_name.store(#overwrite_name.load(Ordering::Relaxed), Ordering::Relaxed);
-                #overwrite_name.store(false, Ordering::Relaxed);
-            })
-        }
-
         quote! {
             #overwrite_thread_code
-            #signal_code
+            signals.write().unwrap().extend(o_signals.write().unwrap().drain());
+            *o_signals.write().unwrap() = HashSet::new();
             #overwrite_join_code
         }
     }
