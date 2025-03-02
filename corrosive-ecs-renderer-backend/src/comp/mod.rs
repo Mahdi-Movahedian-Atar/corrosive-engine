@@ -1,10 +1,12 @@
 use crate::render_graph::GraphNode;
+use crate::STATE;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::Resource;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use wgpu::SurfaceTarget;
+use wgpu::hal::dx12::PipelineLayout;
+use wgpu::{Buffer, Device, RenderPipeline, SurfaceTarget};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -23,8 +25,7 @@ impl Default for WindowOptions {
     fn default() -> Self {
         WindowOptions {
             window: None,
-
-            func: |App, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent| {
+            func: |app, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent| {
                 match event {
                     WindowEvent::ActivationTokenDone { .. } => {}
                     WindowEvent::Resized(_) => {}
@@ -54,7 +55,7 @@ impl Default for WindowOptions {
                     WindowEvent::ThemeChanged(_) => {}
                     WindowEvent::Occluded(_) => {}
                     WindowEvent::RedrawRequested => {
-                        if let Some(t) = &App.window_options.f_read().window {
+                        if let Some(t) = &app.window_options.f_read().window {
                             t.request_redraw();
                         }
                     }
@@ -71,22 +72,21 @@ impl WindowOptions {
 
 #[derive(Resource, Default)]
 pub struct RenderGraph {
-    pub(crate) names: HashMap<String, usize>,
-    pub(crate) nodes: HashMap<usize, GraphNode>,
+    pub(crate) pass_names: HashMap<String, usize>,
+    pub(crate) pass_nodes: HashMap<usize, GraphNode>,
     pub(crate) edges: Vec<(usize, usize)>,
     pub(crate) sorted: Vec<usize>,
 }
 
 pub struct State<'a> {
-    surface: wgpu::Surface<'a>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    config: wgpu::SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
-    window: Arc<Window>,
-    render_graph: Res<RenderGraph>,
+    pub(crate) surface: wgpu::Surface<'a>,
+    pub(crate) queue: wgpu::Queue,
+    pub(crate) config: Arc<wgpu::SurfaceConfiguration>,
+    pub(crate) size: winit::dpi::PhysicalSize<u32>,
+    pub(crate) window: Arc<Window>,
+    pub(crate) render_graph: Res<RenderGraph>,
+    pub(crate) device: Device,
 }
-
 impl<'a> State<'a> {
     async fn new(window: Arc<Window>, render_graph: Res<RenderGraph>) -> State<'a> {
         let size = window.inner_size();
@@ -133,7 +133,7 @@ impl<'a> State<'a> {
             .copied()
             .unwrap_or(surface_caps.formats[0]);
 
-        let config = wgpu::SurfaceConfiguration {
+        let config = Arc::new(wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: size.width,
@@ -142,18 +142,18 @@ impl<'a> State<'a> {
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
-        };
+        });
 
         surface.configure(&device, &config);
 
         State {
             surface,
-            device,
             queue,
             config,
             size,
             window,
             render_graph,
+            device,
         }
     }
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -167,9 +167,12 @@ impl<'a> State<'a> {
             label: Some("Render Encoder"),
         });*/
 
-        self.render_graph
-            .f_read()
-            .execute(&self.device, &self.queue);
+        unsafe {
+            self.render_graph
+                .f_read()
+                .execute(&self.device, &self.queue);
+        }
+
         /*{
             // 1.
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -236,26 +239,21 @@ impl<'a> State<'a> {
     }
 }
 
-pub struct App<'a> {
-    state: Option<State<'a>>,
+pub struct App {
     render_graph: Res<RenderGraph>,
     window_options: Res<WindowOptions>,
 }
 
-impl<'a> App<'a> {
-    pub(crate) fn new(
-        window_options: Res<WindowOptions>,
-        render_graph: Res<RenderGraph>,
-    ) -> App<'a> {
+impl App {
+    pub(crate) fn new(window_options: Res<WindowOptions>, render_graph: Res<RenderGraph>) -> App {
         App {
-            state: None,
             render_graph,
             window_options,
         }
     }
 }
 
-impl<'a> ApplicationHandler for App<'a> {
+impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.window_options.f_write().window = Some(Arc::new(
             event_loop
@@ -266,9 +264,13 @@ impl<'a> ApplicationHandler for App<'a> {
 
         if let Some(t) = &self.window_options.f_read().window {
             let state = pollster::block_on(State::new(t.clone(), self.render_graph.clone()));
-            self.state = Some(state);
+            unsafe {
+                STATE = Some(state);
+            }
             t.request_redraw();
-        }
+        } else {
+            panic!("failed to run renderer backend")
+        };
     }
 
     fn window_event(

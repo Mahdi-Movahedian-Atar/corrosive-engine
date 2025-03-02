@@ -1,8 +1,10 @@
 use crate::comp::{App, RenderGraph, Renderer, WindowOptions};
+use crate::STATE;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
 use std::sync::Arc;
 use std::thread;
+use wgpu::hal::ShaderError::Device;
 use winit::application::ApplicationHandler;
 use winit::event_loop::{ControlFlow, EventLoop};
 
@@ -12,6 +14,7 @@ pub fn run_renderer(
     window_options: Res<WindowOptions>,
     render_graph: Res<RenderGraph>,
 ) {
+    unsafe { STATE = None }
     if re.f_read().0.is_none() {
         re.f_write().0 = Some(thread::spawn(move || {
             env_logger::init();
@@ -41,5 +44,6 @@ pub fn run_renderer(
 
             event_loop_builder.run_app(&mut app).unwrap();
         }));
+        unsafe { while STATE.is_none() {} }
     }
 }

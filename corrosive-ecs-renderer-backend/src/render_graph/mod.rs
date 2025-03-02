@@ -5,17 +5,16 @@ use std::sync::{Arc, Mutex};
 
 /// A trait representing a render graph node.
 /// Each node can record commands into a given command encoder.
+pub type CommandEncoder = wgpu::CommandEncoder;
+pub type Device = wgpu::Device;
+pub type Queue = wgpu::Queue;
+
 pub trait RenderNode: Send + Sync {
     /// Returns the unique name of this node.
     fn name(&self) -> &str;
 
     /// Records the commands for this node into the provided encoder.
-    fn execute(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-    );
+    fn execute(&self, device: &Device, queue: &Queue, encoder: &mut CommandEncoder);
 }
 
 /// A struct representing a node in the render graph.
@@ -29,8 +28,8 @@ impl RenderGraph {
     /// Create a new, empty render graph.
     pub fn new() -> Self {
         Self {
-            names: HashMap::new(),
-            nodes: HashMap::new(),
+            pass_names: HashMap::new(),
+            pass_nodes: HashMap::new(),
             edges: Vec::new(),
             sorted: Vec::new(),
         }
@@ -38,22 +37,23 @@ impl RenderGraph {
 
     /// Adds a node to the graph.
     pub fn add_node(&mut self, node: Box<dyn RenderNode>) {
-        let key = if self.names.contains_key(node.name()) {
-            self.names.get(node.name()).unwrap().clone()
+        let key = if self.pass_names.contains_key(node.name()) {
+            self.pass_names.get(node.name()).unwrap().clone()
         } else {
-            let i = self.names.len();
-            self.names.insert(node.name().to_string(), i);
+            let i = self.pass_names.len();
+            self.pass_names.insert(node.name().to_string(), i);
             i
         };
-        self.nodes.insert(key, GraphNode { node });
+        self.pass_nodes.insert(key, GraphNode { node });
     }
 
     pub fn add_dependency(&mut self, parent: &str, child: &str) {
-        self.edges.push((self.names[parent], self.names[child]));
+        self.edges
+            .push((self.pass_names[parent], self.pass_names[child]));
     }
 
     /// Executes the render graph in parallel for independent nodes.
-    pub fn execute(&self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    pub fn execute(&self, device: &Device, queue: &wgpu::Queue) {
         let mut execution_levels: Vec<Vec<usize>> = Vec::new();
         let mut visited = HashSet::new();
 
@@ -77,7 +77,7 @@ impl RenderGraph {
 
         for level in execution_levels {
             level.par_iter().for_each(|node_name| {
-                if let Some(graph_node) = self.nodes.get(&node_name) {
+                if let Some(graph_node) = self.pass_nodes.get(&node_name) {
                     let mut local_encoder =
                         device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                             label: Some(&format!("Encoder for {}", node_name)),
@@ -103,7 +103,7 @@ impl RenderGraph {
     /// Returns the names of nodes in execution order.
     fn topological_sort(&self) -> Vec<usize> {
         let mut in_degree: HashMap<usize, usize> =
-            self.nodes.keys().map(|k| (k.clone(), 0)).collect();
+            self.pass_nodes.keys().map(|k| (k.clone(), 0)).collect();
         for (_parent, child) in &self.edges {
             if let Some(count) = in_degree.get_mut(child) {
                 *count += 1;
@@ -136,8 +136,8 @@ impl RenderGraph {
 
     /// Checks if `child` depends on `parent` in the graph.
     fn depends_on(&self, child: &String, parent: &String) -> bool {
-        let child = &self.names[child];
-        let parent = &self.names[parent];
+        let child = &self.pass_names[child];
+        let parent = &self.pass_names[parent];
         self.edges.iter().any(|(p, c)| p == parent && c == child)
     }
     fn depends_on_index(&self, child: &usize, parent: &usize) -> bool {

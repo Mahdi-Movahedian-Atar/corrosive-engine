@@ -10,6 +10,7 @@ edition = "2021"
 corrosive-ecs-core = {path = "corrosive-ecs-core", features = ["all"]}
 corrosive-ecs-core-macro = {path = "corrosive-ecs-core-macro" }
 corrosive-ecs-renderer-backend= {path = "corrosive-ecs-renderer-backend" }
+corrosive-ui= {path = "corrosive-ui" }
 rand = "0.9.0-alpha.2"
 
 

@@ -174,7 +174,7 @@ pub async fn load_model(
                 .collect::<Vec<_>>();
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some(&format!("{:?} Vertex Buffer", file_name)),
+                label: Some(&format!("{:?} vertex Buffer", file_name)),
                 contents: bytemuck::cast_slice(&vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
@@ -240,7 +240,7 @@ impl InstanceRaw {
         use std::mem;
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
-            // We need to switch from using a step mode of Vertex to Instance
+            // We need to switch from using a step mode of vertex to Instance
             // This means that our shaders will only change to use the next
             // instance when the shader starts processing a new instance
             step_mode: wgpu::VertexStepMode::Instance,
@@ -250,7 +250,7 @@ impl InstanceRaw {
                 wgpu::VertexAttribute {
                     offset: 0,
                     // While our vertex shader only uses locations 0, and 1 now, in later tutorials, we'll
-                    // be using 2, 3, and 4, for Vertex. We'll start at slot 5, not conflict with them later
+                    // be using 2, 3, and 4, for vertex. We'll start at slot 5, not conflict with them later
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
                 },

@@ -18,3 +18,6 @@ pub use corrosive_ecs_renderer_backend::comp::RenderGraph;
 pub use corrosive_ecs_renderer_backend::comp::Renderer;
 pub use corrosive_ecs_renderer_backend::comp::WindowOptions;
 pub use corrosive_ecs_renderer_backend::task::run_renderer;
+pub use corrosive_ui::comp::UIBuffers;
+pub use corrosive_ui::comp::UIRenderMeta;
+pub use corrosive_ui::task::setup_ui_pass;

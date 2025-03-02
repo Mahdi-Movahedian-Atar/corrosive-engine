@@ -1,5 +1,5 @@
 // light.wgsl
-// Vertex shader
+// vertex shader
 
 struct Camera {
     view_proj: mat4x4<f32>,

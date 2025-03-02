@@ -26,14 +26,14 @@ mod task;
     sync_update "sync_task"
 );*/
 
-corrosive_engine_builder!(
-    update "macro_test",
-);
-
 /*corrosive_engine_builder!(
-    update "sync_task",
-    package "corrosive-ecs-renderer-backend"
+    update "macro_test",
 );*/
+
+corrosive_engine_builder!(
+    package "corrosive-ecs-renderer-backend",
+    package "corrosive-ui"
+);
 
 fn main() {
     run_engine()
