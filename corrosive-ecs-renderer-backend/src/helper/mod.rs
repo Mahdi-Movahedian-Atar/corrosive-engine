@@ -331,6 +331,7 @@ pub mod pipeline {
     }
 }*/
 use crate::STATE;
+use wgpu::util::DeviceExt;
 
 pub type Buffer = wgpu::Buffer;
 pub type BindGroup = wgpu::BindGroup;
@@ -349,10 +350,41 @@ pub type VertexStepMode = wgpu::VertexStepMode;
 pub type RenderPipeline = wgpu::RenderPipeline;
 pub type RenderPipelineDescriptor<'a> = wgpu::RenderPipelineDescriptor<'a>;
 pub type VertexState<'a> = wgpu::VertexState<'a>;
-pub type PrimitiveState = wgpu::PrimitiveState ;
+pub type PrimitiveState = wgpu::PrimitiveState;
+pub type PrimitiveTopology = wgpu::PrimitiveTopology;
+pub type FrontFace = wgpu::FrontFace;
+pub type Face = wgpu::Face;
+pub type PolygonMode = wgpu::PolygonMode;
+pub type FragmentState<'a> = wgpu::FragmentState<'a>;
+pub type TextureFormat = wgpu::TextureFormat;
+pub type ColorTargetState = wgpu::ColorTargetState;
+pub type RenderPassDescriptor<'a> = wgpu::RenderPassDescriptor<'a>;
+pub type RenderPassColorAttachment<'a> = wgpu::RenderPassColorAttachment<'a>;
+pub type TextureView = wgpu::TextureView;
+pub type PipelineLayout = wgpu::PipelineLayout;
+pub type PipelineLayoutDescriptor<'a> = wgpu::PipelineLayoutDescriptor<'a>;
+pub type BindGroupLayoutDescriptor<'a> = wgpu::BindGroupLayoutDescriptor<'a>;
+pub type BindGroupLayoutEntry = wgpu::BindGroupLayoutEntry;
+pub type ShaderStage = wgpu::ShaderStages;
+pub type BindingType = wgpu::BindingType;
+pub type BufferBindingType = wgpu::BufferBindingType;
+pub type BindGroupLayout = wgpu::BindGroupLayout;
+pub type BindGroupDescriptor<'a> = wgpu::BindGroupDescriptor<'a>;
+pub type BindGroupEntry<'a> = wgpu::BindGroupEntry<'a>;
+pub type Operations<V> = wgpu::Operations<V>;
+pub type LoadOp<V> = wgpu::LoadOp<V>;
+pub type Color = wgpu::Color;
+pub type StoreOp = wgpu::StoreOp;
+pub type BlendFactor = wgpu::BlendFactor;
+pub type BlendOperation = wgpu::BlendOperation;
+
 pub trait VertexRenderable {
     fn desc<'a>() -> VertexBufferLayout<'a>;
 }
+pub trait BindGroupRenderable {
+    fn desc<'a>() -> BindGroupLayoutDescriptor<'a>;
+}
+
 pub fn create_shader_module(label: &str, source: &str) -> wgpu::ShaderModule {
     unsafe {
         if let Some(t) = &STATE {
@@ -361,16 +393,100 @@ pub fn create_shader_module(label: &str, source: &str) -> wgpu::ShaderModule {
                 source: wgpu::ShaderSource::Wgsl(source.into()),
             })
         } else {
-            panic!("create buffer must be called after run_renderer task.")
+            panic!("create_shader_module must be called after run_renderer task.")
         }
     }
 }
-pub fn create_pipeline(descriptor: &RenderPipelineDescriptor)->RenderPipeline{
+pub fn create_pipeline(descriptor: &RenderPipelineDescriptor) -> RenderPipeline {
     unsafe {
         if let Some(t) = &STATE {
             t.device.create_render_pipeline(descriptor)
         } else {
-            panic!("create buffer must be called after run_renderer task.")
+            panic!("create_pipeline must be called after run_renderer task.")
+        }
+    }
+}
+pub fn create_pipeline_layout(descriptor: &PipelineLayoutDescriptor) -> PipelineLayout {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.device.create_pipeline_layout(descriptor)
+        } else {
+            panic!("create_pipeline_layout must be called after run_renderer task.")
+        }
+    }
+}
+pub fn create_bind_group_layout(descriptor: &BindGroupLayoutDescriptor) -> BindGroupLayout {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.device.create_bind_group_layout(descriptor)
+        } else {
+            panic!("create_bind_group_layout must be called after run_renderer task.")
+        }
+    }
+}
+pub fn create_buffer_init<'a>(label: &str, contents: &'a [u8], usage: BufferUsages) -> Buffer {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.device.create_buffer_init(&BufferInitDescriptor {
+                label: label.into(),
+                contents,
+                usage,
+            })
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
+pub fn create_bind_group<'a>(
+    label: &str,
+    layout: &'a BindGroupLayout,
+    entries: &'a [BindGroupEntry<'a>],
+) -> BindGroup {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.device.create_bind_group(&BindGroupDescriptor {
+                label: label.into(),
+                layout,
+                entries,
+            })
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
+pub fn get_surface_format() -> TextureFormat {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.config.format
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
+pub fn get_window_ratio() -> f32 {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.config.width as f32 / t.config.height as f32
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
+pub fn get_resolution_bind_group<'a>() -> &'a BindGroup {
+    unsafe {
+        if let Some(t) = &STATE {
+            &t.resolution_bind_group
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
+pub fn get_resolution_bind_group_layout<'a>() -> &'a BindGroupLayout {
+    unsafe {
+        if let Some(t) = &STATE {
+            &t.resolution_bind_group_layout
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
         }
     }
 }

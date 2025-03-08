@@ -1,3 +1,4 @@
+use crate::helper::{BindGroupDescriptor, BindGroupEntry, BufferBindingType};
 use crate::render_graph::GraphNode;
 use crate::STATE;
 use corrosive_ecs_core::ecs_core::Res;
@@ -6,7 +7,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use wgpu::hal::dx12::PipelineLayout;
-use wgpu::{Buffer, Device, RenderPipeline, SurfaceTarget};
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::{
+    BindGroup, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
+    Buffer, BufferUsages, Device, RenderPipeline, ShaderStages, SurfaceTarget,
+};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -57,6 +62,11 @@ impl Default for WindowOptions {
                     WindowEvent::RedrawRequested => {
                         if let Some(t) = &app.window_options.f_read().window {
                             t.request_redraw();
+                            unsafe {
+                                if let Some(t) = &STATE {
+                                    t.render().unwrap()
+                                }
+                            }
                         }
                     }
                 }
@@ -75,7 +85,13 @@ pub struct RenderGraph {
     pub(crate) pass_names: HashMap<String, usize>,
     pub(crate) pass_nodes: HashMap<usize, GraphNode>,
     pub(crate) edges: Vec<(usize, usize)>,
-    pub(crate) sorted: Vec<usize>,
+    pub(crate) execution_levels: Vec<Vec<usize>>,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct Resolution {
+    resolution: [u32; 2],
 }
 
 pub struct State<'a> {
@@ -86,6 +102,9 @@ pub struct State<'a> {
     pub(crate) window: Arc<Window>,
     pub(crate) render_graph: Res<RenderGraph>,
     pub(crate) device: Device,
+    pub(crate) resolution_buffer: Buffer,
+    pub(crate) resolution_bind_group: BindGroup,
+    pub(crate) resolution_bind_group_layout: BindGroupLayout,
 }
 impl<'a> State<'a> {
     async fn new(window: Arc<Window>, render_graph: Res<RenderGraph>) -> State<'a> {
@@ -146,6 +165,37 @@ impl<'a> State<'a> {
 
         surface.configure(&device, &config);
 
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: "resolution_buffer".into(),
+            contents: &bytemuck::cast_slice(&[Resolution {
+                resolution: [size.width, size.height],
+            }]),
+            usage: BufferUsages::UNIFORM,
+        });
+
+        let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: "resolution_buffer_layout".into(),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::VERTEX_FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: "resolution_bind_group".into(),
+            layout: &layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: (buffer.as_entire_binding()),
+            }],
+        });
+
         State {
             surface,
             queue,
@@ -154,9 +204,12 @@ impl<'a> State<'a> {
             window,
             render_graph,
             device,
+            resolution_buffer: buffer,
+            resolution_bind_group_layout: layout,
+            resolution_bind_group: bind_group,
         }
     }
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&self) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -167,11 +220,9 @@ impl<'a> State<'a> {
             label: Some("Render Encoder"),
         });*/
 
-        unsafe {
-            self.render_graph
-                .f_read()
-                .execute(&self.device, &self.queue);
-        }
+        self.render_graph
+            .f_read()
+            .execute(&self.device, &self.queue, view);
 
         /*{
             // 1.

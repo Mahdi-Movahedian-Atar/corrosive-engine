@@ -524,6 +524,7 @@ dependencies = [
 name = "corrosive-ecs-renderer-backend"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "corrosive-ecs-core",
  "corrosive-ecs-core-macro",
  "env_logger",

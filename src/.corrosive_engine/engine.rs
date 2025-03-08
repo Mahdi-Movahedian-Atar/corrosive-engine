@@ -21,27 +21,23 @@ pub fn run_engine() {
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
     let is_fixed = AtomicBool::new(false);
     let reset: AtomicBool = AtomicBool::new(true);
-    let r_WindowOptions: Res<WindowOptions> = Res::new(WindowOptions::default());
-    let r_Renderer: Res<Renderer> = Res::new(Renderer::default());
-    let r_RenderGraph: Res<RenderGraph> = Res::new(RenderGraph::default());
     let r_UIBuffers: Res<UIBuffers> = Res::new(UIBuffers::default());
+    let r_WindowOptions: Res<WindowOptions> = Res::new(WindowOptions::default());
+    let r_RenderGraph: Res<RenderGraph> = Res::new(RenderGraph::default());
+    let r_Renderer: Res<Renderer> = Res::new(Renderer::default());
     let mut loop_trigger = Trigger::new();
     thread::scope(|s: &Scope| {
         if reset.load(SeqCst) {
-            let mut bus_run_renderer = Trigger::new();
             let mut bus_setup_ui_pass = Trigger::new();
-            let mut run_renderer_end = bus_run_renderer.add_trigger();
+            let mut bus_run_renderer = Trigger::new();
             let mut setup_ui_pass_end = bus_setup_ui_pass.add_trigger();
             let mut setup_ui_pass_run_renderer = bus_run_renderer.add_trigger();
+            let mut run_renderer_end = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
                 let handle_setup_ui_pass = s.spawn(|| {
                     setup_ui_pass_run_renderer.read("failed");
-                    let o = setup_ui_pass(
-                        r_RenderGraph.clone(),
-                        r_WindowOptions.clone(),
-                        r_UIBuffers.clone(),
-                    );
+                    let o = setup_ui_pass(r_RenderGraph.clone(), r_UIBuffers.clone());
                     bus_setup_ui_pass.trigger();
                 });
                 let handle_run_renderer = s.spawn(|| {

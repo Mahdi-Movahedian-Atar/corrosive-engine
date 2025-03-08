@@ -1,7 +1,9 @@
-use crate::comp::RenderGraph;
+use crate::comp::{RenderGraph, State};
+use crate::STATE;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use wgpu::{SurfaceTexture, TextureView};
 
 /// A trait representing a render graph node.
 /// Each node can record commands into a given command encoder.
@@ -14,7 +16,13 @@ pub trait RenderNode: Send + Sync {
     fn name(&self) -> &str;
 
     /// Records the commands for this node into the provided encoder.
-    fn execute(&self, device: &Device, queue: &Queue, encoder: &mut CommandEncoder);
+    fn execute(
+        &self,
+        device: &Device,
+        queue: &Queue,
+        encoder: &mut CommandEncoder,
+        view: &TextureView,
+    );
 }
 
 /// A struct representing a node in the render graph.
@@ -31,7 +39,7 @@ impl RenderGraph {
             pass_names: HashMap::new(),
             pass_nodes: HashMap::new(),
             edges: Vec::new(),
-            sorted: Vec::new(),
+            execution_levels: Vec::new(),
         }
     }
 
@@ -53,29 +61,10 @@ impl RenderGraph {
     }
 
     /// Executes the render graph in parallel for independent nodes.
-    pub fn execute(&self, device: &Device, queue: &wgpu::Queue) {
-        let mut execution_levels: Vec<Vec<usize>> = Vec::new();
-        let mut visited = HashSet::new();
-
-        // Group nodes into levels of independent execution.
-        for node in &self.sorted {
-            if !visited.contains(node) {
-                let mut level = vec![node.clone()];
-                visited.insert(node.clone());
-
-                for other in &self.sorted {
-                    if &other != &node && !self.depends_on_index(other, &node) {
-                        level.push(other.clone());
-                        visited.insert(other.clone());
-                    }
-                }
-                execution_levels.push(level);
-            }
-        }
-
+    pub fn execute(&self, device: &Device, queue: &wgpu::Queue, view: TextureView) {
         let command_buffers_mutex = Arc::new(Mutex::new(Vec::new()));
 
-        for level in execution_levels {
+        for level in &self.execution_levels {
             level.par_iter().for_each(|node_name| {
                 if let Some(graph_node) = self.pass_nodes.get(&node_name) {
                     let mut local_encoder =
@@ -83,7 +72,9 @@ impl RenderGraph {
                             label: Some(&format!("Encoder for {}", node_name)),
                         });
 
-                    graph_node.node.execute(device, queue, &mut local_encoder);
+                    graph_node
+                        .node
+                        .execute(device, queue, &mut local_encoder, &view);
 
                     let commands = local_encoder.finish();
                     command_buffers_mutex.lock().unwrap().push(commands);
@@ -91,7 +82,6 @@ impl RenderGraph {
             });
         }
 
-        // Submit all command buffers in one batch
         let command_buffers = Arc::try_unwrap(command_buffers_mutex)
             .unwrap()
             .into_inner()
@@ -99,8 +89,6 @@ impl RenderGraph {
         queue.submit(command_buffers);
     }
 
-    /// Performs a topological sort using Kahn's algorithm.
-    /// Returns the names of nodes in execution order.
     fn topological_sort(&self) -> Vec<usize> {
         let mut in_degree: HashMap<usize, usize> =
             self.pass_nodes.keys().map(|k| (k.clone(), 0)).collect();
@@ -134,7 +122,6 @@ impl RenderGraph {
         order
     }
 
-    /// Checks if `child` depends on `parent` in the graph.
     fn depends_on(&self, child: &String, parent: &String) -> bool {
         let child = &self.pass_names[child];
         let parent = &self.pass_names[parent];
@@ -143,8 +130,24 @@ impl RenderGraph {
     fn depends_on_index(&self, child: &usize, parent: &usize) -> bool {
         self.edges.iter().any(|(p, c)| p == parent && c == child)
     }
-
     pub fn prepare(&mut self) {
-        self.sorted = self.topological_sort();
+        let sorted = self.topological_sort();
+
+        let mut visited = HashSet::new();
+
+        for node in &sorted {
+            if !visited.contains(node) {
+                let mut level = vec![node.clone()];
+                visited.insert(node.clone());
+
+                for other in &sorted {
+                    if &other != &node && !self.depends_on_index(other, &node) {
+                        level.push(other.clone());
+                        visited.insert(other.clone());
+                    }
+                }
+                self.execution_levels.push(level);
+            }
+        }
     }
 }
