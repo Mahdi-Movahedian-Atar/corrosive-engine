@@ -4,18 +4,12 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use wgpu::{SurfaceTexture, TextureView};
-
-/// A trait representing a render graph node.
-/// Each node can record commands into a given command encoder.
 pub type CommandEncoder = wgpu::CommandEncoder;
 pub type Device = wgpu::Device;
 pub type Queue = wgpu::Queue;
 
 pub trait RenderNode: Send + Sync {
-    /// Returns the unique name of this node.
     fn name(&self) -> &str;
-
-    /// Records the commands for this node into the provided encoder.
     fn execute(
         &self,
         device: &Device,
@@ -24,16 +18,10 @@ pub trait RenderNode: Send + Sync {
         view: &TextureView,
     );
 }
-
-/// A struct representing a node in the render graph.
 pub(crate) struct GraphNode {
     node: Box<dyn RenderNode>,
 }
-
-/// A simple render graph that holds nodes and dependency relationships.
-
 impl RenderGraph {
-    /// Create a new, empty render graph.
     pub fn new() -> Self {
         Self {
             pass_names: HashMap::new(),
@@ -43,7 +31,6 @@ impl RenderGraph {
         }
     }
 
-    /// Adds a node to the graph.
     pub fn add_node(&mut self, node: Box<dyn RenderNode>) {
         let key = if self.pass_names.contains_key(node.name()) {
             self.pass_names.get(node.name()).unwrap().clone()
@@ -60,7 +47,6 @@ impl RenderGraph {
             .push((self.pass_names[parent], self.pass_names[child]));
     }
 
-    /// Executes the render graph in parallel for independent nodes.
     pub fn execute(&self, device: &Device, queue: &wgpu::Queue, view: TextureView) {
         let command_buffers_mutex = Arc::new(Mutex::new(Vec::new()));
 

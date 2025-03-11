@@ -62,27 +62,66 @@ impl RenderNode for UIRenderNode {
 }
 #[task]
 pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
-    let a = create_shader_module("ui_shader", include_str!("ui_shader.wgsl"));
-    /*let a = RenderPipelineBuilder::new("ui-pipeline", &a)
-    .with_vertex_entry_point("vs_main")
-    .with_color_format(window_options.f_read().config().format)
-    .with_vertex_buffer(UIVertex::desc())
-    .with_fragment_state(&a, "fs_main")
-    .with_color_format(window_options.f_read().config().format)
-    .with_fragment_targets(&[])
-    .build();*/
-    let h = create_bind_group_layout(&UIStyle::desc());
+    let shader = create_shader_module("ui_shader", include_str!("ui_shader.wgsl"));
+    let bind_group_layout = create_bind_group_layout(&UIStyle::desc());
+    let vertex_buffer = create_buffer_init(
+        "ui_vertex_buffer",
+        bytemuck::cast_slice(&[
+            UIVertex {
+                position: [-0.5, 0.5],
+                location: [0.0, 0.0],
+            },
+            UIVertex {
+                position: [0.5, 0.5],
+                location: [1.0, 0.0],
+            },
+            UIVertex {
+                position: [-0.5, -0.5],
+                location: [0.0, 1.0],
+            },
+            UIVertex {
+                position: [0.5, -0.5],
+                location: [1.0, 1.0],
+            },
+        ]),
+        BufferUsages::VERTEX,
+    );
+    let uniform_buffer = create_buffer_init(
+        "ui_uniform_buffer",
+        bytemuck::cast_slice(&[UIStyle {
+            border: [0.2, 0.1, 0.1, 0.2],
+            corner: [0.1, 0.1, 0.4, 0.1],
+            color: [1.0, 1.0, 1.0, 1.0],
+            border_r_color: [0.1, 0.1, 1.0, 1.0],
+            border_t_color: [0.1, 1.0, 0.1, 1.0],
+            border_l_color: [1.0, 0.1, 0.1, 1.0],
+            border_b_color: [0.1, 0.1, 0.1, 1.0],
+            ratio: get_window_ratio(),
+            center: [0f32, 0f32],
+            rotation: 45.0,
+        }]),
+        BufferUsages::UNIFORM,
+    );
+    let uniform_bind_group = create_bind_group(
+        "ui_uniform_bind_group",
+        &bind_group_layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: uniform_buffer.as_entire_binding(),
+        }],
+    );
+
     graph.f_write().add_node(Box::new(UIRenderNode {
         buffers: buffers.clone(),
         pipeline: create_pipeline(&RenderPipelineDescriptor {
             label: "ui_pipeline".into(),
             layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: "ui_pipeline_layout".into(),
-                bind_group_layouts: &[&h],
+                bind_group_layouts: &[&bind_group_layout],
                 push_constant_ranges: &[],
             })),
             vertex: VertexState {
-                module: &(a),
+                module: &(shader),
                 entry_point: "vs_main".into(),
                 compilation_options: Default::default(),
                 buffers: &[UIVertex::desc()],
@@ -99,7 +138,7 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
             depth_stencil: None,
             multisample: Default::default(),
             fragment: FragmentState {
-                module: &(a),
+                module: &(shader),
                 entry_point: "fs_main".into(),
                 compilation_options: Default::default(),
                 targets: &[ColorTargetState {
@@ -127,64 +166,9 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
         }),
     }));
     graph.f_write().prepare();
-    let v = create_buffer_init(
-        "ui_vertex_buffer",
-        bytemuck::cast_slice(&[
-            UIVertex {
-                position: [-0.5, 0.5],
-                location: [0.0, 0.0],
-            },
-            UIVertex {
-                position: [0.5, 0.5],
-                location: [1.0, 0.0],
-            },
-            UIVertex {
-                position: [-0.5, -0.5],
-                location: [0.0, 1.0],
-            },
-            UIVertex {
-                position: [0.5, -0.5],
-                location: [1.0, 1.0],
-            },
-        ]),
-        BufferUsages::VERTEX,
-    );
-    let u = create_buffer_init(
-        "ui_uniform_buffer",
-        bytemuck::cast_slice(&[UIStyle {
-            border: [0.2, 0.1, 0.1, 0.2],
-            corner: [0.1, 0.1, 0.4, 0.1],
-            color: [1.0, 1.0, 1.0, 1.0],
-            border_r_color: [0.1, 0.1, 1.0, 1.0],
-            border_t_color: [0.1, 1.0, 0.1, 1.0],
-            border_l_color: [1.0, 0.1, 0.1, 1.0],
-            border_b_color: [0.1, 0.1, 0.1, 1.0],
-            ratio: get_window_ratio(),
-            center: [0f32, 0f32],
-            rotation: 45.0,
-        }]),
-        BufferUsages::UNIFORM,
-    );
-    let b = create_bind_group(
-        "ui_uniform_bind_group",
-        &h,
-        &[BindGroupEntry {
-            binding: 0,
-            resource: u.as_entire_binding(),
-        }],
-    );
-    buffers.f_write().buffers.push(Arc::new((v, u, b)))
-    /*buffers.f_write().buffers.push(Arc::new(create_buffer_init((
-        "ui_vertex_buffer",
-        bytemuck::cast_slice(&[
-            UIVertex { position: [0, 0] },
-            UIVertex { position: [1, 0] },
-            UIVertex { position: [0, 1] },
-        ]),
-        BufferUsages::VERTEX,
-    ),create_buffer_init(
-        "ui_index_buffer",
-        bytemuck::cast_slice(&[0,1,2]),
-        BufferUsages::INDEX,
-    ))))*/
+    buffers.f_write().buffers.push(Arc::new((
+        vertex_buffer,
+        uniform_buffer,
+        uniform_bind_group,
+    )))
 }

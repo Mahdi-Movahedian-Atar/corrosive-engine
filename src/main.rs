@@ -14,9 +14,8 @@ mod core_test;
 mod corrosive_engine;
 mod task;
 
-/*corrosive_engine_builder!(
+corrosive_engine_builder!(
     path "./src",
-    setup "setup",
     setup "setup1",
     setup "setup2",
     fixed_update "fixed_task" in_group "a",
@@ -24,16 +23,16 @@ mod task;
     long_update "long_task" before_group "a",
     update "update_task",
     sync_update "sync_task"
-);*/
+);
 
 /*corrosive_engine_builder!(
     update "macro_test",
 );*/
-
+/*
 corrosive_engine_builder!(
     package "corrosive-ecs-renderer-backend",
     package "corrosive-ui"
-);
+);*/
 
 fn main() {
     run_engine()

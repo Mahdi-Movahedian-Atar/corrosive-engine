@@ -1,4 +1,5 @@
 pub mod comp;
+mod style;
 pub mod task;
 
 use corrosive_ecs_core_macro::corrosive_engine_builder;

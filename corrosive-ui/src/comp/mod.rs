@@ -1,4 +1,6 @@
-use corrosive_ecs_core_macro::{Component, Resource};
+use crate::style::Style;
+use corrosive_ecs_core::ecs_core::{LockedRef, Ref};
+use corrosive_ecs_core_macro::{task, Component, Resource};
 use corrosive_ecs_renderer_backend::helper::{
     BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindGroupRenderable, BindingType,
     Buffer, BufferAddress, BufferBindingType, ShaderStage, VertexAttribute, VertexBufferLayout,
@@ -27,22 +29,10 @@ pub(crate) struct UIStyle {
     pub(crate) center: [f32; 2],
 }
 
-/*#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct resolution {
-    resolution: [f32; 2],
-}*/
-
 #[derive(Resource, Default)]
 pub struct UIBuffers {
     pub(crate) buffers: Vec<Arc<(Buffer, Buffer, BindGroup)>>,
 }
-/*pub struct UIBoxRenderable {
-    pub vertexes: [UIVertex; 3],
-    pub color: u32,
-    pub border: u16,
-    pub vertex_buffer: Buffer,
-}*/
 impl VertexRenderable for UIVertex {
     fn desc<'a>() -> VertexBufferLayout<'a> {
         VertexBufferLayout {
@@ -85,49 +75,11 @@ impl BindGroupRenderable for UIStyle {
 pub struct UIRenderMeta {
     pub(crate) buffers: Arc<(Buffer, Buffer, BindGroup)>,
 }
-
-/*#[derive(Default)]
-struct UIRendererable {
-    tl: [u16; 2],
-    br: [u16; 2],
-    corners: [u16; 4],
-    edges: [u16; 4],
-    background_color: [f32; 3],
-    border_color: [f32; 3],
+pub struct UiElement {}
+#[derive(Component)]
+pub struct UiBox<'a> {
+    pub z: u32,
+    pub style: Style<'a>,
+    pub children: Vec<Ref<UiBox<'a>>>,
+    pub rerender: bool,
 }
-
-#[derive(Default)]
-pub enum LenType {
-    PX(u16),
-    PER(f32),
-    #[default]
-    None,
-}
-
-#[derive(Default)]
-struct UIBox {
-    pub name: String,
-    width: LenType,
-    height: LenType,
-    left: LenType,
-    right: LenType,
-    top: LenType,
-    bottom: LenType,
-    corners: [LenType; 4],
-    edges: [LenType; 4],
-    background_color: [f32; 3],
-    border_color: [f32; 3],
-    visible: bool,
-    children: Vec<LockedRef<UIBox>>,
-    //element: SimpleBox,
-}
-
-impl UIBox {
-    pub fn new(name: String) -> UIBox {
-        UIBox {
-            name,
-            ..UIBox::default()
-        }
-    }
-}
-*/
