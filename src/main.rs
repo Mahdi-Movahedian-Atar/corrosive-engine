@@ -16,6 +16,7 @@ mod task;
 
 corrosive_engine_builder!(
     path "./src",
+    setup "setup",
     setup "setup1",
     setup "setup2",
     fixed_update "fixed_task" in_group "a",
@@ -35,6 +36,7 @@ corrosive_engine_builder!(
 );*/
 
 fn main() {
+    //create_engine();
     run_engine()
     //corrosive_engine!(| update , sss|, | ss);
     /*corrosive_engine_builder!(

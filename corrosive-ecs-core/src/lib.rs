@@ -316,4 +316,8 @@ pub mod ecs_core {
             println!("Warning: funtions must have the [tast] attrabute!");
         };
     }
+    #[macro_export]
+    macro_rules! trait_for {
+        (trait $e:ty => $($z:ty),+ ) => {};
+    }
 }

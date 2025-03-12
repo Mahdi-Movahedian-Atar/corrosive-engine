@@ -47,3 +47,8 @@ pub fn state(_input: TokenStream) -> TokenStream {
 pub fn resource(_input: TokenStream) -> TokenStream {
     TokenStream::new()
 }
+
+#[proc_macro_attribute]
+pub fn trait_bound(attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}

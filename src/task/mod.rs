@@ -1,7 +1,7 @@
 pub mod other_tasks;
 
 use crate::comp::sub::{MarkedResources, Position3, Position4, StateExample};
-use crate::comp::{Position1, Position2};
+use crate::comp::{test, Position1, Position2};
 use crate::corrosive_engine;
 use corrosive_ecs_core::ecs_core::{
     Arch, DeltaTime, Locked, LockedRef, RArch, Ref, Res, Reset, Signal, State,
@@ -13,7 +13,7 @@ use std::iter::Map;
 use std::slice::Iter;
 use std::vec::IntoIter;
 
-//#[task]
+#[task]
 pub fn setup() -> (
     RArch<(Locked<Position1>, Ref<Position2>, LockedRef<Position3>)>,
     RArch<(Locked<Position1>, LockedRef<Position3>)>,
@@ -118,14 +118,10 @@ pub fn setup2() {
     }
 }
 #[task]
-pub fn update_task(
-    inp: Arch<(&Locked<Position1>,)>,
-    res: Res<MarkedResources>,
-    delta_time: DeltaTime,
-) {
+pub fn update_task(inp: Arch<(&dyn test,)>, res: Res<MarkedResources>, delta_time: DeltaTime) {
     let mut mark: usize = 0;
     for x in inp.iter() {
-        if x.0.read().unwrap().x == 10.0 {
+        if x.0.get_num() == 10.0 {
             res.write().unwrap().0 = mark.clone();
             break;
         }

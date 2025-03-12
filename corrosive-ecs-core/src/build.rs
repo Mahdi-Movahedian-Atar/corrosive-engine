@@ -108,6 +108,7 @@ pub mod general_helper {
         )
         .expect("Filed to write path map file");
 
+        let mut trait_to_components = component_map.get_trait_to_components();
         let mut tasks = vec![task_map.clone()];
         let mut component_map = vec![(component_map, "crate".to_string())];
         let mut task_map = vec![(task_map, "crate".to_string())];
@@ -147,10 +148,17 @@ pub mod general_helper {
                                     )
                                     .as_str(),
                                 );
+                                for i in &component.get_trait_to_components() {
+                                    if let Some(t) = trait_to_components.get_mut(i.0) {
+                                        t.extend(i.1.clone());
+                                    } else {
+                                        trait_to_components.insert(i.0.clone(), i.1.clone());
+                                    }
+                                }
                                 tasks.push(task.clone());
                                 task_map.push((task, folder_name.to_string()));
                                 component_map.push((component, folder_name.to_string()));
-                                app_packages.push(app_package)
+                                app_packages.push(app_package);
                             }
                         }
                     } else {
@@ -174,7 +182,7 @@ pub mod general_helper {
         )
         .expect("failed to create auto_prelude.ts");
 
-        let app = create_app(app_packages, tasks);
+        let app = create_app(app_packages, tasks, trait_to_components);
 
         write_rust_file(
             generate_arch_types(&app.1),
@@ -454,25 +462,69 @@ pub mod general_scan {
 #[allow(non_snake_case)]
 pub mod components_scan {
     use crate::build::general_scan::{ModifiedState, PathMap};
+    use proc_macro2::Ident;
     use quote::ToTokens;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::{Path, PathBuf};
     use std::{fs, io};
-    use syn::{Attribute, File, Item, ItemEnum, ItemStruct, ItemType};
+    use syn::parse::{Parse, ParseStream};
+    use syn::{
+        parse2, File, Item, ItemEnum,  ItemStruct, ItemTrait, ItemType, Token,
+        Type,
+    };
 
+    #[derive(serde::Serialize, serde::Deserialize, Debug)]
+    pub enum ComponentType {
+        Component(String),
+        Trait(String),
+        TraitFor(String, HashSet<String>),
+    }
     #[derive(serde::Serialize, serde::Deserialize, Debug)]
     pub struct ComponentMap {
         pub path: PathBuf,
         pub sub_maps: Vec<ComponentMap>,
-        pub components: Vec<String>,
+        pub components: Vec<ComponentType>,
     }
 
     impl ComponentMap {
+        pub fn get_trait_to_components(&self) -> HashMap<String, HashSet<String>> {
+            let mut data: HashMap<String, HashSet<String>> = HashMap::new();
+            for i in &self.components {
+                match i {
+                    ComponentType::TraitFor(a, b) => {
+                        if let Some(t) = data.get_mut(a) {
+                            t.extend(b.clone());
+                        } else {
+                            data.insert(a.clone(), b.clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            for i in &self.sub_maps {
+                for i in i.get_trait_to_components() {
+                    if let Some(t) = data.get_mut(&i.0) {
+                        t.extend(i.1);
+                    } else {
+                        data.insert(i.0, i.1);
+                    }
+                }
+            }
+            data
+        }
         pub fn get_all(&self) -> HashMap<String, String> {
             let mut data: HashMap<String, String> = HashMap::new();
             let path = self.path.as_path().iter().last().unwrap().to_str().unwrap();
             for i in &self.components {
-                data.insert(i.clone(), format!("{}::{}", path, i).to_string());
+                match i {
+                    ComponentType::Component(i) => {
+                        data.insert(i.clone(), format!("{}::{}", path, i).to_string());
+                    }
+                    ComponentType::Trait(i) => {
+                        data.insert(i.clone(), format!("{}::{}", path, i).to_string());
+                    }
+                    ComponentType::TraitFor(_, _) => {}
+                }
             }
             for i in &self.sub_maps {
                 for i in i.get_all() {
@@ -554,7 +606,7 @@ pub mod components_scan {
         Ok(())
     }
 
-    fn find_structs_with_component(file_path: &Path) -> Vec<String> {
+    fn find_structs_with_component(file_path: &Path) -> Vec<ComponentType> {
         let content = match fs::read_to_string(file_path) {
             Ok(contents) => contents,
             Err(err) => {
@@ -571,46 +623,93 @@ pub mod components_scan {
             }
         };
 
-        let mut struct_names = Vec::new();
+        let mut names: Vec<ComponentType> = Vec::new();
 
         for item in syntax.items {
             match item {
                 Item::Struct(ItemStruct { attrs, ident, .. }) => {
-                    if has_component_attr(&attrs) {
-                        struct_names.push(ident.to_string());
+                    for attr in attrs {
+                        if attr.path().is_ident("derive") {
+                            let tokens = attr.to_token_stream().to_string();
+                            if tokens.contains("Component")
+                                || tokens.contains("State")
+                                || tokens.contains("Resource")
+                            {
+                                names.push(ComponentType::Component(ident.to_string()));
+                            }
+                        }
                     }
                 }
                 Item::Enum(ItemEnum { attrs, ident, .. }) => {
-                    if has_component_attr(&attrs) {
-                        struct_names.push(ident.to_string());
+                    for attr in attrs {
+                        if attr.path().is_ident("derive") {
+                            let tokens = attr.to_token_stream().to_string();
+                            if tokens.contains("Component")
+                                || tokens.contains("State")
+                                || tokens.contains("Resource")
+                            {
+                                names.push(ComponentType::Component(ident.to_string()));
+                            }
+                        }
                     }
                 }
                 Item::Type(ItemType { attrs, ident, .. }) => {
-                    if has_component_attr(&attrs) {
-                        struct_names.push(ident.to_string());
+                    for attr in attrs {
+                        if attr.path().is_ident("derive") {
+                            let tokens = attr.to_token_stream().to_string();
+                            if tokens.contains("Component")
+                                || tokens.contains("State")
+                                || tokens.contains("Resource")
+                            {
+                                names.push(ComponentType::Component(ident.to_string()));
+                            }
+                        }
+                    }
+                }
+                Item::Trait(ItemTrait { attrs, ident, .. }) => {
+                    for attr in attrs {
+                        if attr.path().is_ident("trait_bound") {
+                            names.push(ComponentType::Trait(ident.to_string()));
+                            break;
+                        }
+                    }
+                }
+                Item::Macro(ref macro_item) => {
+                    if macro_item.mac.path.segments.last().unwrap().ident == "trait_for" {
+                        let tokens = macro_item.mac.tokens.clone();
+                        let data: HelperParser =
+                            parse2(tokens).expect("Failed to parse trait_for input");
+                        let trait_name = data.trait_name.to_string();
+                        let types = data
+                            .types
+                            .iter()
+                            .map(|ty| ty.to_token_stream().to_string().replace(" ", ""))
+                            .collect::<HashSet<String>>();
+                        names.push(ComponentType::TraitFor(trait_name, types));
                     }
                 }
                 _ => {}
             }
         }
 
-        struct_names
+        names
+    }
+    struct HelperParser {
+        _trait_kw: Token![trait],
+        trait_name: Ident,
+        _fat_arrow: Token![=>],
+        types: syn::punctuated::Punctuated<Type, Token![,]>,
     }
 
-    fn has_component_attr(attrs: &[Attribute]) -> bool {
-        for attr in attrs {
-            if attr.path().is_ident("derive") {
-                let tokens = attr.to_token_stream().to_string();
-                if tokens.contains("Component")
-                    || tokens.contains("State")
-                    || tokens.contains("Resource")
-                {
-                    return true;
-                }
-            }
+    impl Parse for HelperParser {
+        fn parse(input: ParseStream) -> syn::Result<Self> {
+            Ok(Self {
+                _trait_kw: input.parse()?,
+                trait_name: input.parse()?,
+                _fat_arrow: input.parse()?,
+                types: syn::punctuated::Punctuated::parse_terminated(input)?,
+            })
         }
-
-        false
     }
 }
 #[allow(non_snake_case)]
@@ -622,10 +721,9 @@ pub mod tasks_scan {
     use std::{fs, io};
     use syn::punctuated::Punctuated;
     use syn::token::Comma;
-    use syn::visit::Visit;
     use syn::{
-        Attribute, File, FnArg, GenericArgument, Item, ItemFn, LitStr, Pat, PathArguments,
-        PathSegment, ReturnType, Stmt, Type, TypeTuple,
+        Attribute, File, FnArg, GenericArgument, Item, ItemFn, Pat, PathArguments,
+         ReturnType, Type, TypeTuple,
     };
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
@@ -635,8 +733,13 @@ pub mod tasks_scan {
         pub outputs: Vec<TaskOutput>,
     }
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
+    pub enum MemberType {
+        Normal(String),
+        Trait(String),
+    }
+    #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
     pub enum TaskInput {
-        Arch(String, Vec<String>),
+        Arch(String, Vec<MemberType>),
         Resources(String, String),
         State(String, String),
         DeltaTime(String),
@@ -773,7 +876,7 @@ pub mod tasks_scan {
 
         for item in syntax.items {
             if let Item::Fn(ItemFn {
-                attrs, block, sig, ..
+                attrs, block: _, sig, ..
             }) = item
             {
                 if has_task_attr(attrs) {
@@ -820,24 +923,39 @@ pub mod tasks_scan {
                             {
                                 if segment.ident == "Arch" {
                                     if let Type::Tuple(TypeTuple { elems, .. }) = inner_type {
-                                        let elems: Vec<String> = elems
+                                        let elems: Vec<MemberType> = elems
                                             .iter()
                                             .map(|elem| {
-                                                elem.to_token_stream()
-                                                    .to_string()
-                                                    .replace(" ", "")
-                                                    .replace("&", "")
+                                                let val = elem.to_token_stream().to_string();
+                                                if val.starts_with("& dyn ") {
+                                                    MemberType::Trait(
+                                                        val.replace("dyn ", "")
+                                                            .replace(" ", "")
+                                                            .replace("&", ""),
+                                                    )
+                                                } else {
+                                                    MemberType::Normal(
+                                                        val.replace(" ", "").replace("&", ""),
+                                                    )
+                                                }
                                             })
                                             .collect();
                                         inputs.push(TaskInput::Arch(name, elems));
                                     } else {
-                                        inputs.push(TaskInput::Arch(
-                                            name,
-                                            vec![inner_type
-                                                .to_token_stream()
-                                                .to_string()
-                                                .replace(" ", "")],
-                                        ));
+                                        let val = inner_type.to_token_stream().to_string();
+                                        let new_val: MemberType;
+                                        if val.starts_with("& dyn ") {
+                                            new_val = MemberType::Trait(
+                                                val.replace("dyn ", "")
+                                                    .replace(" ", "")
+                                                    .replace("&", ""),
+                                            )
+                                        } else {
+                                            new_val = MemberType::Normal(
+                                                val.replace(" ", "").replace("&", ""),
+                                            )
+                                        }
+                                        inputs.push(TaskInput::Arch(name, vec![new_val]));
                                     }
                                     continue;
                                 }
@@ -868,91 +986,6 @@ pub mod tasks_scan {
             }
         }
         inputs
-    }
-
-    struct MacroReader {
-        output_arch: Vec<Vec<(String, String)>>,
-        output_signals: Vec<String>,
-        output_reset: bool,
-    }
-
-    impl<'ast> Visit<'ast> for MacroReader {
-        // This method is called for every statement in the syntax tree.
-        fn visit_stmt(&mut self, stmt: &'ast Stmt) {
-            if let Stmt::Macro(mac) = stmt {
-                match mac
-                    .mac
-                    .path
-                    .segments
-                    .last()
-                    .unwrap()
-                    .ident
-                    .to_string()
-                    .as_str()
-                {
-                    "add_entity" => {
-                        let mut type_flag = true;
-                        let mut ty: Vec<String> = vec!["".to_string()];
-                        let mut va: Vec<String> = vec!["".to_string()];
-                        for token in mac.mac.tokens.clone() {
-                            let t = token.to_string().replace(" ", "");
-                            if t == "," {
-                                type_flag = true;
-                                ty.push("".to_string());
-                                va.push("".to_string());
-                                continue;
-                            }
-                            if t == "=" {
-                                type_flag = false;
-                                continue;
-                            }
-                            if type_flag {
-                                if let Some(last) = ty.last_mut() {
-                                    last.push_str(&t);
-                                }
-                            } else {
-                                if let Some(last) = va.last_mut() {
-                                    last.push_str(&t);
-                                }
-                            }
-                        }
-                        let mut tuples: Vec<_> = ty.into_iter().zip(va.into_iter()).collect();
-
-                        tuples.sort_by(|(a, _), (b, _)| a.cmp(b));
-
-                        if self.output_arch.contains(&tuples) {
-                            return;
-                        }
-
-                        self.output_arch.push(tuples);
-                    }
-                    "signal" => {
-                        let signal: LitStr = mac.mac.parse_body().unwrap();
-
-                        if self.output_signals.contains(&signal.value()) {
-                            return;
-                        }
-
-                        self.output_signals.push(signal.value())
-                    }
-                    "Reset" => {
-                        self.output_reset = true;
-                    }
-                    _ => {}
-                }
-            };
-            syn::visit::visit_stmt(self, stmt);
-        }
-    }
-
-    impl MacroReader {
-        fn new() -> MacroReader {
-            MacroReader {
-                output_arch: Vec::new(),
-                output_signals: Vec::new(),
-                output_reset: false,
-            }
-        }
     }
 
     fn get_task_output(return_type: ReturnType) -> Vec<TaskOutput> {
@@ -1738,7 +1771,7 @@ pub mod codegen {
         AppPackage, DependencyGraph, DependencyType, LogicalExpression, LogicalOperator, TaskType,
     };
     use crate::build::components_scan::ComponentMap;
-    use crate::build::tasks_scan::{Task, TaskInput, TaskMap, TaskOutput};
+    use crate::build::tasks_scan::{MemberType, Task, TaskInput, TaskMap, TaskOutput};
     use proc_macro2::{Span, TokenStream};
     use quote::quote;
     use std::collections::{HashMap, HashSet};
@@ -1760,7 +1793,7 @@ pub mod codegen {
     }
     #[derive(Debug)]
     pub struct TaskArchType {
-        arch_type_type: Vec<String>,
+        arch_type_type: Vec<MemberType>,
         task_index: usize,
         input_arch_type_indexes: Vec<(usize, Vec<usize>)>,
     }
@@ -1773,6 +1806,7 @@ pub mod codegen {
     pub fn create_app(
         app_packages: Vec<AppPackage>,
         task_maps: Vec<TaskMap>,
+        trait_to_components: HashMap<String, HashSet<String>>,
     ) -> (TokenStream, ArchTypes) {
         let mut tasks: HashMap<&String, Task> = HashMap::new();
         let mut task_options: HashMap<&String, &(TaskType, Option<LogicalExpression>)> =
@@ -1828,7 +1862,8 @@ pub mod codegen {
                 index += 1;
             }
         }
-        let arch_types = get_all_archetypes(tasks.values().collect::<Vec<&Task>>());
+        let arch_types =
+            get_all_archetypes(tasks.values().collect::<Vec<&Task>>(), trait_to_components);
 
         (
             generate_app_body(
@@ -1852,7 +1887,10 @@ pub mod codegen {
         Ok(())
     }
 
-    pub fn get_all_archetypes(tasks: Vec<&Task>) -> ArchTypes {
+    pub fn get_all_archetypes(
+        tasks: Vec<&Task>,
+        trait_to_components: HashMap<String, HashSet<String>>,
+    ) -> ArchTypes {
         let mut archetypes: ArchTypes = ArchTypes {
             arch_types: vec![],
             tasks: HashMap::new(),
@@ -1907,36 +1945,101 @@ pub mod codegen {
 
             for input_arch in &task.inputs {
                 if let TaskInput::Arch(_, input_arch) = input_arch {
+                    let value_lists: Vec<Vec<String>> = input_arch
+                        .iter()
+                        .map(|key| match key {
+                            MemberType::Normal(t) => {
+                                vec![t.clone()]
+                            }
+                            MemberType::Trait(t) => trait_to_components
+                                .get(t)
+                                .expect("All keys must be present in the HashMap")
+                                .iter()
+                                .map(|x| x.clone())
+                                .collect(),
+                        })
+                        .collect();
+
+                    let mut combinations: Vec<Vec<&String>> = vec![vec![]];
+
+                    for values in &value_lists {
+                        combinations = combinations
+                            .into_iter()
+                            .flat_map(|combo| {
+                                values.iter().map(move |value| {
+                                    let mut new_combo = combo.clone();
+                                    new_combo.push(value);
+                                    new_combo
+                                })
+                            })
+                            .collect();
+                    }
+
+                    let mut index_data: Vec<(usize, Vec<usize>)> = Vec::new();
+
+                    for combination in combinations {
+                        index_data.extend(
+                            archetypes
+                                .arch_types
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(outer_index, sub_vec)| {
+                                    if combination.iter().all(|b_elem| sub_vec.contains(b_elem)) {
+                                        Some((
+                                            outer_index,
+                                            combination
+                                                .iter()
+                                                .enumerate()
+                                                .filter_map(|a| {
+                                                    if let Some(t) =
+                                                        sub_vec.iter().position(|i| &i == a.1)
+                                                    {
+                                                        Some(t)
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                                .collect(),
+                                        ))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                    }
+
                     new.input.push(TaskArchType {
                         arch_type_type: input_arch.clone(),
                         task_index: index,
-                        input_arch_type_indexes: archetypes
-                            .arch_types
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(outer_index, sub_vec)| {
-                                if input_arch.iter().all(|b_elem| sub_vec.contains(b_elem)) {
-                                    Some((
-                                        outer_index,
-                                        input_arch
-                                            .iter()
-                                            .enumerate()
-                                            .filter_map(|a| {
-                                                if let Some(t) =
-                                                    sub_vec.iter().position(|i| i == a.1)
-                                                {
-                                                    Some(t)
-                                                } else {
-                                                    None
-                                                }
-                                            })
-                                            .collect(),
-                                    ))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect(),
+                        input_arch_type_indexes: index_data, /*
+                                                             archetypes
+                                                                 .arch_types
+                                                                 .iter()
+                                                                 .enumerate()
+                                                                 .filter_map(|(outer_index, sub_vec)| {
+                                                                     if input_arch.iter().all(|b_elem| sub_vec.contains(b_elem)) {
+                                                                         Some((
+                                                                             outer_index,
+                                                                             input_arch
+                                                                                 .iter()
+                                                                                 .enumerate()
+                                                                                 .filter_map(|a| {
+                                                                                     if let Some(t) =
+                                                                                         sub_vec.iter().position(|i| i == a.1)
+                                                                                     {
+                                                                                         Some(t)
+                                                                                     } else {
+                                                                                         None
+                                                                                     }
+                                                                                 })
+                                                                                 .collect(),
+                                                                         ))
+                                                                     } else {
+                                                                         None
+                                                                     }
+                                                                 })
+                                                                 .collect()*/
                     });
                     index += 1;
                 }
@@ -2017,6 +2120,9 @@ pub mod codegen {
                 let mut index: usize = 0;
 
                 //members
+                if input_arch_type.input_arch_type_indexes.is_empty() {
+                    panic!("{} does not contain any archetype.", task.0)
+                }
                 for input_arch_type in &input_arch_type.input_arch_type_indexes {
                     let var_name: TokenStream = parse_str(format!("ve{}", index).as_str()).unwrap();
                     let mut var_types: TokenStream = TokenStream::new();
@@ -2070,8 +2176,18 @@ pub mod codegen {
                 }
                 //arch_type_type
                 for arch_type_name in &input_arch_type.arch_type_type {
-                    let val: TokenStream =
-                        parse_str(format!("{}", arch_type_name).as_str()).unwrap();
+                    let val: TokenStream = parse_str(
+                        match arch_type_name {
+                            MemberType::Normal(t) => {
+                                format!("{}", t)
+                            }
+                            MemberType::Trait(t) => {
+                                format!("dyn {}", t)
+                            }
+                        }
+                        .as_str(),
+                    )
+                    .unwrap();
                     arch_type_type.extend(quote! {&'a #val,});
                 }
 
@@ -2715,7 +2831,7 @@ pub mod codegen {
                 }
                 LogicalExpression::Signal(v) => {
                     let v: TokenStream = parse_str(format!("\"{}\"", v).as_str()).unwrap();
-                    quote! {signals.read().unwrap()[#v]}
+                    quote! {signals.read().unwrap().contains(#v)}
                 }
                 LogicalExpression::State(n, t) => {
                     let n: TokenStream = parse_str(format!("st_{}", n).as_str()).unwrap();
