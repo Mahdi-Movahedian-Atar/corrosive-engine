@@ -468,10 +468,7 @@ pub mod components_scan {
     use std::path::{Path, PathBuf};
     use std::{fs, io};
     use syn::parse::{Parse, ParseStream};
-    use syn::{
-        parse2, File, Item, ItemEnum,  ItemStruct, ItemTrait, ItemType, Token,
-        Type,
-    };
+    use syn::{parse2, File, Item, ItemEnum, ItemStruct, ItemTrait, ItemType, Token, Type};
 
     #[derive(serde::Serialize, serde::Deserialize, Debug)]
     pub enum ComponentType {
@@ -722,8 +719,8 @@ pub mod tasks_scan {
     use syn::punctuated::Punctuated;
     use syn::token::Comma;
     use syn::{
-        Attribute, File, FnArg, GenericArgument, Item, ItemFn, Pat, PathArguments,
-         ReturnType, Type, TypeTuple,
+        Attribute, File, FnArg, GenericArgument, Item, ItemFn, Pat, PathArguments, ReturnType,
+        Type, TypeTuple,
     };
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Eq, Hash, PartialEq)]
@@ -876,7 +873,10 @@ pub mod tasks_scan {
 
         for item in syntax.items {
             if let Item::Fn(ItemFn {
-                attrs, block: _, sig, ..
+                attrs,
+                block: _,
+                sig,
+                ..
             }) = item
             {
                 if has_task_attr(attrs) {

@@ -75,11 +75,14 @@ impl BindGroupRenderable for UIStyle {
 pub struct UIRenderMeta {
     pub(crate) buffers: Arc<(Buffer, Buffer, BindGroup)>,
 }
-pub struct UiElement {}
 #[derive(Component)]
 pub struct UiBox<'a> {
     pub z: u32,
     pub style: Style<'a>,
     pub children: Vec<Ref<UiBox<'a>>>,
     pub rerender: bool,
+}
+
+pub trait UiElement {
+    fn place(&self, max_width: f32, max_height: f32) -> (f32, f32);
 }

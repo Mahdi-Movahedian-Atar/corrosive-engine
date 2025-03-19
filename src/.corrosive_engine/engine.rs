@@ -35,20 +35,36 @@ pub fn run_engine() {
     let r_MarkedResources: Res<MarkedResources> = Res::new(MarkedResources::default());
     let mut loop_trigger = Trigger::new();
     let mut bus_update_task = Trigger::new();
-    let mut bus_fixed_task = Trigger::new();
-    let mut bus_update_task_signal = Trigger::new();
     let mut bus_long_task = Trigger::new();
+    let mut bus_update_task_signal = Trigger::new();
+    let mut bus_fixed_task = Trigger::new();
     let mut update_task_end = bus_update_task.add_trigger();
-    let mut fixed_task_end = bus_fixed_task.add_trigger();
-    let mut fixed_task_long_task = bus_long_task.add_trigger();
+    let mut long_task_end = bus_long_task.add_trigger();
     let mut update_task_signal_end = bus_update_task_signal.add_trigger();
     let mut update_task_signal_long_task = bus_long_task.add_trigger();
-    let mut long_task_end = bus_long_task.add_trigger();
-    let mut ut_long_task = loop_trigger.add_trigger();
-    let mut ut_update_task_signal = loop_trigger.add_trigger();
-    let mut ut_fixed_task = loop_trigger.add_trigger();
+    let mut fixed_task_end = bus_fixed_task.add_trigger();
+    let mut fixed_task_long_task = bus_long_task.add_trigger();
     let mut ut_update_task = loop_trigger.add_trigger();
+    let mut ut_long_task = loop_trigger.add_trigger();
+    let mut ut_fixed_task = loop_trigger.add_trigger();
+    let mut ut_update_task_signal = loop_trigger.add_trigger();
     thread::scope(|s: &Scope| {
+        s.spawn(|| loop {
+            ut_update_task.read("failed");
+            let o = update_task(
+                Arch::new(&mut update_task0::new(
+                    &*a0.read().unwrap(),
+                    &or0,
+                    &*a1.read().unwrap(),
+                    &or1,
+                    &*a0.read().unwrap(),
+                    &or0,
+                )),
+                r_MarkedResources.clone(),
+                &f64::from_bits(delta_time.load(Ordering::Relaxed)),
+            );
+            bus_update_task.trigger();
+        });
         s.spawn(|| {
             let mut lock: Option<ScopedJoinHandle<_>> = None::<ScopedJoinHandle<'_, _>>;
             loop {
@@ -79,6 +95,14 @@ pub fn run_engine() {
             }
         });
         s.spawn(|| loop {
+            ut_fixed_task.read("failed");
+            fixed_task_long_task.read("failed");
+            if is_fixed.load(SeqCst) {
+                let o = fixed_task();
+            }
+            bus_fixed_task.trigger();
+        });
+        s.spawn(|| loop {
             ut_update_task_signal.read("failed");
             update_task_signal_long_task.read("failed");
             if (signals.read().unwrap().contains("Signal1")
@@ -90,43 +114,15 @@ pub fn run_engine() {
             }
             bus_update_task_signal.trigger();
         });
-        s.spawn(|| loop {
-            ut_fixed_task.read("failed");
-            fixed_task_long_task.read("failed");
-            if is_fixed.load(SeqCst) {
-                let o = fixed_task();
-            }
-            bus_fixed_task.trigger();
-        });
-        s.spawn(|| loop {
-            ut_update_task.read("failed");
-            let o = update_task(
-                Arch::new(&mut update_task0::new(
-                    &*a0.read().unwrap(),
-                    &or0,
-                    &*a1.read().unwrap(),
-                    &or1,
-                    &*a0.read().unwrap(),
-                    &or0,
-                )),
-                r_MarkedResources.clone(),
-                &f64::from_bits(delta_time.load(Ordering::Relaxed)),
-            );
-            bus_update_task.trigger();
-        });
         if reset.load(SeqCst) {
-            let mut bus_setup2 = Trigger::new();
             let mut bus_setup = Trigger::new();
             let mut bus_setup1 = Trigger::new();
-            let mut setup2_end = bus_setup2.add_trigger();
+            let mut bus_setup2 = Trigger::new();
             let mut setup_end = bus_setup.add_trigger();
             let mut setup1_end = bus_setup1.add_trigger();
+            let mut setup2_end = bus_setup2.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
-                let handle_setup1 = s.spawn(|| {
-                    let o = setup1();
-                    bus_setup1.trigger();
-                });
                 let handle_setup = s.spawn(|| {
                     let o = setup();
                     (&o0)
@@ -139,12 +135,16 @@ pub fn run_engine() {
                         .extend(o.1.vec.into_iter().map(|(m0, m1)| (m0, m1)));
                     bus_setup.trigger();
                 });
+                let handle_setup1 = s.spawn(|| {
+                    let o = setup1();
+                    bus_setup1.trigger();
+                });
                 let handle_setup2 = s.spawn(|| {
                     let o = setup2();
                     bus_setup2.trigger();
                 });
-                handle_setup1.join().expect("TODO: panic message");
                 handle_setup.join().expect("TODO: panic message");
+                handle_setup1.join().expect("TODO: panic message");
                 handle_setup2.join().expect("TODO: panic message");
             });
         }
@@ -213,10 +213,10 @@ pub fn run_engine() {
             }
             let o = sync_task(&f64::from_bits(delta_time.load(Ordering::Relaxed)));
             loop_trigger.trigger();
-            long_task_end.read("failed");
-            update_task_signal_end.read("failed");
-            fixed_task_end.read("failed");
             update_task_end.read("failed");
+            long_task_end.read("failed");
+            fixed_task_end.read("failed");
+            update_task_signal_end.read("failed");
         }
     });
 }

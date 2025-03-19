@@ -99,7 +99,7 @@ pub struct Style {
     pub grid_row: GridPlacement,
     pub grid_column: GridPlacement,
 }*/
-use corrosive_ecs_renderer_backend::Color::Color;
+use corrosive_ecs_renderer_backend::color::Color;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Val {

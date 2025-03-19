@@ -497,6 +497,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "corrosive-asset-manager"
+version = "0.1.0"
+
+[[package]]
+name = "corrosive-asset-manager-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
+]
+
+[[package]]
 name = "corrosive-ecs-core"
 version = "0.1.0"
 dependencies = [
@@ -525,6 +538,8 @@ name = "corrosive-ecs-renderer-backend"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "corrosive-asset-manager",
+ "corrosive-asset-manager-macro",
  "corrosive-ecs-core",
  "corrosive-ecs-core-macro",
  "env_logger",
@@ -571,6 +586,7 @@ name = "corrosive-ui"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "corrosive-asset-manager",
  "corrosive-ecs-core",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",

@@ -1,6 +1,8 @@
 use crate::comp::{UIBuffers, UIStyle, UIVertex};
+use corrosive_asset_manager::{Asset, AssetManagerObject};
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
+use corrosive_ecs_renderer_backend::assets::PipelineAsset;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
@@ -16,11 +18,11 @@ use corrosive_ecs_renderer_backend::helper::{
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use std::sync::Arc;
 
-struct UIRenderNode {
+struct UIRenderNode<'a> {
     buffers: Res<UIBuffers>,
-    pipeline: RenderPipeline,
+    pipeline: Asset<'a, PipelineAsset>,
 }
-impl RenderNode for UIRenderNode {
+impl RenderNode for UIRenderNode<'_> {
     fn name(&self) -> &str {
         "UIRenderer"
     }
@@ -53,7 +55,7 @@ impl RenderNode for UIRenderNode {
         });
 
         for item in &self.buffers.f_read().buffers {
-            render_pass.set_pipeline(&self.pipeline);
+            render_pass.set_pipeline(&self.pipeline.get().layout);
             render_pass.set_vertex_buffer(0, item.0.slice(..));
             render_pass.set_bind_group(0, &item.2, &[]);
             render_pass.draw(0..4, 0..1)
@@ -111,9 +113,8 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
         }],
     );
 
-    graph.f_write().add_node(Box::new(UIRenderNode {
-        buffers: buffers.clone(),
-        pipeline: create_pipeline(&RenderPipelineDescriptor {
+    let ass: Asset<PipelineAsset> = Asset::load(1, move || PipelineAsset {
+        layout: create_pipeline(&RenderPipelineDescriptor {
             label: "ui_pipeline".into(),
             layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: "ui_pipeline_layout".into(),
@@ -164,6 +165,11 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
             multiview: None,
             cache: None,
         }),
+    });
+
+    graph.f_write().add_node(Box::new(UIRenderNode {
+        buffers: buffers.clone(),
+        pipeline: ass,
     }));
     graph.f_write().prepare();
     buffers.f_write().buffers.push(Arc::new((

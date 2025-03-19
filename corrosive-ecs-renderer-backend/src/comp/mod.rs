@@ -1,8 +1,9 @@
 use crate::helper::{BindGroupDescriptor, BindGroupEntry, BufferBindingType};
 use crate::render_graph::GraphNode;
 use crate::STATE;
+use corrosive_asset_manager::Asset;
 use corrosive_ecs_core::ecs_core::Res;
-use corrosive_ecs_core_macro::Resource;
+use corrosive_ecs_core_macro::{Component, Resource};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -87,6 +88,16 @@ pub struct RenderGraph {
     pub(crate) edges: Vec<(usize, usize)>,
     pub(crate) execution_levels: Vec<Vec<usize>>,
 }
+
+pub enum RenderData {
+    BindGroup(BindGroup),
+    Buffer(Buffer),
+}
+/*#[derive(Component)]
+pub struct RenderMeta<'a> {
+    pub(crate) render_pipeline: Asset<'a, RenderP>,
+    pub(crate) render_data: Asset<'a, RenderPipeline>,
+}*/
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]

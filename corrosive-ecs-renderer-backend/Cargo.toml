@@ -7,6 +7,8 @@ edition = "2021"
 [dependencies]
 corrosive-ecs-core = { version = "0.1.0", path = "../corrosive-ecs-core" }
 corrosive-ecs-core-macro = { version = "0.1.0", path = "../corrosive-ecs-core-macro" }
+corrosive-asset-manager = { version = "0.1.0", path = "../corrosive-asset-manager" }
+corrosive-asset-manager-macro = { version = "0.1.0", path = "../corrosive-asset-manager-macro" }
 env_logger = "0.11.6"
 wgpu = "24.0.1"
 winit = "0.30.9"
