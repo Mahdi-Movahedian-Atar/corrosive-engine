@@ -1,12 +1,18 @@
 use crate::style::Style;
-use corrosive_ecs_core::ecs_core::{LockedRef, Ref};
-use corrosive_ecs_core_macro::{task, Component, Resource};
+use corrosive_asset_manager::Asset;
+use corrosive_ecs_core::ecs_core::Ref;
+use corrosive_ecs_core_macro::{Component, Resource};
+use corrosive_ecs_renderer_backend::assets::PipelineAsset;
+use corrosive_ecs_renderer_backend::helper;
 use corrosive_ecs_renderer_backend::helper::{
-    BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindGroupRenderable, BindingType,
-    Buffer, BufferAddress, BufferBindingType, ShaderStage, VertexAttribute, VertexBufferLayout,
-    VertexFormat, VertexRenderable, VertexStepMode,
+    create_bind_group_layout, write_to_buffer, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+    BindGroupRenderable, BindingType, Buffer, BufferAddress, BufferBindingType, ShaderStage,
+    VertexAttribute, VertexBufferLayout, VertexFormat, VertexRenderable, VertexStepMode,
 };
+use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
 use std::sync::Arc;
+
+pub mod screen;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -31,7 +37,7 @@ pub(crate) struct UIStyle {
 
 #[derive(Resource, Default)]
 pub struct UIBuffers {
-    pub(crate) buffers: Vec<Arc<(Buffer, Buffer, BindGroup)>>,
+    pub(crate) buffers: Vec<Arc<(Asset<PipelineAsset>, Buffer, BindGroupData)>>,
 }
 impl VertexRenderable for UIVertex {
     fn desc<'a>() -> VertexBufferLayout<'a> {
@@ -53,9 +59,13 @@ impl VertexRenderable for UIVertex {
         }
     }
 }
-impl BindGroupRenderable for UIStyle {
-    fn desc<'a>() -> BindGroupLayoutDescriptor<'a> {
-        BindGroupLayoutDescriptor {
+impl MaterialData for UIStyle {
+    fn update_by_data(&self, material_data: &BindGroupData) {
+        write_to_buffer(&material_data.buffer, 0, bytemuck::bytes_of(self));
+    }
+
+    fn get_bind_group_layout() -> helper::BindGroupLayout {
+        create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: "UIStyle_Buffer_Layout".into(),
             entries: &[BindGroupLayoutEntry {
                 binding: 0,
@@ -67,22 +77,21 @@ impl BindGroupRenderable for UIStyle {
                 },
                 count: None,
             }],
-        }
+        })
     }
 }
 
 #[derive(Component)]
 pub struct UIRenderMeta {
-    pub(crate) buffers: Arc<(Buffer, Buffer, BindGroup)>,
+    pub(crate) buffers: Arc<(Asset<PipelineAsset>, Buffer, BindGroupData)>,
+}
+pub struct Rec{
+    top_left:(f32,f32),
+    bottom_right:(f32,f32)
 }
 #[derive(Component)]
-pub struct UiBox<'a> {
-    pub z: u32,
+pub struct UiData<'a> {
     pub style: Style<'a>,
-    pub children: Vec<Ref<UiBox<'a>>>,
-    pub rerender: bool,
-}
-
-pub trait UiElement {
-    fn place(&self, max_width: f32, max_height: f32) -> (f32, f32);
+    pub rec: Rec,
+    pub modified: bool,
 }

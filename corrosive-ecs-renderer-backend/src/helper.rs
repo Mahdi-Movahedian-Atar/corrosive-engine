@@ -490,3 +490,12 @@ pub fn get_resolution_bind_group_layout<'a>() -> &'a BindGroupLayout {
         }
     }
 }
+pub fn write_to_buffer(buffer: &Buffer, offset: BufferAddress, data: &[u8]) {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.queue.write_buffer(buffer, offset, data)
+        } else {
+            panic!("write_buffer must be called after run_renderer task.")
+        }
+    }
+}

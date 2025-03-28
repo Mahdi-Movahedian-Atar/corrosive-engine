@@ -1,0 +1,31 @@
+{
+  "name": "corrosive-ui",
+  "path": "./src",
+  "setup_dependency": {
+    "dependents": {
+      "Task(setup_ui_pass)": [
+        "Task(run_renderer)"
+      ],
+      "Task(run_renderer)": []
+    },
+    "in_degrees": {
+      "Task(run_renderer)": 1,
+      "Task(setup_ui_pass)": 0
+    }
+  },
+  "runtime_dependency": {
+    "dependents": {},
+    "in_degrees": {}
+  },
+  "sync_dependency": {
+    "dependents": {},
+    "in_degrees": {}
+  },
+  "tasks": {
+    "setup_ui_pass": [
+      "Setup",
+      null
+    ]
+  },
+  "packages": []
+}

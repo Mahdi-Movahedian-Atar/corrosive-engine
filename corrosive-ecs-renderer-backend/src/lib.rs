@@ -5,6 +5,7 @@ pub mod assets;
 pub mod color;
 pub mod comp;
 pub mod helper;
+pub mod material;
 pub mod render_graph;
 pub mod task;
 

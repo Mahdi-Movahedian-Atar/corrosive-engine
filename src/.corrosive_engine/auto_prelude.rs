@@ -22,5 +22,5 @@ pub use corrosive_ecs_renderer_backend::comp::WindowOptions;
 pub use corrosive_ecs_renderer_backend::task::run_renderer;
 pub use corrosive_ui::comp::UIBuffers;
 pub use corrosive_ui::comp::UIRenderMeta;
-pub use corrosive_ui::comp::UiBox;
+pub use corrosive_ui::comp::UiData;
 pub use corrosive_ui::task::setup_ui_pass;

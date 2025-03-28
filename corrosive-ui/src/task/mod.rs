@@ -15,14 +15,14 @@ use corrosive_ecs_renderer_backend::helper::{
     RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
     ShaderStage, StoreOp, TextureView, VertexRenderable, VertexState,
 };
+use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use std::sync::Arc;
 
-struct UIRenderNode<'a> {
+struct UIRenderNode {
     buffers: Res<UIBuffers>,
-    pipeline: Asset<'a, PipelineAsset>,
 }
-impl RenderNode for UIRenderNode<'_> {
+impl<'a> RenderNode for UIRenderNode {
     fn name(&self) -> &str {
         "UIRenderer"
     }
@@ -55,9 +55,9 @@ impl RenderNode for UIRenderNode<'_> {
         });
 
         for item in &self.buffers.f_read().buffers {
-            render_pass.set_pipeline(&self.pipeline.get().layout);
-            render_pass.set_vertex_buffer(0, item.0.slice(..));
-            render_pass.set_bind_group(0, &item.2, &[]);
+            render_pass.set_pipeline(&item.0.get().layout);
+            render_pass.set_vertex_buffer(0, item.1.slice(..));
+            render_pass.set_bind_group(0, &item.2.bind_group, &[]);
             render_pass.draw(0..4, 0..1)
         }
     }
@@ -65,7 +65,7 @@ impl RenderNode for UIRenderNode<'_> {
 #[task]
 pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
     let shader = create_shader_module("ui_shader", include_str!("ui_shader.wgsl"));
-    let bind_group_layout = create_bind_group_layout(&UIStyle::desc());
+    let bind_group_layout = UIStyle::get_bind_group_layout();
     let vertex_buffer = create_buffer_init(
         "ui_vertex_buffer",
         bytemuck::cast_slice(&[
@@ -169,12 +169,11 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
 
     graph.f_write().add_node(Box::new(UIRenderNode {
         buffers: buffers.clone(),
-        pipeline: ass,
     }));
     graph.f_write().prepare();
     buffers.f_write().buffers.push(Arc::new((
+        ass,
         vertex_buffer,
-        uniform_buffer,
-        uniform_bind_group,
+        BindGroupData::new(uniform_bind_group, uniform_buffer),
     )))
 }

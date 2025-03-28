@@ -1,0 +1,191 @@
+{
+  "path": "./src/task",
+  "sub_maps": [
+    {
+      "path": "./src/task\\other_tasks",
+      "sub_maps": [
+        {
+          "path": "./src/task\\other_tasks\\other_other_task",
+          "sub_maps": [],
+          "tasks": [
+            {
+              "name": "long_task",
+              "inputs": [
+                {
+                  "Arch": [
+                    "inp",
+                    [
+                      {
+                        "Normal": "Locked<Position1>"
+                      }
+                    ]
+                  ]
+                }
+              ],
+              "outputs": []
+            }
+          ]
+        }
+      ],
+      "tasks": [
+        {
+          "name": "sync_task",
+          "inputs": [
+            {
+              "DeltaTime": "d"
+            }
+          ],
+          "outputs": []
+        }
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "name": "setup",
+      "inputs": [],
+      "outputs": [
+        {
+          "Arch": [
+            "Locked<Position1>",
+            "Ref<Position2>",
+            "LockedRef<Position3>"
+          ]
+        },
+        {
+          "Arch": [
+            "Locked<Position1>",
+            "LockedRef<Position3>"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "macro_test",
+      "inputs": [
+        {
+          "Arch": [
+            "b",
+            [
+              {
+                "Normal": "LockedRef<Position3>"
+              }
+            ]
+          ]
+        },
+        {
+          "Arch": [
+            "a",
+            [
+              {
+                "Normal": "LockedRef<Position3>"
+              },
+              {
+                "Normal": "Ref<Position2>"
+              }
+            ]
+          ]
+        },
+        {
+          "Arch": [
+            "aa",
+            [
+              {
+                "Normal": "Ref<Position2>"
+              },
+              {
+                "Normal": "LockedRef<Position3>"
+              }
+            ]
+          ]
+        },
+        {
+          "State": [
+            "d",
+            "StateExample"
+          ]
+        },
+        {
+          "Resources": [
+            "c",
+            "MarkedResources"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "Arch": [
+            "Ref<Position2>",
+            "LockedRef<Position3>"
+          ]
+        },
+        {
+          "Arch": [
+            "Ref<Position2>",
+            "Position3",
+            "LockedRef<Position3>"
+          ]
+        },
+        {
+          "Arch": [
+            "LockedRef<Position3>"
+          ]
+        },
+        "Signal",
+        "Reset"
+      ]
+    },
+    {
+      "name": "setup1",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "setup2",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "name": "update_task",
+      "inputs": [
+        {
+          "Arch": [
+            "inp",
+            [
+              {
+                "Trait": "test"
+              }
+            ]
+          ]
+        },
+        {
+          "Resources": [
+            "res",
+            "MarkedResources"
+          ]
+        },
+        {
+          "DeltaTime": "delta_time"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "name": "update_task_signal",
+      "inputs": [
+        {
+          "State": [
+            "sat",
+            "StateExample"
+          ]
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "name": "fixed_task",
+      "inputs": [],
+      "outputs": []
+    }
+  ]
+}

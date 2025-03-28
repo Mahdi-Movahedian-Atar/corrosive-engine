@@ -89,16 +89,6 @@ pub struct RenderGraph {
     pub(crate) execution_levels: Vec<Vec<usize>>,
 }
 
-pub enum RenderData {
-    BindGroup(BindGroup),
-    Buffer(Buffer),
-}
-/*#[derive(Component)]
-pub struct RenderMeta<'a> {
-    pub(crate) render_pipeline: Asset<'a, RenderP>,
-    pub(crate) render_data: Asset<'a, RenderPipeline>,
-}*/
-
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 struct Resolution {

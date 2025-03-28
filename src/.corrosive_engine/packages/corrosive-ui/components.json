@@ -1,0 +1,21 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-ui/src/comp",
+  "sub_maps": [
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-ui/src/comp\\screen",
+      "sub_maps": [],
+      "components": []
+    }
+  ],
+  "components": [
+    {
+      "Component": "UIBuffers"
+    },
+    {
+      "Component": "UIRenderMeta"
+    },
+    {
+      "Component": "UiData"
+    }
+  ]
+}

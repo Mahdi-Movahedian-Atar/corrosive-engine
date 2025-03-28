@@ -150,6 +150,7 @@ pub enum Wrap {
 }
 #[derive(Default, Copy, Clone, Debug)]
 pub struct Style<'a> {
+    pub z_index: u32,
     pub min_width: Val,
     pub max_width: Val,
     pub width: Val,

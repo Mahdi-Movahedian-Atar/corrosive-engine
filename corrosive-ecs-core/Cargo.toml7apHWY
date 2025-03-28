@@ -1,0 +1,19 @@
+[package]
+name = "corrosive-ecs-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.215", features = ["derive"] }
+walkdir = "2.5.0"
+syn = { version = "2.0.89" ,features = ["full"] }
+quote = "1.0.37"
+proc-macro2 = {version =  "1.0.91" , features = ["default","span-locations"]}
+serde_json = "1.0"
+bus = "2.4.1"
+[lib]
+[features]
+default = ["core"]
+all = ["core","build"]
+core = []
+build = []

@@ -6,7 +6,6 @@ use crate::corrosive_engine;
 use corrosive_ecs_core::ecs_core::{
     Arch, DeltaTime, Locked, LockedRef, RArch, Ref, Res, Reset, Signal, State,
 };
-use corrosive_ecs_core::{add_entity, reset, signal};
 use corrosive_ecs_core_macro::task;
 use rand::Rng;
 use std::iter::Map;
@@ -33,19 +32,6 @@ pub fn setup() -> (
             Ref::new(Position2 { x: 2.0, y: 2.0 }),
             LockedRef::new(Position3 { x: 2.0, y: 2.0 }),
         ));
-        add_entity!(
-            Locked<Position1>= Locked::new(if (random_number == i) {
-                Position1 { x: 10.0, y: 10.0 }
-            } else {
-                Position1 { x: 2.0, y: 2.0 }
-            }),
-            Ref<Position2> = Ref::new(Position2 { x: 2.0, y: 2.0 }),
-            LockedRef<Position3> = LockedRef::new(Position3 { x: 2.0, y: 2.0 })
-        );
-        add_entity!(
-            Locked<Position1>=Locked::new(Position1 { x: 1.0, y: 1.0 }),
-            LockedRef<Position3>=LockedRef::new(Position3 { x: 2.0, y: 2.0 })
-        );
     }
     (r1, r2)
 }
@@ -101,21 +87,11 @@ pub fn wrapper_macro_test<'a>(
 
 #[task]
 pub fn setup1() {
-    for _i in 0..10000 {
-        add_entity!(
-            Ref<Position2>=Ref::new(Position2 { x: 1.0, y: 1.0 }),
-            LockedRef<Position3>=LockedRef::new(Position3 { x: 2.0, y: 2.0 }));
-        add_entity!(
-            Ref<Position2>=Ref::new(Position2 { x: 1.0, y: 1.0 }),
-            Position4=Position4 { x: 2.0, y: 2.0 });
-    }
+    for _i in 0..10000 {}
 }
 #[task]
 pub fn setup2() {
-    for _i in 0..10000 {
-        add_entity!(Ref<Position2> = Ref::new(Position2 { x: 2.0, y: 2.0 }));
-        add_entity!(Locked<Position1> = Locked::new(Position1 { x: 1.0, y: 1.0 }));
-    }
+    for _i in 0..10000 {}
 }
 #[task]
 pub fn update_task(inp: Arch<(&dyn test,)>, res: Res<MarkedResources>, delta_time: DeltaTime) {
@@ -128,7 +104,7 @@ pub fn update_task(inp: Arch<(&dyn test,)>, res: Res<MarkedResources>, delta_tim
         mark += 1;
     }
     println!("{:?},{}", inp.len(), delta_time);
-    for i in mark..inp.len() {
+    for i in 500..inp.len() {
         inp.remove(i);
     }
 }

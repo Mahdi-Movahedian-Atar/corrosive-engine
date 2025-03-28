@@ -1,0 +1,24 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-ui/src/task",
+  "sub_maps": [],
+  "tasks": [
+    {
+      "name": "setup_ui_pass",
+      "inputs": [
+        {
+          "Resources": [
+            "graph",
+            "RenderGraph"
+          ]
+        },
+        {
+          "Resources": [
+            "buffers",
+            "UIBuffers"
+          ]
+        }
+      ],
+      "outputs": []
+    }
+  ]
+}

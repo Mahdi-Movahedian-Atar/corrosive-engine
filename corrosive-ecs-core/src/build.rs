@@ -738,6 +738,7 @@ pub mod tasks_scan {
     pub enum TaskInput {
         Arch(String, Vec<MemberType>),
         Resources(String, String),
+        Hierarchy(String, String),
         State(String, String),
         DeltaTime(String),
     }
@@ -975,6 +976,13 @@ pub mod tasks_scan {
                                     ));
                                     continue;
                                 }
+                                if segment.ident == "Hierarchy" {
+                                    inputs.push(TaskInput::Hierarchy(
+                                        name,
+                                        inner_type.to_token_stream().to_string().replace(" ", ""),
+                                    ));
+                                    continue;
+                                }
                             }
                         }
                     }
@@ -990,11 +998,7 @@ pub mod tasks_scan {
 
     fn get_task_output(return_type: ReturnType) -> Vec<TaskOutput> {
         let mut outputs: Vec<TaskOutput> = Vec::new();
-        /*let mut macro_reader = MacroReader::new();
 
-        for st in stmts.iter() {
-            macro_reader.visit_stmt(st);
-        }*/
         if let ReturnType::Type(_, t) = return_type {
             if let Type::Tuple(t) = *t {
                 for elem in t.elems {
@@ -1790,6 +1794,7 @@ pub mod codegen {
         tasks: HashMap<String, TasksInputOutput>,
         resources: HashSet<String>,
         states: HashSet<String>,
+        hierarchy: HashSet<String>,
     }
     #[derive(Debug)]
     pub struct TaskArchType {
@@ -1896,6 +1901,7 @@ pub mod codegen {
             tasks: HashMap::new(),
             resources: Default::default(),
             states: Default::default(),
+            hierarchy: Default::default(),
         };
 
         for task in &tasks {
@@ -1916,6 +1922,9 @@ pub mod codegen {
                     }
                     TaskInput::State(_, v) => {
                         archetypes.states.insert(v.clone());
+                    }
+                    TaskInput::Hierarchy(_, v) => {
+                        archetypes.hierarchy.insert(v.clone());
                     }
                     _ => {}
                 }
@@ -2012,34 +2021,7 @@ pub mod codegen {
                     new.input.push(TaskArchType {
                         arch_type_type: input_arch.clone(),
                         task_index: index,
-                        input_arch_type_indexes: index_data, /*
-                                                             archetypes
-                                                                 .arch_types
-                                                                 .iter()
-                                                                 .enumerate()
-                                                                 .filter_map(|(outer_index, sub_vec)| {
-                                                                     if input_arch.iter().all(|b_elem| sub_vec.contains(b_elem)) {
-                                                                         Some((
-                                                                             outer_index,
-                                                                             input_arch
-                                                                                 .iter()
-                                                                                 .enumerate()
-                                                                                 .filter_map(|a| {
-                                                                                     if let Some(t) =
-                                                                                         sub_vec.iter().position(|i| i == a.1)
-                                                                                     {
-                                                                                         Some(t)
-                                                                                     } else {
-                                                                                         None
-                                                                                     }
-                                                                                 })
-                                                                                 .collect(),
-                                                                         ))
-                                                                     } else {
-                                                                         None
-                                                                     }
-                                                                 })
-                                                                 .collect()*/
+                        input_arch_type_indexes: index_data,
                     });
                     index += 1;
                 }
@@ -2602,6 +2584,11 @@ pub mod codegen {
                             parse_str(format!("st_{}", v).as_str()).unwrap();
                         code.extend(quote! {#state_name.clone(),})
                     }
+                    TaskInput::Hierarchy(_, v) => {
+                        let Hierarch_name: TokenStream =
+                            parse_str(format!("h_{}", v).as_str()).unwrap();
+                        code.extend(quote! {#Hierarch_name.clone(),})
+                    }
                     TaskInput::DeltaTime(_) => {
                         code.extend(quote! {&f64::from_bits(delta_time.load(Ordering::Relaxed)),});
                     }
@@ -2915,6 +2902,15 @@ pub mod codegen {
                 let #name: Res<#t> = Res::new(#t::default());
             });
         }
+
+        for hierarchy in &arch_types.hierarchy {
+            let name: TokenStream = parse_str(format!("h_{}", hierarchy).as_str()).unwrap();
+            let t: TokenStream = parse_str(hierarchy.as_str()).unwrap();
+
+            arch_code.extend(quote! {
+                let #name: Hierarchy<#t> = Hierarchy::default();
+            });
+        }
         quote! {
             use crate::corrosive_engine::auto_prelude::{*};
             use corrosive_ecs_core::ecs_core::{*};
@@ -2960,6 +2956,7 @@ pub mod codegen {
             for j in 0..arch_types.arch_types[i].len() {
                 if arch_types.arch_types[i][j].starts_with("Ref<")
                     || arch_types.arch_types[i][j].starts_with("LockedRef<")
+                    || arch_types.arch_types[i][j].starts_with("Member<")
                 {
                     let index: TokenStream = parse_str(format!("{}", j).as_str()).unwrap();
                     expire.extend(quote! {item.#index.expire();})
