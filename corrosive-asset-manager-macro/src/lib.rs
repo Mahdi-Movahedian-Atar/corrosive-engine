@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 use quote::ToTokens;
+use std::hash::{DefaultHasher, Hasher};
 use syn::__private::quote::quote;
 use syn::{parse_macro_input, parse_str, DeriveInput, Ident, LitStr};
 
@@ -19,8 +20,6 @@ pub fn asset(input: TokenStream) -> TokenStream {
         > = std::cell::LazyCell::new(|| corrosive_asset_manager::AssetManagerObject::new());
 
         impl corrosive_asset_manager::AssetObject for #name {
-            type AssetType = #name;
-
             unsafe fn remove_asset(id: &u64) {
                 #static_name
                     .ref_counts
@@ -34,7 +33,7 @@ pub fn asset(input: TokenStream) -> TokenStream {
                     .remove(id);
             }
 
-            unsafe fn replace_asset(id: &u64, asset_object: Self::AssetType) {
+            unsafe fn replace_asset(id: &u64, asset_object: Self) {
                 #static_name
                     .values
                     .write()
@@ -47,9 +46,9 @@ pub fn asset(input: TokenStream) -> TokenStream {
 
             unsafe fn add_asset<'a>(
                 id: u64,
-                asset_object: Self::AssetType,
+                asset_object: Self,
             ) -> (
-                &'a corrosive_asset_manager::AssetValue<'a, Self::AssetType>,
+                &'a corrosive_asset_manager::AssetValue<'a, Self>,
                 &'a std::sync::atomic::AtomicUsize,
             ) {
                 let ref_count: &std::sync::atomic::AtomicUsize = {
@@ -81,9 +80,9 @@ pub fn asset(input: TokenStream) -> TokenStream {
             }
             unsafe fn load_asset<'a>(
                 id: u64,
-                asset_object: impl FnOnce() -> Self::AssetType + Send + 'static,
+                asset_object: impl FnOnce() -> Self + Send + 'static,
             ) -> (
-                &'a corrosive_asset_manager::AssetValue<'a, Self::AssetType>,
+                &'a corrosive_asset_manager::AssetValue<'a, Self>,
                 &'a std::sync::atomic::AtomicUsize,
             ) {
                 let ref_count: &std::sync::atomic::AtomicUsize = {
@@ -125,10 +124,7 @@ pub fn asset(input: TokenStream) -> TokenStream {
                 (asset, ref_count)
             }
 
-            unsafe fn set_default<'a>(asset_object: Self::AssetType)
-            where
-                <Self as corrosive_asset_manager::AssetObject>::AssetType:
-                    corrosive_asset_manager::AssetObject,
+            unsafe fn set_default<'a>(asset_object: Self)
             {
                 #static_name
                     .default_value
@@ -138,6 +134,24 @@ pub fn asset(input: TokenStream) -> TokenStream {
         }
     })
     .into()
+}
+
+#[proc_macro]
+pub fn static_hasher(input: TokenStream) -> TokenStream {
+    // Parse the input as a string literal.
+    let input_literal = parse_macro_input!(input as LitStr);
+    let input_str = input_literal.value();
+
+    let mut hasher = DefaultHasher::new();
+
+    hasher.write(input_str.as_bytes());
+    let hash = hasher.finish();
+
+    let output = quote! {
+        #hash
+    };
+
+    output.into()
 }
 
 fn main() {}

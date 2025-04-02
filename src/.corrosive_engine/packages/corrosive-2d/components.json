@@ -1,0 +1,15 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp",
+  "sub_maps": [
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\image2d",
+      "sub_maps": [],
+      "components": []
+    }
+  ],
+  "components": [
+    {
+      "Component": "Position2D"
+    }
+  ]
+}

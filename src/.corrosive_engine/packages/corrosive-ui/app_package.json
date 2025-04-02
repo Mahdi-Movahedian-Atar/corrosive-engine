@@ -14,14 +14,22 @@
     }
   },
   "runtime_dependency": {
-    "dependents": {},
-    "in_degrees": {}
+    "dependents": {
+      "Task(rerender_ui)": []
+    },
+    "in_degrees": {
+      "Task(rerender_ui)": 0
+    }
   },
   "sync_dependency": {
     "dependents": {},
     "in_degrees": {}
   },
   "tasks": {
+    "rerender_ui": [
+      "Update",
+      null
+    ],
     "setup_ui_pass": [
       "Setup",
       null

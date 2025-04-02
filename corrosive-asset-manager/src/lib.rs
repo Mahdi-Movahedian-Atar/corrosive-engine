@@ -8,8 +8,8 @@ pub struct Asset<T: AssetObject + 'static> {
     ref_count: &'static AtomicUsize,
     id: u64,
 }
-impl<T: AssetObject<AssetType = T>> Asset<T> {
-    pub fn clone(&self) -> Asset<T> {
+impl<T: AssetObject> Clone for Asset<T> {
+    fn clone(&self) -> Asset<T> {
         self.ref_count.fetch_add(1, Ordering::SeqCst);
         Asset {
             asset: self.asset,
@@ -17,10 +17,9 @@ impl<T: AssetObject<AssetType = T>> Asset<T> {
             id: self.id,
         }
     }
-    pub fn add(id: u64, asset: T) -> Asset<T>
-    where
-        <T as AssetObject>::AssetType: AssetObject,
-    {
+}
+impl<T: AssetObject> Asset<T> {
+    pub fn add(id: u64, asset: T) -> Asset<T> {
         let asset = unsafe { T::add_asset(id, asset) };
         Asset {
             asset: asset.0,
@@ -28,16 +27,10 @@ impl<T: AssetObject<AssetType = T>> Asset<T> {
             id,
         }
     }
-    pub fn set_default<'b>(asset: T)
-    where
-        <T as AssetObject>::AssetType: AssetObject,
-    {
+    pub fn set_default<'b>(asset: T) {
         unsafe { T::set_default(asset) };
     }
-    pub fn load<'b>(id: u64, asset: impl FnOnce() -> T + Send + 'static) -> Asset<T>
-    where
-        <T as AssetObject>::AssetType: AssetObject,
-    {
+    pub fn load<'b>(id: u64, asset: impl FnOnce() -> T + Send + 'static) -> Asset<T> {
         let asset = unsafe { T::load_asset(id, asset) };
         Asset {
             asset: asset.0,
@@ -89,22 +82,21 @@ impl<T> AssetManagerObject<'_, T> {
     }
 }
 pub trait AssetObject {
-    type AssetType;
     unsafe fn remove_asset(id: &u64);
-    unsafe fn replace_asset(id: &u64, asset_object: Self::AssetType);
+    unsafe fn replace_asset(id: &u64, asset_object: Self);
     unsafe fn add_asset<'a>(
         id: u64,
-        asset_object: Self::AssetType,
-    ) -> (&'a AssetValue<'a, Self::AssetType>, &'a AtomicUsize)
+        asset_object: Self,
+    ) -> (&'a AssetValue<'a, Self>, &'a AtomicUsize)
     where
-        <Self as AssetObject>::AssetType: AssetObject;
+        Self: Sized;
     unsafe fn load_asset<'a>(
         id: u64,
-        asset_object: impl FnOnce() -> Self::AssetType + Send + 'static,
-    ) -> (&'a AssetValue<'a, Self::AssetType>, &'a AtomicUsize)
+        asset_object: impl FnOnce() -> Self + Send + 'static,
+    ) -> (&'a AssetValue<'a, Self>, &'a AtomicUsize)
     where
-        <Self as AssetObject>::AssetType: AssetObject;
-    unsafe fn set_default<'a>(asset_object: Self::AssetType)
+        Self: Sized;
+    unsafe fn set_default<'a>(asset_object: Self)
     where
-        <Self as AssetObject>::AssetType: AssetObject;
+        Self: Sized;
 }

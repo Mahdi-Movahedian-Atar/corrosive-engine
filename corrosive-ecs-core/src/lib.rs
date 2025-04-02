@@ -146,7 +146,7 @@ pub mod ecs_core {
 
         pub fn write(&self, mut func: impl FnMut(LockResult<RwLockWriteGuard<'_, Reference<T>>>)) {
             func(self.value.write());
-            self.hierarchy.shared_add(&self.id);
+            self.hierarchy.shared_behavior(&self.id);
         }
         pub fn e_write(
             &self,
@@ -154,11 +154,11 @@ pub mod ecs_core {
             massage: &str,
         ) {
             func(self.value.write().expect(massage));
-            self.hierarchy.shared_add(&self.id);
+            self.hierarchy.shared_behavior(&self.id);
         }
         pub fn f_write(&self, mut func: impl FnMut(RwLockWriteGuard<'_, Reference<T>>)) {
             func(self.value.write().expect("Failed to force write a lock"));
-            self.hierarchy.shared_add(&self.id);
+            self.hierarchy.shared_behavior(&self.id);
         }
 
         pub fn get_children(&self) -> Vec<Member<T>> {
@@ -412,12 +412,24 @@ pub mod ecs_core {
         pub fn remove_entry(&self, entry: &u64) {
             remove(entry, &mut self.data.write().unwrap())
         }
-        pub fn shared_add(&self, entry: &u64) {
+        pub fn shared_behavior(&self, entry: &u64) {
             let mut lock = &mut self.data.write().unwrap();
             if let Some(dependents) = lock.dependents.get(entry) {
                 let dependents = dependents.clone();
                 dependents.iter().for_each(|x| shared_add(x, entry, lock));
             };
+        }
+        pub fn get_roots(&self) -> Vec<Member<T>> {
+            let lock = self.data.read().unwrap();
+            lock.nodes
+                .iter()
+                .filter(|x| lock.dependencies.contains_key(x.0))
+                .map(|x| Member {
+                    id: x.0.clone(),
+                    hierarchy: &self,
+                    value: x.1.clone(),
+                })
+                .collect()
         }
     }
     fn remove<T>(entry: &u64, guard: &mut RwLockWriteGuard<HierarchyData<T>>) {

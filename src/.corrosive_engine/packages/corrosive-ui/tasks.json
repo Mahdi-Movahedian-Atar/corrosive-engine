@@ -19,6 +19,18 @@
         }
       ],
       "outputs": []
+    },
+    {
+      "name": "rerender_ui",
+      "inputs": [
+        {
+          "Hierarchy": [
+            "nodes",
+            "UiNode"
+          ]
+        }
+      ],
+      "outputs": []
     }
   ]
 }

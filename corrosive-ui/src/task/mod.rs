@@ -1,6 +1,6 @@
-use crate::comp::{UIBuffers, UIStyle, UIVertex};
+use crate::comp::{UIBuffers, UIStyle, UIVertex, UiNode};
 use corrosive_asset_manager::{Asset, AssetManagerObject};
-use corrosive_ecs_core::ecs_core::Res;
+use corrosive_ecs_core::ecs_core::{Hierarchy, Reference, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::assets::PipelineAsset;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
@@ -176,4 +176,15 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
         vertex_buffer,
         BindGroupData::new(uniform_bind_group, uniform_buffer),
     )))
+}
+
+#[task]
+pub fn rerender_ui(nodes: Hierarchy<UiNode>) {
+    nodes.get_roots().iter().for_each(|x| {
+        if let Reference::Some(node) = &*x.read().unwrap() {
+            if node.modified == true {
+                for child in x.get_children() {}
+            }
+        }
+    })
 }

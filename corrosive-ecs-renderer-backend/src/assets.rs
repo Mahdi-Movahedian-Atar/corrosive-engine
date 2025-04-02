@@ -9,9 +9,13 @@ pub struct PipelineAsset {
     pub layout: RenderPipeline,
 }
 
-#[derive(PartialEq, Asset)]
+#[derive(PartialEq, Asset, Clone)]
 pub struct ShaderAsset {
     pub shader: wgpu::ShaderModule,
+}
+#[derive(PartialEq, Asset)]
+pub struct BindGroupLayoutAsset {
+    pub layout: wgpu::BindGroupLayout,
 }
 /*impl corrosive_asset_manager::AssetObject for PipelineAsset {
     type AssetType = PipelineAsset;

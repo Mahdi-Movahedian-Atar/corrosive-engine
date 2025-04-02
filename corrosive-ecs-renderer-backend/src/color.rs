@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy)]
-pub enum Color<'a> {
+pub enum Color {
     RGBA(f32, f32, f32, f32),
     RGB(f32, f32, f32),
     HSVA(f32, f32, f32, f32),
@@ -7,15 +7,15 @@ pub enum Color<'a> {
     GRAY(f32),
     OklabA(f32, f32, f32, f32),
     Oklab(f32, f32, f32),
-    Hex(&'a str),
+    Hex(&'static str),
 }
-impl Default for Color<'_> {
+impl Default for Color {
     fn default() -> Self {
         Color::RGBA(1f32, 1f32, 1f32, 1f32)
     }
 }
 
-impl<'a> Color<'a> {
+impl Color {
     pub fn to_rgba(&self) -> Self {
         match self {
             Color::RGBA(r, g, b, a) => Color::RGBA(*r, *g, *b, *a),
@@ -130,6 +130,17 @@ impl<'a> Color<'a> {
         match self.to_oklaba() {
             Color::OklabA(l, a, b, _) => Color::Oklab(l, a, b),
             _ => self.to_rgba().to_oklab(),
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Color::RGBA(r, g, b, a) => {
+                let arr: [f32; 4] = [*r, *g, *b, *a];
+                let bytes: &[u8] = bytemuck::cast_slice(&arr);
+                bytes.to_vec()
+            }
+            _ => self.to_rgba().to_bytes(),
         }
     }
 }

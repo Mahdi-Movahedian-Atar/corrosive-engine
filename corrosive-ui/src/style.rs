@@ -100,20 +100,45 @@ pub struct Style {
     pub grid_column: GridPlacement,
 }*/
 use corrosive_ecs_renderer_backend::color::Color;
+use corrosive_ecs_renderer_backend::helper::get_window_resolution;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Val {
     Px(u32),
     Per(f32),
     PerW(f32),
     PerH(f32),
+    FitContent,
+    MaxContent,
+}
+impl Val {
+    pub fn to_f32_width(&self, parent: &(f32, f32)) -> f32 {
+        match self {
+            Val::Px(x) => *get_window_resolution().0 as f32 / *x as f32,
+            Val::Per(x) => *x / 100.0 * parent.0,
+            Val::PerW(x) => *x / 100.0 * parent.0,
+            Val::PerH(x) => *x / 100.0 * parent.1,
+            Val::FitContent => parent.0.clone(),
+            Val::MaxContent => parent.0.clone(),
+        }
+    }
+    pub fn to_f32_height(&self, parent: &(f32, f32)) -> f32 {
+        match self {
+            Val::Px(x) => *get_window_resolution().1 as f32 / *x as f32,
+            Val::Per(x) => *x / 100.0 * parent.1,
+            Val::PerW(x) => *x / 100.0 * parent.0,
+            Val::PerH(x) => *x / 100.0 * parent.1,
+            Val::FitContent => parent.1.clone(),
+            Val::MaxContent => parent.1.clone(),
+        }
+    }
 }
 impl Default for Val {
     fn default() -> Self {
         Val::Per(1.0)
     }
 }
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug, PartialEq)]
 pub enum Display {
     #[default]
     Block,
@@ -122,41 +147,39 @@ pub enum Display {
     Sticky,
     None,
 }
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug, PartialEq)]
 pub enum Overflow {
     #[default]
     Hidden,
     Visible,
 }
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug, PartialEq)]
 pub enum PositionType {
     #[default]
     Relative,
     Absolute,
     Floating(Val, Val),
 }
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug, PartialEq)]
 pub enum Placement {
     #[default]
     Start,
     Center,
     End,
 }
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug, PartialEq)]
 pub enum Wrap {
     #[default]
     NoWrap,
     Warp,
 }
 #[derive(Default, Copy, Clone, Debug)]
-pub struct Style<'a> {
+pub struct Style {
     pub z_index: u32,
     pub min_width: Val,
     pub max_width: Val,
-    pub width: Val,
     pub min_height: Val,
     pub max_height: Val,
-    pub height: Val,
     pub margin_l: Val,
     pub margin_t: Val,
     pub margin_r: Val,
@@ -178,9 +201,9 @@ pub struct Style<'a> {
     pub position_y: Placement,
     pub wrap: Wrap,
     pub basis: u16,
-    pub background_color: Color<'a>,
-    pub border_color_l: Color<'a>,
-    pub border_color_t: Color<'a>,
-    pub border_color_r: Color<'a>,
-    pub border_color_b: Color<'a>,
+    pub background_color: Color,
+    pub border_color_l: Color,
+    pub border_color_t: Color,
+    pub border_color_r: Color,
+    pub border_color_b: Color,
 }

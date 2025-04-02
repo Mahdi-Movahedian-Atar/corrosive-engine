@@ -332,6 +332,7 @@ pub mod pipeline {
 }*/
 use crate::STATE;
 use wgpu::util::DeviceExt;
+use wgpu::Queue;
 
 pub type Buffer = wgpu::Buffer;
 pub type BindGroup = wgpu::BindGroup;
@@ -472,6 +473,15 @@ pub fn get_window_ratio() -> f32 {
         }
     }
 }
+pub fn get_window_resolution<'a>() -> (&'a u32, &'a u32) {
+    unsafe {
+        if let Some(t) = &STATE {
+            (&t.config.width, &t.config.height)
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
 pub fn get_resolution_bind_group<'a>() -> &'a BindGroup {
     unsafe {
         if let Some(t) = &STATE {
@@ -485,6 +495,15 @@ pub fn get_resolution_bind_group_layout<'a>() -> &'a BindGroupLayout {
     unsafe {
         if let Some(t) = &STATE {
             &t.resolution_bind_group_layout
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
+pub fn get_queue<'a>() -> &'a Queue {
+    unsafe {
+        if let Some(t) = &STATE {
+            &t.queue
         } else {
             panic!("get_surface_format must be called after run_renderer task.")
         }
