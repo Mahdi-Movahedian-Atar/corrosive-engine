@@ -37,7 +37,10 @@ impl Image2DMaterial {
             ),
             overlay_color_buffer: buffer,
             shader: Asset::load(static_hasher!("Image2DMaterialShader"), || ShaderAsset {
-                shader: create_shader_module("Image2DMaterialShader", include_str!("image2d.wgsl")),
+                shader: create_shader_module(
+                    "Image2DMaterialShader",
+                    include_str!("../../image2d.wgsl"),
+                ),
             }),
         }
     }
@@ -90,6 +93,6 @@ impl Material for Image2DMaterial {
     }
 
     fn get_shader(&self) -> &ShaderModule {
-        &Self.shader.get().shader
+        &self.shader.get().shader
     }
 }

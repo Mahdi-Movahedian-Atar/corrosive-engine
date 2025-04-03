@@ -3,7 +3,8 @@ pub struct Vec2 {
     pub x: f32,
     pub y: f32,
 }
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
 pub struct Mat3 {
     pub m: [[f32; 3]; 3], // Column-major storage
 }

@@ -1,16 +1,21 @@
 pub mod image2d;
+pub mod material2d;
 
 use crate::math2d::{Mat3, Vec2};
+use crate::mesh2d::Vertex2D;
 use corrosive_asset_manager::{Asset, AssetObject};
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{Member, Reference, SharedBehavior};
 use corrosive_ecs_core_macro::Component;
-use corrosive_ecs_renderer_backend::assets::PipelineAsset;
+use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
 use corrosive_ecs_renderer_backend::helper::{
-    create_pipeline, create_pipeline_layout, get_surface_format, BindGroup, BlendComponent,
-    BlendFactor, BlendOperation, BlendState, Buffer, ColorTargetState, ColorWrites, Face,
-    FragmentState, FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-    PrimitiveTopology, RenderPipelineDescriptor, VertexState,
+    create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
+    create_pipeline_layout, get_surface_format, BindGroup, BindGroupEntry,
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
+    BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferUsages,
+    ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, PipelineLayoutDescriptor,
+    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, ShaderStage,
+    VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
 };
 use corrosive_ecs_renderer_backend::material::Material;
 
@@ -117,34 +122,113 @@ impl SharedBehavior for Position2D {
 }
 
 pub trait Mesh2D {
+    fn draw(&self);
+    fn update(&self);
+}
+pub trait Mesh2DDesc: Mesh2D {
     fn name<'a>() -> &'a str;
 }
 
-pub struct RendererMeta2D {
-    pipeline_asset: PipelineAsset,
+#[derive(Component)]
+pub struct RendererMeta2D<T: Material + 'static> {
+    pipeline_asset: Asset<PipelineAsset>,
     transform_data: (Buffer, BindGroup),
-    material2d: Asset<dyn Material>,
+    material2d: Asset<T>,
 }
 
-impl RendererMeta2D {
-    pub fn new(component_data: impl Mesh2D, material2d: Asset<impl Material>) -> Self {
-        let ass: Asset<PipelineAsset> = Asset::load(static_hasher!("ss"), move || {
+impl<T: Material + std::marker::Sync> RendererMeta2D<T> {
+    pub fn new<F: Mesh2DDesc>(material2d: Asset<T>, position_2d: &Member<Position2D>) -> Self {
+        let bind_group_layout: Asset<BindGroupLayoutAsset> =
+            Asset::load(static_hasher!("2DTransformBindGroupLayout"), || {
+                BindGroupLayoutAsset {
+                    layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
+                        label: "2DTransformBindGroupLayoutDescriptor".into(),
+                        entries: &[BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: ShaderStage::FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        }],
+                    }),
+                }
+            });
+
+        let transform_buffer = create_buffer_init(
+            "TransformBuffer",
+            &match &*position_2d.f_read() {
+                Reference::Some(t) => bytemuck::cast_slice(&[t.world_matrix]).to_vec(),
+                Reference::Expired => bytemuck::cast_slice(&[Mat3::identity()]).to_vec(),
+            },
+            BufferUsages::UNIFORM,
+        );
+        let transform_bind_group = create_bind_group(
+            "TransformBindGroup",
+            &bind_group_layout.get().layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: transform_buffer.as_entire_binding(),
+            }],
+        );
+
+        let new_mat = material2d.clone();
+
+        let pipeline_asset: Asset<PipelineAsset> = Asset::load(static_hasher!("ss"), move || {
             let material2d = material2d.get();
+            let bind_group_layout: Asset<BindGroupLayoutAsset> =
+                Asset::load(static_hasher!("2DTransformBindGroupLayout"), || {
+                    BindGroupLayoutAsset {
+                        layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
+                            label: "2DTransformBindGroupLayoutDescriptor".into(),
+                            entries: &[BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: ShaderStage::FRAGMENT,
+                                ty: BindingType::Buffer {
+                                    ty: BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            }],
+                        }),
+                    }
+                });
             PipelineAsset {
                 layout: create_pipeline(&RenderPipelineDescriptor {
-                    label: format!("{}{}", Mesh2D::name(), material2d.get_name())
+                    label: format!("{}{}", F::name(), material2d.get_name())
                         .as_str()
                         .into(),
                     layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
                         label: "ui_pipeline_layout".into(),
-                        bind_group_layouts: &[&material2d.get_bind_group_layout().get().layout],
+                        bind_group_layouts: &[
+                            &bind_group_layout.get().layout,
+                            &material2d.get_bind_group_layout().get().layout,
+                        ],
                         push_constant_ranges: &[],
                     })),
                     vertex: VertexState {
                         module: &material2d.get_shader(),
                         entry_point: "vs_main".into(),
                         compilation_options: Default::default(),
-                        buffers: &[],
+                        buffers: &[VertexBufferLayout {
+                            array_stride: size_of::<Vertex2D>() as BufferAddress,
+                            step_mode: VertexStepMode::Vertex,
+                            attributes: &[
+                                VertexAttribute {
+                                    format: VertexFormat::Float32x3,
+                                    offset: 0,
+                                    shader_location: 0,
+                                },
+                                VertexAttribute {
+                                    format: VertexFormat::Float32x2,
+                                    offset: size_of::<[f32; 3]>() as BufferAddress,
+                                    shader_location: 1,
+                                },
+                            ],
+                        }],
                     },
                     primitive: PrimitiveState {
                         topology: PrimitiveTopology::TriangleStrip,
@@ -186,5 +270,10 @@ impl RendererMeta2D {
                 }),
             }
         });
+        Self {
+            pipeline_asset,
+            transform_data: (transform_buffer, transform_bind_group),
+            material2d,
+        }
     }
 }

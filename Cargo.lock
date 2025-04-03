@@ -500,6 +500,7 @@ dependencies = [
 name = "corrosive-2d"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "corrosive-asset-manager",
  "corrosive-asset-manager-macro",
  "corrosive-ecs-core",

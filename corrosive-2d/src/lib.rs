@@ -1,5 +1,4 @@
 pub mod comp;
-mod material2d;
 mod math2d;
 mod mesh2d;
 pub mod task;

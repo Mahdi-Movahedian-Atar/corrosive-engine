@@ -5,11 +5,19 @@
       "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\image2d",
       "sub_maps": [],
       "components": []
+    },
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\material2d",
+      "sub_maps": [],
+      "components": []
     }
   ],
   "components": [
     {
       "Component": "Position2D"
+    },
+    {
+      "Component": "RendererMeta2D"
     }
   ]
 }

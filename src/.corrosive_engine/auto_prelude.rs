@@ -16,6 +16,7 @@ pub use crate::task::setup2;
 pub use crate::task::update_task;
 pub use crate::task::update_task_signal;
 pub use corrosive_2d::comp::Position2D;
+pub use corrosive_2d::comp::RendererMeta2D;
 pub use corrosive_ecs_core::ecs_core::{Arch, Locked, LockedRef, Ref, Res, State};
 pub use corrosive_ecs_renderer_backend::comp::RenderGraph;
 pub use corrosive_ecs_renderer_backend::comp::Renderer;
