@@ -1,6 +1,22 @@
 {
   "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-ecs-renderer-backend/src/comp",
-  "sub_maps": [],
+  "sub_maps": [
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-ecs-renderer-backend/src/comp\\assets",
+      "sub_maps": [],
+      "components": [
+        {
+          "Component": "PipelineAsset"
+        },
+        {
+          "Component": "ShaderAsset"
+        },
+        {
+          "Component": "BindGroupLayoutAsset"
+        }
+      ]
+    }
+  ],
   "components": [
     {
       "Component": "Renderer"

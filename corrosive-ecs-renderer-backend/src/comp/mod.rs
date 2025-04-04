@@ -1,7 +1,6 @@
 use crate::helper::{BindGroupDescriptor, BindGroupEntry, BufferBindingType};
 use crate::render_graph::GraphNode;
 use crate::STATE;
-use corrosive_asset_manager::Asset;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::{Component, Resource};
 use std::collections::HashMap;
@@ -18,6 +17,8 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window;
 use winit::window::{Window, WindowId};
+
+pub mod assets;
 
 #[derive(Resource, Default)]
 pub struct Renderer(pub Option<JoinHandle<()>>);

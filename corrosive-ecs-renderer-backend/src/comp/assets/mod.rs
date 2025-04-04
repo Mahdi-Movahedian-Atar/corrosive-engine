@@ -1,19 +1,20 @@
 use corrosive_asset_manager_macro::Asset;
+use corrosive_ecs_core_macro::{Component, Resource};
 use wgpu::RenderPipeline;
 /*static mut PIPELINE_ASSETS: std::cell::LazyCell<
     corrosive_asset_manager::AssetManagerObject<PipelineAsset>,
 > = std::cell::LazyCell::new(|| corrosive_asset_manager::AssetManagerObject::new());*/
 
-#[derive(PartialEq, Asset)]
+#[derive(PartialEq, Resource)]
 pub struct PipelineAsset {
     pub layout: RenderPipeline,
 }
 
-#[derive(PartialEq, Asset, Clone)]
+#[derive(PartialEq, Clone, Resource)]
 pub struct ShaderAsset {
     pub shader: wgpu::ShaderModule,
 }
-#[derive(PartialEq, Asset)]
+#[derive(PartialEq, Resource)]
 pub struct BindGroupLayoutAsset {
     pub layout: wgpu::BindGroupLayout,
 }

@@ -2575,13 +2575,23 @@ pub mod codegen {
                         arch_types_index += 1;
                     }
                     TaskInput::Resources(_, v) => {
-                        let resource_name: TokenStream =
-                            parse_str(format!("r_{}", v).as_str()).unwrap();
+                        let resource_name: TokenStream = parse_str(
+                            format!("r_{}", v)
+                                .replace("<", "")
+                                .replace(">", "")
+                                .as_str(),
+                        )
+                        .unwrap();
                         code.extend(quote! {#resource_name.clone(),})
                     }
                     TaskInput::State(_, v) => {
-                        let state_name: TokenStream =
-                            parse_str(format!("st_{}", v).as_str()).unwrap();
+                        let state_name: TokenStream = parse_str(
+                            format!("st_{}", v)
+                                .replace("<", "")
+                                .replace(">", "")
+                                .as_str(),
+                        )
+                        .unwrap();
                         code.extend(quote! {#state_name.clone(),})
                     }
                     TaskInput::Hierarchy(_, v) => {
@@ -2821,7 +2831,13 @@ pub mod codegen {
                     quote! {signals.read().unwrap().contains(#v)}
                 }
                 LogicalExpression::State(n, t) => {
-                    let n: TokenStream = parse_str(format!("st_{}", n).as_str()).unwrap();
+                    let n: TokenStream = parse_str(
+                        format!("st_{}", n)
+                            .replace("<", "")
+                            .replace(">", "")
+                            .as_str(),
+                    )
+                    .unwrap();
                     let t: TokenStream = parse_str(t.as_str()).unwrap();
                     quote! {*#n.f_read() == #t}
                 }
@@ -2886,20 +2902,32 @@ pub mod codegen {
             states.insert(state);
         }
         for state in states {
-            let name: TokenStream = parse_str(format!("st_{}", state).as_str()).unwrap();
+            let name: TokenStream = parse_str(
+                format!("st_{}", state)
+                    .replace("<", "")
+                    .replace(">", "")
+                    .as_str(),
+            )
+            .unwrap();
             let t: TokenStream = parse_str(state.as_str()).unwrap();
 
             arch_code.extend(quote! {
-                let #name: State<#t> = State::new(#t::default());
+                let #name: State<#t> = State::new(Default::default());
             });
         }
 
         for resource in &arch_types.resources {
-            let name: TokenStream = parse_str(format!("r_{}", resource).as_str()).unwrap();
+            let name: TokenStream = parse_str(
+                format!("r_{}", resource)
+                    .replace("<", "")
+                    .replace(">", "")
+                    .as_str(),
+            )
+            .unwrap();
             let t: TokenStream = parse_str(resource.as_str()).unwrap();
 
             arch_code.extend(quote! {
-                let #name: Res<#t> = Res::new(#t::default());
+                let #name: Res<#t> = Res::new(Default::default());
             });
         }
 

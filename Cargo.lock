@@ -511,6 +511,10 @@ dependencies = [
 [[package]]
 name = "corrosive-asset-manager"
 version = "0.1.0"
+dependencies = [
+ "corrosive-ecs-core",
+ "corrosive-ecs-core-macro",
+]
 
 [[package]]
 name = "corrosive-asset-manager-macro"
@@ -576,6 +580,7 @@ name = "corrosive-engine"
 version = "0.1.0"
 dependencies = [
  "corrosive-2d",
+ "corrosive-asset-manager",
  "corrosive-ecs-core",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",

@@ -15,9 +15,6 @@
   "components": [
     {
       "Component": "Position2D"
-    },
-    {
-      "Component": "RendererMeta2D"
     }
   ]
 }

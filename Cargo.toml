@@ -12,6 +12,7 @@ corrosive-ecs-core-macro = {path = "corrosive-ecs-core-macro" }
 corrosive-ecs-renderer-backend= {path = "corrosive-ecs-renderer-backend" }
 corrosive-ui= {path = "corrosive-ui" }
 corrosive-2d= {path = "corrosive-2d" }
+corrosive-asset-manager= {path = "corrosive-asset-manager" }
 rand = "0.9.0-alpha.2"
 
 

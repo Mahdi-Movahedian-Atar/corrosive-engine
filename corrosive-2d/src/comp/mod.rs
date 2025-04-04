@@ -3,11 +3,11 @@ pub mod material2d;
 
 use crate::math2d::{Mat3, Vec2};
 use crate::mesh2d::Vertex2D;
-use corrosive_asset_manager::{Asset, AssetObject};
+use corrosive_asset_manager::comp::Asset;
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{Member, Reference, SharedBehavior};
 use corrosive_ecs_core_macro::Component;
-use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
+use corrosive_ecs_renderer_backend::comp::assets::{BindGroupLayoutAsset, PipelineAsset};
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
     create_pipeline_layout, get_surface_format, BindGroup, BindGroupEntry,
@@ -130,14 +130,17 @@ pub trait Mesh2DDesc: Mesh2D {
 }
 
 #[derive(Component)]
-pub struct RendererMeta2D<T: Material + 'static> {
+pub struct RendererMeta2D {
     pipeline_asset: Asset<PipelineAsset>,
     transform_data: (Buffer, BindGroup),
-    material2d: Asset<T>,
+    material2d: Asset<dyn Material>,
 }
 
-impl<T: Material + std::marker::Sync> RendererMeta2D<T> {
-    pub fn new<F: Mesh2DDesc>(material2d: Asset<T>, position_2d: &Member<Position2D>) -> Self {
+impl RendererMeta2D {
+    pub fn new<F: Mesh2DDesc>(
+        material2d: Asset<impl Material>,
+        position_2d: &Member<Position2D>,
+    ) -> Self {
         let bind_group_layout: Asset<BindGroupLayoutAsset> =
             Asset::load(static_hasher!("2DTransformBindGroupLayout"), || {
                 BindGroupLayoutAsset {
@@ -205,7 +208,7 @@ impl<T: Material + std::marker::Sync> RendererMeta2D<T> {
                         label: "ui_pipeline_layout".into(),
                         bind_group_layouts: &[
                             &bind_group_layout.get().layout,
-                            &material2d.get_bind_group_layout().get().layout,
+                            &material2d.get_bind_group_layout(&Res {}).get().layout,
                         ],
                         push_constant_ranges: &[],
                     })),

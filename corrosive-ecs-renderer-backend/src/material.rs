@@ -1,7 +1,8 @@
-use crate::assets::BindGroupLayoutAsset;
+use crate::comp::assets::{BindGroupLayoutAsset, ShaderAsset};
 use crate::helper;
 use crate::helper::ShaderModule;
-use corrosive_asset_manager::{Asset, AssetObject};
+use corrosive_asset_manager::comp::{Asset, AssetServer};
+use corrosive_ecs_core::ecs_core::Res;
 
 pub struct BindGroupData {
     pub bind_group: wgpu::BindGroup,
@@ -26,15 +27,20 @@ pub trait MaterialBindGroup {
 
 pub trait MaterialDesc {
     fn get_name_desc<'a>() -> &'a str;
-    fn get_bind_group_layout_desc() -> Asset<BindGroupLayoutAsset>;
+    fn get_bind_group_layout_desc(
+        asset_server: &Res<AssetServer<BindGroupLayoutAsset>>,
+    ) -> Asset<BindGroupLayoutAsset>;
 }
-pub trait Material: AssetObject + MaterialDesc {
+pub trait Material {
     fn get_bind_group(&self) -> &helper::BindGroup;
     fn get_shader(&self) -> &ShaderModule;
     fn get_name(&self) -> &str {
         Self::get_name_desc()
     }
-    fn get_bind_group_layout(&self) -> Asset<BindGroupLayoutAsset> {
-        Self::get_bind_group_layout_desc()
+    fn get_bind_group_layout(
+        &self,
+        asset_server: &Res<AssetServer<BindGroupLayoutAsset>>,
+    ) -> Asset<BindGroupLayoutAsset> {
+        Self::get_bind_group_layout_desc(asset_server)
     }
 }

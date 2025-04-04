@@ -21,10 +21,11 @@ pub fn run_engine() {
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
     let is_fixed = AtomicBool::new(false);
     let reset: AtomicBool = AtomicBool::new(true);
-    let r_WindowOptions: Res<WindowOptions> = Res::new(WindowOptions::default());
-    let r_RenderGraph: Res<RenderGraph> = Res::new(RenderGraph::default());
-    let r_UIBuffers: Res<UIBuffers> = Res::new(UIBuffers::default());
-    let r_Renderer: Res<Renderer> = Res::new(Renderer::default());
+    let r_UIBuffers: Res<UIBuffers> = Res::new(Default::default());
+    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
+    let r_AssetServerPipelineAsset: Res<AssetServer<PipelineAsset>> = Res::new(Default::default());
+    let r_Renderer: Res<Renderer> = Res::new(Default::default());
+    let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
     let h_UiNode: Hierarchy<UiNode> = Hierarchy::default();
     let mut loop_trigger = Trigger::new();
     let mut bus_rerender_ui = Trigger::new();
@@ -44,11 +45,6 @@ pub fn run_engine() {
             let mut run_renderer_end = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
-                let handle_setup_ui_pass = s.spawn(|| {
-                    setup_ui_pass_run_renderer.read("failed");
-                    let o = setup_ui_pass(r_RenderGraph.clone(), r_UIBuffers.clone());
-                    bus_setup_ui_pass.trigger();
-                });
                 let handle_run_renderer = s.spawn(|| {
                     let o = run_renderer(
                         r_Renderer.clone(),
@@ -57,8 +53,17 @@ pub fn run_engine() {
                     );
                     bus_run_renderer.trigger();
                 });
-                handle_setup_ui_pass.join().expect("TODO: panic message");
+                let handle_setup_ui_pass = s.spawn(|| {
+                    setup_ui_pass_run_renderer.read("failed");
+                    let o = setup_ui_pass(
+                        r_RenderGraph.clone(),
+                        r_UIBuffers.clone(),
+                        r_AssetServerPipelineAsset.clone(),
+                    );
+                    bus_setup_ui_pass.trigger();
+                });
                 handle_run_renderer.join().expect("TODO: panic message");
+                handle_setup_ui_pass.join().expect("TODO: panic message");
             });
         }
         loop {

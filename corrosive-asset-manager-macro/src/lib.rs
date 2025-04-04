@@ -20,7 +20,7 @@ pub fn asset(input: TokenStream) -> TokenStream {
         > = std::cell::LazyCell::new(|| corrosive_asset_manager::AssetManagerObject::new());
 
         impl corrosive_asset_manager::AssetObject for #name {
-            unsafe fn remove_asset(&self,id: &u64) {
+            unsafe fn remove_asset(id: &u64) {
                 #static_name
                     .ref_counts
                     .write()
@@ -79,7 +79,6 @@ pub fn asset(input: TokenStream) -> TokenStream {
                 (asset, ref_count)
             }
             unsafe fn load_asset<'a>(
-                &self,
                 id: u64,
                 asset_object: impl FnOnce() -> Self + Send + 'static,
             ) -> (

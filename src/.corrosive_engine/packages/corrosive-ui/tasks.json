@@ -16,6 +16,12 @@
             "buffers",
             "UIBuffers"
           ]
+        },
+        {
+          "Resources": [
+            "asset_server",
+            "AssetServer<PipelineAsset>"
+          ]
         }
       ],
       "outputs": []
