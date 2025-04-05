@@ -138,14 +138,17 @@ pub fn asset(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 pub fn static_hasher(input: TokenStream) -> TokenStream {
-    // Parse the input as a string literal.
     let input_literal = parse_macro_input!(input as LitStr);
     let input_str = input_literal.value();
 
-    let mut hasher = DefaultHasher::new();
+    const FNV_OFFSET_BASIS: u64 = 14695981039346656037;
+    const FNV_PRIME: u64 = 1099511628211;
 
-    hasher.write(input_str.as_bytes());
-    let hash = hasher.finish();
+    let mut hash = FNV_OFFSET_BASIS;
+    for byte in input_str.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
 
     let output = quote! {
         #hash

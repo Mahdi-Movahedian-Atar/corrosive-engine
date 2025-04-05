@@ -2630,12 +2630,11 @@ pub mod codegen {
                         let mut sorted = v.clone();
                         sorted.sort();
 
-                        for val in v {
+                        for val in &sorted {
                             let left_name: TokenStream =
                                 parse_str(format!("m{}", map_index).as_str()).unwrap();
                             let right_name: TokenStream = parse_str(
-                                format!("m{}", sorted.iter().position(|x| x == val).unwrap())
-                                    .as_str(),
+                                format!("m{}", v.iter().position(|x| x == val).unwrap()).as_str(),
                             )
                             .unwrap();
                             map_left.extend(quote! {#left_name,});

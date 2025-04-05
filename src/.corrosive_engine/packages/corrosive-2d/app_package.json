@@ -2,17 +2,38 @@
   "name": "corrosive-2d",
   "path": "./src",
   "setup_dependency": {
-    "dependents": {},
-    "in_degrees": {}
+    "dependents": {
+      "Task(start_2d_renderer)": [
+        "Task(run_renderer)"
+      ],
+      "Task(run_renderer)": []
+    },
+    "in_degrees": {
+      "Task(run_renderer)": 1,
+      "Task(start_2d_renderer)": 0
+    }
   },
   "runtime_dependency": {
-    "dependents": {},
-    "in_degrees": {}
+    "dependents": {
+      "Task(render_2d)": []
+    },
+    "in_degrees": {
+      "Task(render_2d)": 0
+    }
   },
   "sync_dependency": {
     "dependents": {},
     "in_degrees": {}
   },
-  "tasks": {},
+  "tasks": {
+    "start_2d_renderer": [
+      "Setup",
+      null
+    ],
+    "render_2d": [
+      "Update",
+      null
+    ]
+  },
   "packages": []
 }

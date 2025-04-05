@@ -9,8 +9,8 @@
       "Task(run_renderer)": []
     },
     "in_degrees": {
-      "Task(setup_ui_pass)": 0,
-      "Task(run_renderer)": 1
+      "Task(run_renderer)": 1,
+      "Task(setup_ui_pass)": 0
     }
   },
   "runtime_dependency": {

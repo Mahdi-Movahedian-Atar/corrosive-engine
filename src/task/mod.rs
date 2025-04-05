@@ -3,6 +3,9 @@ pub mod other_tasks;
 use crate::comp::sub::{MarkedResources, Position3, Position4, StateExample};
 use crate::comp::{test, Position1, Position2};
 use crate::corrosive_engine;
+use corrosive_2d::comp::rect2d::Rect2D;
+use corrosive_2d::comp::{RendererMeta2D, StandardMaterial2DComponent};
+use corrosive_2d::material2d::StandardMaterial2D;
 use corrosive_ecs_core::ecs_core::{
     Arch, DeltaTime, Locked, LockedRef, RArch, Ref, Res, Reset, Signal, State,
 };
@@ -11,6 +14,12 @@ use rand::Rng;
 use std::iter::Map;
 use std::slice::Iter;
 use std::vec::IntoIter;
+
+#[task]
+pub fn test2_0() -> (RArch<(RendererMeta2D, StandardMaterial2DComponent, Rect2D)>,) {
+    println!("lllll");
+    (RArch::default(),)
+}
 
 #[task]
 pub fn setup() -> (

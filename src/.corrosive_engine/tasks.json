@@ -42,6 +42,19 @@
   ],
   "tasks": [
     {
+      "name": "test2_0",
+      "inputs": [],
+      "outputs": [
+        {
+          "Arch": [
+            "RendererMeta2D",
+            "StandardMaterial2DComponent",
+            "Rect2D"
+          ]
+        }
+      ]
+    },
+    {
       "name": "setup",
       "inputs": [],
       "outputs": [

@@ -1,4 +1,5 @@
 pub mod comp;
+pub mod material2d;
 mod math2d;
 mod mesh2d;
 pub mod task;
@@ -9,4 +10,4 @@ fn main() {
     println!("Hello, world!");
 }
 
-corrosive_engine_builder!();
+corrosive_engine_builder!(setup "start_2d_renderer" brfore "run_renderer", update "render_2d");

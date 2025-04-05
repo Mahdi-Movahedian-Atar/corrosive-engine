@@ -1,10 +1,10 @@
 use crate::style::Wrap;
 use crate::style::Wrap::Warp;
 use crate::style::{Display, Overflow, Style, Val};
-use corrosive_asset_manager::comp::Asset;
+use corrosive_asset_manager::Asset;
 use corrosive_ecs_core::ecs_core::{Member, Ref, Reference, SharedBehavior};
 use corrosive_ecs_core_macro::{Component, Resource};
-use corrosive_ecs_renderer_backend::comp::assets::PipelineAsset;
+use corrosive_ecs_renderer_backend::assets::PipelineAsset;
 use corrosive_ecs_renderer_backend::helper;
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group_layout, write_to_buffer, BindGroupLayoutDescriptor, BindGroupLayoutEntry,

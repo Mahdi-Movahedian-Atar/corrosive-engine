@@ -29,10 +29,16 @@ mod task;
 /*corrosive_engine_builder!(
     update "macro_test",
 );*/
-
+/*
 corrosive_engine_builder!(
     package "corrosive-ecs-renderer-backend",
     package "corrosive-ui"
+);*/
+
+corrosive_engine_builder!(
+    package "corrosive-ecs-renderer-backend",
+    package "corrosive-2d",
+    update "test2_0"
 );
 
 fn main() {

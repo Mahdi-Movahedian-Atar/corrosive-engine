@@ -5,16 +5,16 @@ use wgpu::RenderPipeline;
     corrosive_asset_manager::AssetManagerObject<PipelineAsset>,
 > = std::cell::LazyCell::new(|| corrosive_asset_manager::AssetManagerObject::new());*/
 
-#[derive(PartialEq, Resource)]
+#[derive(PartialEq, Resource, Asset)]
 pub struct PipelineAsset {
     pub layout: RenderPipeline,
 }
 
-#[derive(PartialEq, Clone, Resource)]
+#[derive(PartialEq, Clone, Resource, Asset)]
 pub struct ShaderAsset {
     pub shader: wgpu::ShaderModule,
 }
-#[derive(PartialEq, Resource)]
+#[derive(PartialEq, Resource, Asset)]
 pub struct BindGroupLayoutAsset {
     pub layout: wgpu::BindGroupLayout,
 }

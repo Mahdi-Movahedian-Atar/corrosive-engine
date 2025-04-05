@@ -378,6 +378,7 @@ pub type Color = wgpu::Color;
 pub type StoreOp = wgpu::StoreOp;
 pub type BlendFactor = wgpu::BlendFactor;
 pub type BlendOperation = wgpu::BlendOperation;
+pub type RenderPass<'a> = wgpu::RenderPass<'a>;
 
 pub trait VertexRenderable {
     fn desc<'a>() -> VertexBufferLayout<'a>;

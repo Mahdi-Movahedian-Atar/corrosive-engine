@@ -1,8 +1,8 @@
 use crate::comp::{UIBuffers, UIStyle, UIVertex, UiNode};
-use corrosive_asset_manager::comp::{Asset, AssetServer, AssetTrait};
+use corrosive_asset_manager::Asset;
 use corrosive_ecs_core::ecs_core::{Hierarchy, Reference, Res};
 use corrosive_ecs_core_macro::task;
-use corrosive_ecs_renderer_backend::comp::assets::PipelineAsset;
+use corrosive_ecs_renderer_backend::assets::PipelineAsset;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
@@ -63,11 +63,7 @@ impl<'a> RenderNode for UIRenderNode {
     }
 }
 #[task]
-pub fn setup_ui_pass(
-    graph: Res<RenderGraph>,
-    buffers: Res<UIBuffers>,
-    asset_server: Res<AssetServer<PipelineAsset>>,
-) {
+pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
     let shader = create_shader_module("ui_shader", include_str!("ui_shader.wgsl"));
     let bind_group_layout = UIStyle::get_bind_group_layout();
     let vertex_buffer = create_buffer_init(
@@ -117,7 +113,7 @@ pub fn setup_ui_pass(
         }],
     );
 
-    let ass: Asset<PipelineAsset> = asset_server.load(1, move || PipelineAsset {
+    let ass: Asset<PipelineAsset> = Asset::load(1, move || PipelineAsset {
         layout: create_pipeline(&RenderPipelineDescriptor {
             label: "ui_pipeline".into(),
             layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {

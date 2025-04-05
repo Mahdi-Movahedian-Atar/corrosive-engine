@@ -11,6 +11,7 @@ corrosive-ecs-renderer-backend = {path = "../corrosive-ecs-renderer-backend" }
 corrosive-asset-manager = { version = "0.1.0", path = "../corrosive-asset-manager" }
 corrosive-asset-manager-macro = { version = "0.1.0", path = "../corrosive-asset-manager-macro" }
 bytemuck = "1.21.0"
+crossbeam-channel = "0.5.14"
 
 [build-dependencies]
 corrosive-ecs-core = {path = "../corrosive-ecs-core" , features = ["build"]}

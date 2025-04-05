@@ -18,8 +18,6 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window;
 use winit::window::{Window, WindowId};
 
-pub mod assets;
-
 #[derive(Resource, Default)]
 pub struct Renderer(pub Option<JoinHandle<()>>);
 

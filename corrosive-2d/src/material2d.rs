@@ -1,8 +1,8 @@
-use corrosive_asset_manager::comp::{Asset, AssetServer, AssetTrait};
+use corrosive_asset_manager::Asset;
 use corrosive_asset_manager_macro::{static_hasher, Asset};
 use corrosive_ecs_core::ecs_core::Res;
+use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, ShaderAsset};
 use corrosive_ecs_renderer_backend::color::Color;
-use corrosive_ecs_renderer_backend::comp::assets::{BindGroupLayoutAsset, ShaderAsset};
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_shader_module,
     get_queue, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -12,19 +12,15 @@ use corrosive_ecs_renderer_backend::helper::{
 };
 use corrosive_ecs_renderer_backend::material::{Material, MaterialDesc};
 
-#[derive(Clone)]
-pub struct Image2DMaterial {
+#[derive(Clone, Asset)]
+pub struct StandardMaterial2D {
     pub overlay_color: Color,
     overlay_color_buffer: Buffer,
     bind_group: BindGroup,
     shader: Asset<ShaderAsset>,
 }
-impl Image2DMaterial {
-    pub fn new(
-        overlay_color: Color,
-        shader_asset_server: &Res<AssetServer<ShaderAsset>>,
-        bind_group_asset_server: &Res<AssetServer<BindGroupLayoutAsset>>,
-    ) -> Self {
+impl StandardMaterial2D {
+    pub fn new(overlay_color: Color) -> Self {
         let buffer = create_buffer_init(
             "Image2DMaterialOverlayColorBuffer",
             &overlay_color.to_bytes(),
@@ -34,7 +30,7 @@ impl Image2DMaterial {
             overlay_color,
             bind_group: create_bind_group(
                 "Image2DMaterialBingGroup",
-                &Image2DMaterial::get_bind_group_layout_desc(bind_group_asset_server)
+                &StandardMaterial2D::get_bind_group_layout_desc()
                     .get()
                     .layout,
                 &[BindGroupEntry {
@@ -43,13 +39,8 @@ impl Image2DMaterial {
                 }],
             ),
             overlay_color_buffer: buffer,
-            shader: shader_asset_server.load(static_hasher!("Image2DMaterialShader"), || {
-                ShaderAsset {
-                    shader: create_shader_module(
-                        "Image2DMaterialShader",
-                        include_str!("../../image2d.wgsl"),
-                    ),
-                }
+            shader: Asset::load(static_hasher!("Image2DMaterialShader"), || ShaderAsset {
+                shader: create_shader_module("Image2DMaterialShader", include_str!("image2d.wgsl")),
             }),
         }
     }
@@ -70,15 +61,13 @@ impl Image2DMaterial {
     }
 }
 
-impl MaterialDesc for Image2DMaterial {
+impl MaterialDesc for StandardMaterial2D {
     fn get_name_desc<'a>() -> &'a str {
         "Image2DMaterial"
     }
 
-    fn get_bind_group_layout_desc(
-        asset_server: &Res<AssetServer<BindGroupLayoutAsset>>,
-    ) -> Asset<BindGroupLayoutAsset> {
-        asset_server.load(
+    fn get_bind_group_layout_desc() -> Asset<BindGroupLayoutAsset> {
+        Asset::load(
             static_hasher!("Image2DMaterialBindGroupLayout"),
             move || BindGroupLayoutAsset {
                 layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -99,7 +88,7 @@ impl MaterialDesc for Image2DMaterial {
     }
 }
 
-impl Material for Image2DMaterial {
+impl Material for StandardMaterial2D {
     fn get_bind_group(&self) -> &BindGroup {
         &self.bind_group
     }

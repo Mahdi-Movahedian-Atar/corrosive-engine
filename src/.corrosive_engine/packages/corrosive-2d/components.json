@@ -2,19 +2,49 @@
   "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp",
   "sub_maps": [
     {
-      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\image2d",
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\rect2d",
       "sub_maps": [],
-      "components": []
-    },
-    {
-      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\material2d",
-      "sub_maps": [],
-      "components": []
+      "components": [
+        {
+          "Component": "Rect2D"
+        },
+        {
+          "TraitFor": [
+            "Mesh2D",
+            [
+              "Rect2D"
+            ]
+          ]
+        }
+      ]
     }
   ],
   "components": [
     {
       "Component": "Position2D"
+    },
+    {
+      "Trait": "Mesh2D"
+    },
+    {
+      "Trait": "Material2D"
+    },
+    {
+      "Component": "StandardMaterial2DComponent"
+    },
+    {
+      "TraitFor": [
+        "Material2D",
+        [
+          "StandardMaterial2DComponent"
+        ]
+      ]
+    },
+    {
+      "Component": "RendererMeta2D"
+    },
+    {
+      "Component": "Renderer2dData"
     }
   ]
 }

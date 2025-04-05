@@ -1,23 +1,28 @@
-pub mod image2d;
-pub mod material2d;
+pub mod rect2d;
 
+use crate::material2d::StandardMaterial2D;
 use crate::math2d::{Mat3, Vec2};
 use crate::mesh2d::Vertex2D;
-use corrosive_asset_manager::comp::Asset;
+use crate::task::UnsafeRenderPass;
+use corrosive_asset_manager::{dynamic_hasher, Asset};
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{Member, Reference, SharedBehavior};
-use corrosive_ecs_core_macro::Component;
-use corrosive_ecs_renderer_backend::comp::assets::{BindGroupLayoutAsset, PipelineAsset};
+use corrosive_ecs_core::trait_for;
+use corrosive_ecs_core_macro::{trait_bound, Component, Resource};
+use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
     create_pipeline_layout, get_surface_format, BindGroup, BindGroupEntry,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
     BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferUsages,
     ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, PipelineLayoutDescriptor,
-    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipelineDescriptor, ShaderStage,
-    VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass, RenderPipelineDescriptor,
+    ShaderStage, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
 };
 use corrosive_ecs_renderer_backend::material::Material;
+use crossbeam_channel::{Receiver, Sender};
+use std::ptr::NonNull;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, Component)]
 pub struct Position2D {
@@ -121,26 +126,55 @@ impl SharedBehavior for Position2D {
     }
 }
 
+#[trait_bound]
 pub trait Mesh2D {
     fn draw(&self);
-    fn update(&self);
+    fn update(&self, render_pass: &mut RenderPass);
+    fn name<'a>(&self) -> &'a str;
+    fn get_bind_group_layout_desc(&self) -> Asset<BindGroupLayoutAsset>;
 }
-pub trait Mesh2DDesc: Mesh2D {
-    fn name<'a>() -> &'a str;
+
+#[trait_bound]
+pub trait Material2D {
+    fn get_bind_group(&self) -> &BindGroup;
 }
+pub trait Material2DDesc: Material2D {
+    type Asset: Material + 'static;
+    fn get_asset(&self) -> &Asset<Self::Asset>;
+}
+#[derive(Component)]
+pub struct StandardMaterial2DComponent {
+    material_asset: Asset<StandardMaterial2D>,
+}
+
+impl Material2D for StandardMaterial2DComponent {
+    fn get_bind_group(&self) -> &BindGroup {
+        self.material_asset.get().get_bind_group()
+    }
+}
+
+impl Material2DDesc for StandardMaterial2DComponent {
+    type Asset = StandardMaterial2D;
+    fn get_asset(&self) -> &Asset<Self::Asset> {
+        &self.material_asset
+    }
+}
+
+trait_for!(trait Material2D => StandardMaterial2DComponent);
 
 #[derive(Component)]
 pub struct RendererMeta2D {
-    pipeline_asset: Asset<PipelineAsset>,
-    transform_data: (Buffer, BindGroup),
-    material2d: Asset<dyn Material>,
+    pub(crate) pipeline_asset: Asset<PipelineAsset>,
+    pub(crate) transform_data: (Buffer, BindGroup),
 }
 
 impl RendererMeta2D {
-    pub fn new<F: Mesh2DDesc>(
-        material2d: Asset<impl Material>,
+    pub fn new(
+        material_2d: impl Material2DDesc,
+        mesh_2d: impl Mesh2D,
         position_2d: &Member<Position2D>,
     ) -> Self {
+        let material_2d = material_2d.get_asset().clone();
         let bind_group_layout: Asset<BindGroupLayoutAsset> =
             Asset::load(static_hasher!("2DTransformBindGroupLayout"), || {
                 BindGroupLayoutAsset {
@@ -177,38 +211,19 @@ impl RendererMeta2D {
             }],
         );
 
-        let new_mat = material2d.clone();
-
-        let pipeline_asset: Asset<PipelineAsset> = Asset::load(static_hasher!("ss"), move || {
-            let material2d = material2d.get();
-            let bind_group_layout: Asset<BindGroupLayoutAsset> =
-                Asset::load(static_hasher!("2DTransformBindGroupLayout"), || {
-                    BindGroupLayoutAsset {
-                        layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
-                            label: "2DTransformBindGroupLayoutDescriptor".into(),
-                            entries: &[BindGroupLayoutEntry {
-                                binding: 0,
-                                visibility: ShaderStage::FRAGMENT,
-                                ty: BindingType::Buffer {
-                                    ty: BufferBindingType::Uniform,
-                                    has_dynamic_offset: false,
-                                    min_binding_size: None,
-                                },
-                                count: None,
-                            }],
-                        }),
-                    }
-                });
+        let pipeline_asset: Asset<PipelineAsset> = Asset::add(static_hasher!("ss"), {
+            let material2d = material_2d.get();
             PipelineAsset {
                 layout: create_pipeline(&RenderPipelineDescriptor {
-                    label: format!("{}{}", F::name(), material2d.get_name())
+                    label: format!("{}{}", mesh_2d.name(), material2d.get_name())
                         .as_str()
                         .into(),
                     layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
                         label: "ui_pipeline_layout".into(),
                         bind_group_layouts: &[
                             &bind_group_layout.get().layout,
-                            &material2d.get_bind_group_layout(&Res {}).get().layout,
+                            &mesh_2d.get_bind_group_layout_desc().get().layout,
+                            &material2d.get_bind_group_layout().get().layout,
                         ],
                         push_constant_ranges: &[],
                     })),
@@ -252,13 +267,13 @@ impl RendererMeta2D {
                             format: get_surface_format(),
                             blend: BlendState {
                                 color: BlendComponent {
-                                    src_factor: BlendFactor::SrcAlpha,         // Source: Alpha
-                                    dst_factor: BlendFactor::OneMinusSrcAlpha, // Destination: 1 - Alpha
-                                    operation: BlendOperation::Add, // Standard Alpha Blending
+                                    src_factor: BlendFactor::SrcAlpha,
+                                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                                    operation: BlendOperation::Add,
                                 },
                                 alpha: BlendComponent {
-                                    src_factor: BlendFactor::One,              // Preserve Alpha
-                                    dst_factor: BlendFactor::OneMinusSrcAlpha, // Blend Based on Alpha
+                                    src_factor: BlendFactor::One,
+                                    dst_factor: BlendFactor::OneMinusSrcAlpha,
                                     operation: BlendOperation::Add,
                                 },
                             }
@@ -276,7 +291,11 @@ impl RendererMeta2D {
         Self {
             pipeline_asset,
             transform_data: (transform_buffer, transform_bind_group),
-            material2d,
         }
     }
+}
+
+#[derive(Resource, Default)]
+pub struct Renderer2dData {
+    pub(crate) data: Option<(Receiver<UnsafeRenderPass>, Sender<()>)>,
 }

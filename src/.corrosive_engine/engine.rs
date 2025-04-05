@@ -21,30 +21,54 @@ pub fn run_engine() {
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
     let is_fixed = AtomicBool::new(false);
     let reset: AtomicBool = AtomicBool::new(true);
-    let r_UIBuffers: Res<UIBuffers> = Res::new(Default::default());
+    let a0: RwLock<Vec<(Rect2D, RendererMeta2D, StandardMaterial2DComponent)>> =
+        RwLock::new(Vec::new());
+    let o0: RwLock<Vec<(Rect2D, RendererMeta2D, StandardMaterial2DComponent)>> =
+        RwLock::new(Vec::new());
+    let or0: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
+    let la0: AtomicU8 = AtomicU8::new(0);
     let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
-    let r_AssetServerPipelineAsset: Res<AssetServer<PipelineAsset>> = Res::new(Default::default());
-    let r_Renderer: Res<Renderer> = Res::new(Default::default());
+    let r_Renderer2dData: Res<Renderer2dData> = Res::new(Default::default());
     let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
-    let h_UiNode: Hierarchy<UiNode> = Hierarchy::default();
+    let r_Renderer: Res<Renderer> = Res::new(Default::default());
     let mut loop_trigger = Trigger::new();
-    let mut bus_rerender_ui = Trigger::new();
-    let mut rerender_ui_end = bus_rerender_ui.add_trigger();
-    let mut ut_rerender_ui = loop_trigger.add_trigger();
+    let mut bus_render_2d = Trigger::new();
+    let mut bus_test2_0 = Trigger::new();
+    let mut render_2d_end = bus_render_2d.add_trigger();
+    let mut test2_0_end = bus_test2_0.add_trigger();
+    let mut ut_test2_0 = loop_trigger.add_trigger();
+    let mut ut_render_2d = loop_trigger.add_trigger();
     thread::scope(|s: &Scope| {
         s.spawn(|| loop {
-            ut_rerender_ui.read("failed");
-            let o = rerender_ui(h_UiNode.clone());
-            bus_rerender_ui.trigger();
+            ut_test2_0.read("failed");
+            let o = test2_0();
+            (&o0)
+                .write()
+                .unwrap()
+                .extend(o.0.vec.into_iter().map(|(m0, m1, m2)| (m2, m0, m1)));
+            bus_test2_0.trigger();
+        });
+        s.spawn(|| loop {
+            ut_render_2d.read("failed");
+            let o = render_2d(
+                Arch::new(&mut render_2d0::new(&*a0.read().unwrap(), &or0)),
+                r_Renderer2dData.clone(),
+            );
+            bus_render_2d.trigger();
         });
         if reset.load(SeqCst) {
-            let mut bus_setup_ui_pass = Trigger::new();
             let mut bus_run_renderer = Trigger::new();
-            let mut setup_ui_pass_end = bus_setup_ui_pass.add_trigger();
-            let mut setup_ui_pass_run_renderer = bus_run_renderer.add_trigger();
+            let mut bus_start_2d_renderer = Trigger::new();
             let mut run_renderer_end = bus_run_renderer.add_trigger();
+            let mut start_2d_renderer_end = bus_start_2d_renderer.add_trigger();
+            let mut start_2d_renderer_run_renderer = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
+                let handle_start_2d_renderer = s.spawn(|| {
+                    start_2d_renderer_run_renderer.read("failed");
+                    let o = start_2d_renderer(r_RenderGraph.clone(), r_Renderer2dData.clone());
+                    bus_start_2d_renderer.trigger();
+                });
                 let handle_run_renderer = s.spawn(|| {
                     let o = run_renderer(
                         r_Renderer.clone(),
@@ -53,25 +77,38 @@ pub fn run_engine() {
                     );
                     bus_run_renderer.trigger();
                 });
-                let handle_setup_ui_pass = s.spawn(|| {
-                    setup_ui_pass_run_renderer.read("failed");
-                    let o = setup_ui_pass(
-                        r_RenderGraph.clone(),
-                        r_UIBuffers.clone(),
-                        r_AssetServerPipelineAsset.clone(),
-                    );
-                    bus_setup_ui_pass.trigger();
-                });
+                handle_start_2d_renderer
+                    .join()
+                    .expect("TODO: panic message");
                 handle_run_renderer.join().expect("TODO: panic message");
-                handle_setup_ui_pass.join().expect("TODO: panic message");
             });
         }
         loop {
+            let m_0 = s.spawn(|| {
+                if la0.load(Ordering::SeqCst) > 0 {
+                    return;
+                }
+                let mut write = a0.write().unwrap();
+                let vlen = write.len();
+                if vlen > 0 {
+                    let indices_to_remove = take(&mut *or0.write().unwrap());
+                    let mut new = Vec::with_capacity(vlen);
+                    for (i, mut item) in write.drain(..).enumerate() {
+                        if !indices_to_remove.contains(&i) {
+                            new.push(item);
+                            continue;
+                        }
+                    }
+                    *write = new;
+                }
+                write.extend(o0.write().unwrap().drain(..));
+            });
             signals
                 .write()
                 .unwrap()
                 .extend(o_signals.write().unwrap().drain());
             *o_signals.write().unwrap() = HashSet::new();
+            m_0 . join () . expect ("Failed to update archetype of type -> [\"Rect2D\", \"RendererMeta2D\", \"StandardMaterial2DComponent\"]") ;
             current_time = Instant::now();
             let new_current_time = current_time
                 .duration_since(last_time)
@@ -87,7 +124,8 @@ pub fn run_engine() {
                 is_fixed.store(false, SeqCst);
             }
             loop_trigger.trigger();
-            rerender_ui_end.read("failed");
+            test2_0_end.read("failed");
+            render_2d_end.read("failed");
         }
     });
 }
