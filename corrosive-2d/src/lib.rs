@@ -10,4 +10,4 @@ fn main() {
     println!("Hello, world!");
 }
 
-corrosive_engine_builder!(setup "start_2d_renderer" brfore "run_renderer", update "render_2d");
+corrosive_engine_builder!(setup "start_2d_renderer" before "run_renderer", update "render_2d");

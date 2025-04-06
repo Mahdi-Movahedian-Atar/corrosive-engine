@@ -3,14 +3,14 @@
   "path": "./src",
   "setup_dependency": {
     "dependents": {
-      "Task(start_2d_renderer)": [
-        "Task(run_renderer)"
+      "Task(run_renderer)": [
+        "Task(start_2d_renderer)"
       ],
-      "Task(run_renderer)": []
+      "Task(start_2d_renderer)": []
     },
     "in_degrees": {
-      "Task(run_renderer)": 1,
-      "Task(start_2d_renderer)": 0
+      "Task(start_2d_renderer)": 1,
+      "Task(run_renderer)": 0
     }
   },
   "runtime_dependency": {

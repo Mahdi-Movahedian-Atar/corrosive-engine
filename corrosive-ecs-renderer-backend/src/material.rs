@@ -1,7 +1,7 @@
 use crate::assets::{BindGroupLayoutAsset, ShaderAsset};
 use crate::helper;
 use crate::helper::ShaderModule;
-use corrosive_asset_manager::{Asset, AssetObject};
+use corrosive_asset_manager::asset_server::Asset;
 use corrosive_ecs_core::ecs_core::Res;
 
 pub struct BindGroupData {
@@ -29,7 +29,7 @@ pub trait MaterialDesc {
     fn get_name_desc<'a>() -> &'a str;
     fn get_bind_group_layout_desc() -> Asset<BindGroupLayoutAsset>;
 }
-pub trait Material: AssetObject + MaterialDesc {
+pub trait Material: MaterialDesc {
     fn get_bind_group(&self) -> &helper::BindGroup;
     fn get_shader(&self) -> &ShaderModule;
     fn get_name(&self) -> &str {

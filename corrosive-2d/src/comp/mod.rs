@@ -4,7 +4,8 @@ use crate::material2d::StandardMaterial2D;
 use crate::math2d::{Mat3, Vec2};
 use crate::mesh2d::Vertex2D;
 use crate::task::UnsafeRenderPass;
-use corrosive_asset_manager::{dynamic_hasher, Asset};
+use corrosive_asset_manager::asset_server::{Asset, AssetServer};
+use corrosive_asset_manager::dynamic_hasher;
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{Member, Reference, SharedBehavior};
 use corrosive_ecs_core::trait_for;
@@ -176,7 +177,7 @@ impl RendererMeta2D {
     ) -> Self {
         let material_2d = material_2d.get_asset().clone();
         let bind_group_layout: Asset<BindGroupLayoutAsset> =
-            Asset::load(static_hasher!("2DTransformBindGroupLayout"), || {
+            AssetServer::add(static_hasher!("2DTransformBindGroupLayout"), || {
                 BindGroupLayoutAsset {
                     layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
                         label: "2DTransformBindGroupLayoutDescriptor".into(),
@@ -211,83 +212,84 @@ impl RendererMeta2D {
             }],
         );
 
-        let pipeline_asset: Asset<PipelineAsset> = Asset::add(static_hasher!("ss"), {
-            let material2d = material_2d.get();
-            PipelineAsset {
-                layout: create_pipeline(&RenderPipelineDescriptor {
-                    label: format!("{}{}", mesh_2d.name(), material2d.get_name())
-                        .as_str()
-                        .into(),
-                    layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
-                        label: "ui_pipeline_layout".into(),
-                        bind_group_layouts: &[
-                            &bind_group_layout.get().layout,
-                            &mesh_2d.get_bind_group_layout_desc().get().layout,
-                            &material2d.get_bind_group_layout().get().layout,
-                        ],
-                        push_constant_ranges: &[],
-                    })),
-                    vertex: VertexState {
-                        module: &material2d.get_shader(),
-                        entry_point: "vs_main".into(),
-                        compilation_options: Default::default(),
-                        buffers: &[VertexBufferLayout {
-                            array_stride: size_of::<Vertex2D>() as BufferAddress,
-                            step_mode: VertexStepMode::Vertex,
-                            attributes: &[
-                                VertexAttribute {
-                                    format: VertexFormat::Float32x3,
-                                    offset: 0,
-                                    shader_location: 0,
-                                },
-                                VertexAttribute {
-                                    format: VertexFormat::Float32x2,
-                                    offset: size_of::<[f32; 3]>() as BufferAddress,
-                                    shader_location: 1,
-                                },
-                            ],
-                        }],
-                    },
-                    primitive: PrimitiveState {
-                        topology: PrimitiveTopology::TriangleStrip,
-                        strip_index_format: None,
-                        front_face: FrontFace::Ccw,
-                        cull_mode: Face::Front.into(),
-                        unclipped_depth: false,
-                        polygon_mode: PolygonMode::Fill,
-                        conservative: false,
-                    },
-                    depth_stencil: None,
-                    multisample: Default::default(),
-                    fragment: FragmentState {
-                        module: material2d.get_shader(),
-                        entry_point: "fs_main".into(),
-                        compilation_options: Default::default(),
-                        targets: &[ColorTargetState {
-                            format: get_surface_format(),
-                            blend: BlendState {
-                                color: BlendComponent {
-                                    src_factor: BlendFactor::SrcAlpha,
-                                    dst_factor: BlendFactor::OneMinusSrcAlpha,
-                                    operation: BlendOperation::Add,
-                                },
-                                alpha: BlendComponent {
-                                    src_factor: BlendFactor::One,
-                                    dst_factor: BlendFactor::OneMinusSrcAlpha,
-                                    operation: BlendOperation::Add,
-                                },
-                            }
+        let pipeline_asset: Asset<PipelineAsset> =
+            AssetServer::add_sync(static_hasher!("ss"), || {
+                let material2d = material_2d.get();
+                PipelineAsset {
+                    layout: create_pipeline(&RenderPipelineDescriptor {
+                        label: format!("{}{}", mesh_2d.name(), material2d.get_name())
+                            .as_str()
                             .into(),
-                            write_mask: ColorWrites::ALL,
+                        layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
+                            label: "ui_pipeline_layout".into(),
+                            bind_group_layouts: &[
+                                &bind_group_layout.get().layout,
+                                &mesh_2d.get_bind_group_layout_desc().get().layout,
+                                &material2d.get_bind_group_layout().get().layout,
+                            ],
+                            push_constant_ranges: &[],
+                        })),
+                        vertex: VertexState {
+                            module: &material2d.get_shader(),
+                            entry_point: "vs_main".into(),
+                            compilation_options: Default::default(),
+                            buffers: &[VertexBufferLayout {
+                                array_stride: size_of::<Vertex2D>() as BufferAddress,
+                                step_mode: VertexStepMode::Vertex,
+                                attributes: &[
+                                    VertexAttribute {
+                                        format: VertexFormat::Float32x3,
+                                        offset: 0,
+                                        shader_location: 0,
+                                    },
+                                    VertexAttribute {
+                                        format: VertexFormat::Float32x2,
+                                        offset: size_of::<[f32; 3]>() as BufferAddress,
+                                        shader_location: 1,
+                                    },
+                                ],
+                            }],
+                        },
+                        primitive: PrimitiveState {
+                            topology: PrimitiveTopology::TriangleStrip,
+                            strip_index_format: None,
+                            front_face: FrontFace::Ccw,
+                            cull_mode: Face::Front.into(),
+                            unclipped_depth: false,
+                            polygon_mode: PolygonMode::Fill,
+                            conservative: false,
+                        },
+                        depth_stencil: None,
+                        multisample: Default::default(),
+                        fragment: FragmentState {
+                            module: material2d.get_shader(),
+                            entry_point: "fs_main".into(),
+                            compilation_options: Default::default(),
+                            targets: &[ColorTargetState {
+                                format: get_surface_format(),
+                                blend: BlendState {
+                                    color: BlendComponent {
+                                        src_factor: BlendFactor::SrcAlpha,
+                                        dst_factor: BlendFactor::OneMinusSrcAlpha,
+                                        operation: BlendOperation::Add,
+                                    },
+                                    alpha: BlendComponent {
+                                        src_factor: BlendFactor::One,
+                                        dst_factor: BlendFactor::OneMinusSrcAlpha,
+                                        operation: BlendOperation::Add,
+                                    },
+                                }
+                                .into(),
+                                write_mask: ColorWrites::ALL,
+                            }
+                            .into()],
                         }
-                        .into()],
-                    }
-                    .into(),
-                    multiview: None,
-                    cache: None,
-                }),
-            }
-        });
+                        .into(),
+                        multiview: None,
+                        cache: None,
+                    }),
+                }
+            });
         Self {
             pipeline_asset,
             transform_data: (transform_buffer, transform_bind_group),

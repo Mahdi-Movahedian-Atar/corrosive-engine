@@ -1,4 +1,4 @@
-use corrosive_asset_manager::Asset;
+use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_asset_manager_macro::{static_hasher, Asset};
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, ShaderAsset};
@@ -39,7 +39,7 @@ impl StandardMaterial2D {
                 }],
             ),
             overlay_color_buffer: buffer,
-            shader: Asset::load(static_hasher!("Image2DMaterialShader"), || ShaderAsset {
+            shader: AssetServer::add(static_hasher!("Image2DMaterialShader"), || ShaderAsset {
                 shader: create_shader_module("Image2DMaterialShader", include_str!("image2d.wgsl")),
             }),
         }
@@ -67,7 +67,7 @@ impl MaterialDesc for StandardMaterial2D {
     }
 
     fn get_bind_group_layout_desc() -> Asset<BindGroupLayoutAsset> {
-        Asset::load(
+        AssetServer::add(
             static_hasher!("Image2DMaterialBindGroupLayout"),
             move || BindGroupLayoutAsset {
                 layout: create_bind_group_layout(&BindGroupLayoutDescriptor {

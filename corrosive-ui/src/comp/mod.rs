@@ -1,7 +1,7 @@
 use crate::style::Wrap;
 use crate::style::Wrap::Warp;
 use crate::style::{Display, Overflow, Style, Val};
-use corrosive_asset_manager::Asset;
+use corrosive_asset_manager::asset_server::Asset;
 use corrosive_ecs_core::ecs_core::{Member, Ref, Reference, SharedBehavior};
 use corrosive_ecs_core_macro::{Component, Resource};
 use corrosive_ecs_renderer_backend::assets::PipelineAsset;

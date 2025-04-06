@@ -1,5 +1,5 @@
 use crate::comp::{UIBuffers, UIStyle, UIVertex, UiNode};
-use corrosive_asset_manager::Asset;
+use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_ecs_core::ecs_core::{Hierarchy, Reference, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::assets::PipelineAsset;
@@ -113,7 +113,7 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
         }],
     );
 
-    let ass: Asset<PipelineAsset> = Asset::load(1, move || PipelineAsset {
+    let ass: Asset<PipelineAsset> = AssetServer::add(1, move || PipelineAsset {
         layout: create_pipeline(&RenderPipelineDescriptor {
             label: "ui_pipeline".into(),
             layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {

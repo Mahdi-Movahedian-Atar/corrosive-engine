@@ -1,23 +1,52 @@
+use corrosive_asset_manager;
 use corrosive_asset_manager_macro::Asset;
-use corrosive_ecs_core_macro::{Component, Resource};
 use wgpu::RenderPipeline;
-/*static mut PIPELINE_ASSETS: std::cell::LazyCell<
-    corrosive_asset_manager::AssetManagerObject<PipelineAsset>,
-> = std::cell::LazyCell::new(|| corrosive_asset_manager::AssetManagerObject::new());*/
 
-#[derive(PartialEq, Resource, Asset)]
+#[derive(PartialEq, Asset)]
 pub struct PipelineAsset {
     pub layout: RenderPipeline,
 }
 
-#[derive(PartialEq, Clone, Resource, Asset)]
+#[derive(PartialEq, Clone, Asset)]
 pub struct ShaderAsset {
     pub shader: wgpu::ShaderModule,
 }
-#[derive(PartialEq, Resource, Asset)]
+#[derive(PartialEq, Asset)]
 pub struct BindGroupLayoutAsset {
     pub layout: wgpu::BindGroupLayout,
 }
+
+/*pub enum AssetValuee<T: 'static> {
+    Ready(T),
+    NotReady(&'static Option<T>),
+}
+pub struct AssetServerObject<T: 'static> {
+    pub server: LazyLock<Mutex<AssetServer<PipelineAsset>>>,
+}
+pub struct AssetServer<T: 'static> {
+    pub values: HashMap<u64, RwLock<AssetValuee<T>>>,
+    pub references: HashMap<u64, AtomicUsize>,
+    pub default: Option<T>,
+}
+impl<T: 'static> Default for AssetServer<T> {
+    fn default() -> Self {
+        AssetServer {
+            values: HashMap::new(),
+            references: HashMap::new(),
+            default: None,
+        }
+    }
+}
+
+static PIPELINE_ASSETS: AssetServerObject<u64> = AssetServerObject {
+    server: LazyLock::new(|| Mutex::new(Default::default())),
+};
+
+fn ssss() {
+    let mut a = PIPELINE_ASSETS.lock().unwrap();
+    a.references.insert(444, AtomicUsize::new(0));
+}*/
+
 /*impl corrosive_asset_manager::AssetObject for PipelineAsset {
     type AssetType = PipelineAsset;
 

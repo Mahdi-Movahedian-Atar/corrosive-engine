@@ -1,5 +1,5 @@
 use crate::comp::Mesh2D;
-use corrosive_asset_manager::Asset;
+use corrosive_asset_manager::asset_server::Asset;
 use corrosive_ecs_core::trait_for;
 use corrosive_ecs_core_macro::Component;
 use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
