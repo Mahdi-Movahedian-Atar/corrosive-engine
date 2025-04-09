@@ -1,9 +1,15 @@
+use crate::dynamic_hasher;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{LazyLock, Mutex, RwLock};
+use std::sync::{Arc, LazyLock, Mutex, RwLock};
 
 pub trait AssetObject {
     fn get_server() -> &'static Mutex<AssetServer<Self>>
+    where
+        Self: Sized;
+}
+pub trait AssetFile {
+    fn load_file(file: &str) -> Self
     where
         Self: Sized;
 }
@@ -31,7 +37,7 @@ impl<T: 'static> Default for AssetServer<T> {
     }
 }
 impl<T: Send + Sync + AssetObject> AssetServer<T> {
-    pub fn add(id: u64, asset: impl FnOnce() -> T + Send + 'static) -> Asset<T> {
+    pub fn add<'a>(id: u64, asset: impl FnOnce() -> T + Send + 'static) -> Asset<T> {
         let binding = T::get_server();
 
         let (val, ref_count) = unsafe {
@@ -70,7 +76,7 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
             id,
         }
     }
-    pub fn add_sync(id: u64, asset: impl FnOnce() -> T) -> Asset<T> {
+    pub fn add_sync<'a>(id: u64, asset: impl FnOnce() -> T) -> Asset<T> {
         let binding = T::get_server();
 
         let (val, ref_count) = unsafe {
@@ -109,7 +115,7 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
     pub fn add_default(asset: T) {
         T::get_server().lock().unwrap().default = Some(asset);
     }
-    pub fn get(id: u64) -> Option<Asset<T>> {
+    pub fn get<'a>(id: u64) -> Option<Asset<T>> {
         let binding = T::get_server();
         let (val, ref_count) = unsafe {
             let lock = binding.lock().unwrap();
@@ -126,6 +132,20 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
         })
     }
 }
+impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {
+    pub fn load(file_path: &str) -> Asset<T> {
+        let new = file_path.to_owned();
+        AssetServer::add(dynamic_hasher(file_path), move || {
+            T::load_file(new.as_str())
+        })
+    }
+    pub fn load_sync(file_path: &str) -> Asset<T> {
+        AssetServer::add_sync(dynamic_hasher(file_path), || T::load_file(file_path))
+    }
+    pub fn load_default(file_path: &str) {
+        AssetServer::add_default(T::load_file(file_path))
+    }
+}
 
 pub struct Asset<T: 'static> {
     asset_server: &'static Mutex<AssetServer<T>>,
@@ -134,7 +154,7 @@ pub struct Asset<T: 'static> {
     id: u64,
 }
 impl<T: 'static> Asset<T> {
-    pub fn get<'b>(&self) -> &'b T {
+    pub fn get<'a>(&self) -> &'a T {
         loop {
             match &*self.data.read().unwrap() {
                 AssetValue::Ready(t) => {

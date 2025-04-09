@@ -1,6 +1,6 @@
 pub mod rect2d;
 
-use crate::material2d::StandardMaterial2D;
+use crate::material2d::{Material2D, Material2DWrapper, StandardMaterial2D};
 use crate::math2d::{Mat3, Vec2};
 use crate::mesh2d::Vertex2D;
 use crate::task::UnsafeRenderPass;
@@ -13,7 +13,7 @@ use corrosive_ecs_core_macro::{trait_bound, Component, Resource};
 use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
-    create_pipeline_layout, get_surface_format, BindGroup, BindGroupEntry,
+    create_pipeline_layout, create_shader_module, get_surface_format, BindGroup, BindGroupEntry,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
     BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferUsages,
     ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, PipelineLayoutDescriptor,
@@ -134,48 +134,21 @@ pub trait Mesh2D {
     fn name<'a>(&self) -> &'a str;
     fn get_bind_group_layout_desc(&self) -> Asset<BindGroupLayoutAsset>;
 }
-
-#[trait_bound]
-pub trait Material2D {
-    fn get_bind_group(&self) -> &BindGroup;
-}
-pub trait Material2DDesc: Material2D {
-    type Asset: Material + 'static;
-    fn get_asset(&self) -> &Asset<Self::Asset>;
-}
-#[derive(Component)]
-pub struct StandardMaterial2DComponent {
-    material_asset: Asset<StandardMaterial2D>,
-}
-
-impl Material2D for StandardMaterial2DComponent {
-    fn get_bind_group(&self) -> &BindGroup {
-        self.material_asset.get().get_bind_group()
-    }
-}
-
-impl Material2DDesc for StandardMaterial2DComponent {
-    type Asset = StandardMaterial2D;
-    fn get_asset(&self) -> &Asset<Self::Asset> {
-        &self.material_asset
-    }
-}
-
-trait_for!(trait Material2D => StandardMaterial2DComponent);
-
 #[derive(Component)]
 pub struct RendererMeta2D {
     pub(crate) pipeline_asset: Asset<PipelineAsset>,
     pub(crate) transform_data: (Buffer, BindGroup),
+    pub(crate) material: Box<dyn Material2DWrapper + Send + Sync>,
+    pub(crate) mat_bind_group: &'static BindGroup,
 }
 
 impl RendererMeta2D {
     pub fn new(
-        material_2d: impl Material2DDesc,
+        material_2d: &Asset<impl Material2D>,
         mesh_2d: impl Mesh2D,
         position_2d: &Member<Position2D>,
     ) -> Self {
-        let material_2d = material_2d.get_asset().clone();
+        let material_2d_wrapper = material_2d.get().generate_wrapper(material_2d.clone());
         let bind_group_layout: Asset<BindGroupLayoutAsset> =
             AssetServer::add(static_hasher!("2DTransformBindGroupLayout"), || {
                 BindGroupLayoutAsset {
@@ -215,6 +188,7 @@ impl RendererMeta2D {
         let pipeline_asset: Asset<PipelineAsset> =
             AssetServer::add_sync(static_hasher!("ss"), || {
                 let material2d = material_2d.get();
+                let shader = material2d.get_shader();
                 PipelineAsset {
                     layout: create_pipeline(&RenderPipelineDescriptor {
                         label: format!("{}{}", mesh_2d.name(), material2d.get_name())
@@ -230,7 +204,7 @@ impl RendererMeta2D {
                             push_constant_ranges: &[],
                         })),
                         vertex: VertexState {
-                            module: &material2d.get_shader(),
+                            module: &create_shader_module(shader.0, shader.1.as_str()),
                             entry_point: "vs_main".into(),
                             compilation_options: Default::default(),
                             buffers: &[VertexBufferLayout {
@@ -262,7 +236,7 @@ impl RendererMeta2D {
                         depth_stencil: None,
                         multisample: Default::default(),
                         fragment: FragmentState {
-                            module: material2d.get_shader(),
+                            module: &create_shader_module(shader.0, shader.1.as_str()),
                             entry_point: "fs_main".into(),
                             compilation_options: Default::default(),
                             targets: &[ColorTargetState {
@@ -293,6 +267,8 @@ impl RendererMeta2D {
         Self {
             pipeline_asset,
             transform_data: (transform_buffer, transform_bind_group),
+            mat_bind_group: material_2d_wrapper.get_bind_group(),
+            material: material_2d_wrapper,
         }
     }
 }

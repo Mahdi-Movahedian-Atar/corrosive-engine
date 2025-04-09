@@ -4,15 +4,12 @@ use std::collections::HashSet;
 use std::sync::RwLock;
 #[derive(Copy, Clone)]
 pub struct render_2d0<'a> {
-    ve0: &'a Vec<(Rect2D, RendererMeta2D, StandardMaterial2DComponent)>,
+    ve0: &'a Vec<(Rect2D, RendererMeta2D)>,
     rve0: &'a RwLock<HashSet<usize>>,
     len: usize,
 }
 impl<'a> render_2d0<'a> {
-    pub fn new(
-        ve0: &'a Vec<(Rect2D, RendererMeta2D, StandardMaterial2DComponent)>,
-        rve0: &'a RwLock<HashSet<usize>>,
-    ) -> Self {
+    pub fn new(ve0: &'a Vec<(Rect2D, RendererMeta2D)>, rve0: &'a RwLock<HashSet<usize>>) -> Self {
         render_2d0 {
             ve0,
             rve0,
@@ -20,7 +17,7 @@ impl<'a> render_2d0<'a> {
         }
     }
 }
-impl<'a> EngineArch<(&'a dyn Mesh2D, &'a dyn Material2D, &'a RendererMeta2D)> for render_2d0<'a> {
+impl<'a> EngineArch<(&'a dyn Mesh2D, &'a RendererMeta2D)> for render_2d0<'a> {
     fn remove(&self, mut index: usize) {
         if index < self.ve0.len() {
             self.rve0.write().unwrap().insert(index);
@@ -32,12 +29,9 @@ impl<'a> EngineArch<(&'a dyn Mesh2D, &'a dyn Material2D, &'a RendererMeta2D)> fo
     fn len(&self) -> usize {
         self.len
     }
-    fn get_item(
-        &self,
-        mut index: usize,
-    ) -> Option<(&'a dyn Mesh2D, &'a dyn Material2D, &'a RendererMeta2D)> {
+    fn get_item(&self, mut index: usize) -> Option<(&'a dyn Mesh2D, &'a RendererMeta2D)> {
         if index < self.ve0.len() {
-            return Some((&self.ve0[index].0, &self.ve0[index].2, &self.ve0[index].1));
+            return Some((&self.ve0[index].0, &self.ve0[index].1));
         };
         index -= self.ve0.len();
         None

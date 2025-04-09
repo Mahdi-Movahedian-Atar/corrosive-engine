@@ -21,16 +21,14 @@ pub fn run_engine() {
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
     let is_fixed = AtomicBool::new(false);
     let reset: AtomicBool = AtomicBool::new(true);
-    let a0: RwLock<Vec<(Rect2D, RendererMeta2D, StandardMaterial2DComponent)>> =
-        RwLock::new(Vec::new());
-    let o0: RwLock<Vec<(Rect2D, RendererMeta2D, StandardMaterial2DComponent)>> =
-        RwLock::new(Vec::new());
+    let a0: RwLock<Vec<(Rect2D, RendererMeta2D)>> = RwLock::new(Vec::new());
+    let o0: RwLock<Vec<(Rect2D, RendererMeta2D)>> = RwLock::new(Vec::new());
     let or0: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let la0: AtomicU8 = AtomicU8::new(0);
     let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
-    let r_Renderer: Res<Renderer> = Res::new(Default::default());
     let r_Renderer2dData: Res<Renderer2dData> = Res::new(Default::default());
     let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
+    let r_Renderer: Res<Renderer> = Res::new(Default::default());
     let mut loop_trigger = Trigger::new();
     let mut bus_test2_0 = Trigger::new();
     let mut bus_render_2d = Trigger::new();
@@ -45,7 +43,7 @@ pub fn run_engine() {
             (&o0)
                 .write()
                 .unwrap()
-                .extend(o.0.vec.into_iter().map(|(m0, m1, m2)| (m2, m0, m1)));
+                .extend(o.0.vec.into_iter().map(|(m0, m1)| (m1, m0)));
             bus_test2_0.trigger();
         });
         s.spawn(|| loop {
@@ -57,11 +55,11 @@ pub fn run_engine() {
             bus_render_2d.trigger();
         });
         if reset.load(SeqCst) {
-            let mut bus_run_renderer = Trigger::new();
             let mut bus_start_2d_renderer = Trigger::new();
+            let mut bus_run_renderer = Trigger::new();
+            let mut start_2d_renderer_end = bus_start_2d_renderer.add_trigger();
             let mut run_renderer_end = bus_run_renderer.add_trigger();
             let mut run_renderer_start_2d_renderer = bus_start_2d_renderer.add_trigger();
-            let mut start_2d_renderer_end = bus_start_2d_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
                 let handle_start_2d_renderer = s.spawn(|| {
@@ -108,7 +106,8 @@ pub fn run_engine() {
                 .unwrap()
                 .extend(o_signals.write().unwrap().drain());
             *o_signals.write().unwrap() = HashSet::new();
-            m_0 . join () . expect ("Failed to update archetype of type -> [\"Rect2D\", \"RendererMeta2D\", \"StandardMaterial2DComponent\"]") ;
+            m_0.join()
+                .expect("Failed to update archetype of type -> [\"Rect2D\", \"RendererMeta2D\"]");
             current_time = Instant::now();
             let new_current_time = current_time
                 .duration_since(last_time)

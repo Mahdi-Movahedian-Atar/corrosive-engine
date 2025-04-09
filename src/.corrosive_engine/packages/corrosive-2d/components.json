@@ -27,20 +27,6 @@
       "Trait": "Mesh2D"
     },
     {
-      "Trait": "Material2D"
-    },
-    {
-      "Component": "StandardMaterial2DComponent"
-    },
-    {
-      "TraitFor": [
-        "Material2D",
-        [
-          "StandardMaterial2DComponent"
-        ]
-      ]
-    },
-    {
       "Component": "RendererMeta2D"
     },
     {

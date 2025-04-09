@@ -1,23 +1,31 @@
 use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_asset_manager_macro::{static_hasher, Asset};
 use corrosive_ecs_core::ecs_core::Res;
-use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, ShaderAsset};
+use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
 use corrosive_ecs_renderer_backend::color::Color;
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_shader_module,
-    get_queue, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    get_queue, read_shader, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, Buffer, BufferAddress, BufferBindingType, BufferUsages,
     PipelineLayoutDescriptor, ShaderModule, ShaderStage, VertexAttribute, VertexBufferLayout,
     VertexFormat, VertexStepMode,
 };
 use corrosive_ecs_renderer_backend::material::{Material, MaterialDesc};
 
+pub trait Material2DWrapper {
+    fn get_bind_group(&self) -> &'static BindGroup;
+}
+pub trait Material2D: Material {
+    fn generate_wrapper(&self, asset: Asset<Self>) -> Box<dyn Material2DWrapper + Send + Sync>
+    where
+        Self: Sized;
+}
+
 #[derive(Clone, Asset)]
 pub struct StandardMaterial2D {
     pub overlay_color: Color,
     overlay_color_buffer: Buffer,
     bind_group: BindGroup,
-    shader: Asset<ShaderAsset>,
 }
 impl StandardMaterial2D {
     pub fn new(overlay_color: Color) -> Self {
@@ -39,9 +47,6 @@ impl StandardMaterial2D {
                 }],
             ),
             overlay_color_buffer: buffer,
-            shader: AssetServer::add(static_hasher!("Image2DMaterialShader"), || ShaderAsset {
-                shader: create_shader_module("Image2DMaterialShader", include_str!("image2d.wgsl")),
-            }),
         }
     }
     pub fn update(&self) {
@@ -66,7 +71,7 @@ impl MaterialDesc for StandardMaterial2D {
         "Image2DMaterial"
     }
 
-    fn get_bind_group_layout_desc() -> Asset<BindGroupLayoutAsset> {
+    fn get_bind_group_layout_desc<'a>() -> Asset<BindGroupLayoutAsset> {
         AssetServer::add(
             static_hasher!("Image2DMaterialBindGroupLayout"),
             move || BindGroupLayoutAsset {
@@ -93,7 +98,32 @@ impl Material for StandardMaterial2D {
         &self.bind_group
     }
 
-    fn get_shader(&self) -> &ShaderModule {
-        &self.shader.get().shader
+    fn get_shader(&self) -> (&str, String) {
+        (
+            "StandardMaterial2D",
+            read_shader("corrosive-2d/shaders/image2d.wgsl").expect("failed to read shader"),
+        )
+    }
+
+    fn get_name(&self) -> &str {
+        StandardMaterial2D::get_name_desc()
+    }
+
+    fn get_bind_group_layout(&self) -> Asset<BindGroupLayoutAsset> {
+        StandardMaterial2D::get_bind_group_layout_desc()
+    }
+}
+
+struct StandardMaterial2DWrapper {
+    asset: Asset<StandardMaterial2D>,
+}
+impl Material2DWrapper for StandardMaterial2DWrapper {
+    fn get_bind_group(&self) -> &'static BindGroup {
+        self.asset.get().get_bind_group()
+    }
+}
+impl Material2D for StandardMaterial2D {
+    fn generate_wrapper(&self, asset: Asset<Self>) -> Box<dyn Material2DWrapper + Send + Sync> {
+        Box::new(StandardMaterial2DWrapper { asset })
     }
 }

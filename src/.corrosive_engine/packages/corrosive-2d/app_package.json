@@ -3,10 +3,10 @@
   "path": "./src",
   "setup_dependency": {
     "dependents": {
+      "Task(start_2d_renderer)": [],
       "Task(run_renderer)": [
         "Task(start_2d_renderer)"
-      ],
-      "Task(start_2d_renderer)": []
+      ]
     },
     "in_degrees": {
       "Task(start_2d_renderer)": 1,

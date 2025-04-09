@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::ToTokens;
+use quote::{ToTokens, TokenStreamExt};
 use syn::__private::quote::quote;
 use syn::{parse_macro_input, parse_str, DeriveInput, LitStr};
 
@@ -10,14 +10,21 @@ pub fn asset(input: TokenStream) -> TokenStream {
     let name = input.ident.to_string();
     let static_name: proc_macro2::TokenStream =
         parse_str(format!("{}_ASSET", name.to_uppercase()).as_str()).unwrap();
-    let asset_name: proc_macro2::TokenStream =
-        LitStr::new(name.as_str(), input.ident.span()).to_token_stream();
     let name = input.ident.to_token_stream();
+
+    let generics = &input.generics;
+
+    let mut liftmes: proc_macro2::TokenStream = quote! {<};
+    generics
+        .lifetimes()
+        .for_each(|_| liftmes = quote! {#liftmes '_,});
+    liftmes = quote! {#liftmes>};
+
     (quote! {
             static #static_name: corrosive_asset_manager::asset_server::AssetServerObject<#name> = corrosive_asset_manager::asset_server::AssetServerObject {
             server: std::sync::LazyLock::new(|| std::sync::Mutex::new(Default::default())),
         };
-        impl corrosive_asset_manager::asset_server::AssetObject for #name {
+        impl corrosive_asset_manager::asset_server::AssetObject for #name #liftmes {
             fn get_server() -> &'static std::sync::Mutex<corrosive_asset_manager::asset_server::AssetServer<Self>>
             where
                 Self: Sized,
@@ -49,5 +56,3 @@ pub fn static_hasher(input: TokenStream) -> TokenStream {
 
     output.into()
 }
-
-fn main() {}

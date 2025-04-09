@@ -1,4 +1,4 @@
-use crate::assets::{BindGroupLayoutAsset, ShaderAsset};
+use crate::assets::BindGroupLayoutAsset;
 use crate::helper;
 use crate::helper::ShaderModule;
 use corrosive_asset_manager::asset_server::Asset;
@@ -27,15 +27,11 @@ pub trait MaterialBindGroup {
 
 pub trait MaterialDesc {
     fn get_name_desc<'a>() -> &'a str;
-    fn get_bind_group_layout_desc() -> Asset<BindGroupLayoutAsset>;
+    fn get_bind_group_layout_desc<'a>() -> Asset<BindGroupLayoutAsset>;
 }
-pub trait Material: MaterialDesc {
+pub trait Material {
     fn get_bind_group(&self) -> &helper::BindGroup;
-    fn get_shader(&self) -> &ShaderModule;
-    fn get_name(&self) -> &str {
-        Self::get_name_desc()
-    }
-    fn get_bind_group_layout(&self) -> Asset<BindGroupLayoutAsset> {
-        Self::get_bind_group_layout_desc()
-    }
+    fn get_shader(&self) -> (&str, String);
+    fn get_name(&self) -> &str;
+    fn get_bind_group_layout(&self) -> Asset<BindGroupLayoutAsset>;
 }

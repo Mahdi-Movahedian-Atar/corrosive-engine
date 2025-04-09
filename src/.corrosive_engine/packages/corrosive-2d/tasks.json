@@ -31,9 +31,6 @@
                 "Trait": "Mesh2D"
               },
               {
-                "Trait": "Material2D"
-              },
-              {
                 "Normal": "RendererMeta2D"
               }
             ]

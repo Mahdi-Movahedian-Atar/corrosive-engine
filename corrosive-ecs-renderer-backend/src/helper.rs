@@ -331,6 +331,7 @@ pub mod pipeline {
     }
 }*/
 use crate::STATE;
+use std::{fs, io};
 use wgpu::util::DeviceExt;
 use wgpu::Queue;
 
@@ -517,5 +518,12 @@ pub fn write_to_buffer(buffer: &Buffer, offset: BufferAddress, data: &[u8]) {
         } else {
             panic!("write_buffer must be called after run_renderer task.")
         }
+    }
+}
+pub fn read_shader(path: &str) -> io::Result<String> {
+    if path.ends_with(".slang") {
+        fs::read_to_string(format!("./assets/{}.wgsl", path))
+    } else {
+        fs::read_to_string(format!("./assets/{}", path))
     }
 }

@@ -31,8 +31,8 @@
       "TraitFor": [
         "test",
         [
-          "Locked<Position1>",
-          "Ref<Position2>"
+          "Ref<Position2>",
+          "Locked<Position1>"
         ]
       ]
     },

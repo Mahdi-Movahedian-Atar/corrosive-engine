@@ -2,3 +2,6 @@
 .idea
 .json
 .vscode
+/dev-assets/packages
+/assets/packages
+/src/.corrosive_engine

@@ -48,7 +48,6 @@
         {
           "Arch": [
             "RendererMeta2D",
-            "StandardMaterial2DComponent",
             "Rect2D"
           ]
         }

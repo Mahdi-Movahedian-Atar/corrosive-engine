@@ -1,4 +1,4 @@
-use crate::comp::{Material2D, Mesh2D, Renderer2dData, RendererMeta2D};
+use crate::comp::{Mesh2D, Renderer2dData, RendererMeta2D};
 use corrosive_ecs_core::ecs_core::{Arch, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::RenderGraph;
@@ -78,17 +78,14 @@ pub fn start_2d_renderer(graph: Res<RenderGraph>, renderer2d_data: Res<Renderer2
     }));
 }
 #[task]
-pub fn render_2d(
-    meta: Arch<(&dyn Mesh2D, &dyn Material2D, &RendererMeta2D)>,
-    renderer2d_data: Res<Renderer2dData>,
-) {
+pub fn render_2d(meta: Arch<(&dyn Mesh2D, &RendererMeta2D)>, renderer2d_data: Res<Renderer2dData>) {
     if let Some(data) = &renderer2d_data.f_read().data {
         {
             let render_pass = unsafe { data.0.recv().unwrap().ptr.as_ptr().as_mut().unwrap() };
             meta.iter().for_each(|x| {
-                render_pass.set_pipeline(&x.2.pipeline_asset.get().layout);
+                /*render_pass.set_pipeline(&x.2.pipeline_asset.get().layout);
                 render_pass.set_bind_group(0, &x.2.transform_data.1, &[]);
-                render_pass.set_bind_group(2, x.1.get_bind_group(), &[]);
+                render_pass.set_bind_group(2, x.1.get_bind_group(), &[]);*/
                 x.0.update(render_pass);
             })
         }

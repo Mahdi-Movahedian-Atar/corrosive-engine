@@ -6,11 +6,6 @@ use wgpu::RenderPipeline;
 pub struct PipelineAsset {
     pub layout: RenderPipeline,
 }
-
-#[derive(PartialEq, Clone, Asset)]
-pub struct ShaderAsset {
-    pub shader: wgpu::ShaderModule,
-}
 #[derive(PartialEq, Asset)]
 pub struct BindGroupLayoutAsset {
     pub layout: wgpu::BindGroupLayout,

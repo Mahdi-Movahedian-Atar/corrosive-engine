@@ -1,5 +1,5 @@
 [workspace]
-members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer", "corrosive-ecs-renderer-backend", "corrosive-ui", "corrosive-asset-manager", "corrosive-asset-manager-macro", "corrosive-2d", "corrosive-ecs-renderer-backend-macro"]
+members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer", "corrosive-ecs-renderer-backend", "corrosive-ui", "corrosive-asset-manager", "corrosive-asset-manager-macro", "corrosive-2d", "corrosive-ecs-renderer-backend-macro", "corrosive-2d-macro"]
 
 [package]
 name = "corrosive-engine"

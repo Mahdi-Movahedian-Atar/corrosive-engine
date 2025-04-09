@@ -1,4 +1,5 @@
 use crate::comp::{App, RenderGraph, Renderer, WindowOptions};
+use crate::slang::ShaderManager;
 use crate::STATE;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
@@ -14,6 +15,11 @@ pub fn run_renderer(
     window_options: Res<WindowOptions>,
     render_graph: Res<RenderGraph>,
 ) {
+    #[cfg(debug_assertions)]
+    {
+        let manager = ShaderManager::new();
+        manager.sync_shaders().expect("failed_to_sync_shaders");
+    }
     unsafe { STATE = None }
     if re.f_read().0.is_none() {
         re.f_write().0 = Some(thread::spawn(move || {

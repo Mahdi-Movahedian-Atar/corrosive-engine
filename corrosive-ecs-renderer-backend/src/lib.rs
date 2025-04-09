@@ -7,6 +7,7 @@ pub mod comp;
 pub mod helper;
 pub mod material;
 pub mod render_graph;
+mod slang;
 pub mod task;
 
 pub(crate) static mut STATE: Option<State> = None;
