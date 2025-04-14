@@ -8,7 +8,7 @@ use corrosive_ecs_renderer_backend::assets::PipelineAsset;
 use corrosive_ecs_renderer_backend::helper;
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group_layout, write_to_buffer, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindGroupRenderable, BindingType, Buffer, BufferAddress, BufferBindingType, ShaderStage,
+    BindGroupRenderable, BindingType, Buffer, BufferAddress, BufferBindingType, ShaderStages,
     VertexAttribute, VertexBufferLayout, VertexFormat, VertexRenderable, VertexStepMode,
 };
 use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
@@ -72,7 +72,7 @@ impl MaterialData for UIStyle {
             label: "UIStyle_Buffer_Layout".into(),
             entries: &[BindGroupLayoutEntry {
                 binding: 0,
-                visibility: ShaderStage::VERTEX_FRAGMENT,
+                visibility: ShaderStages::VERTEX_FRAGMENT,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,

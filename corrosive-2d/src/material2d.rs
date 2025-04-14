@@ -7,7 +7,7 @@ use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_shader_module,
     get_queue, read_shader, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, Buffer, BufferAddress, BufferBindingType, BufferUsages,
-    PipelineLayoutDescriptor, ShaderModule, ShaderStage, VertexAttribute, VertexBufferLayout,
+    PipelineLayoutDescriptor, ShaderModule, ShaderStages, VertexAttribute, VertexBufferLayout,
     VertexFormat, VertexStepMode,
 };
 use corrosive_ecs_renderer_backend::material::{Material, MaterialDesc};
@@ -74,20 +74,22 @@ impl MaterialDesc for StandardMaterial2D {
     fn get_bind_group_layout_desc<'a>() -> Asset<BindGroupLayoutAsset> {
         AssetServer::add(
             static_hasher!("Image2DMaterialBindGroupLayout"),
-            move || BindGroupLayoutAsset {
-                layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: "Image2DMaterialBindGroupLayoutDescriptor".into(),
-                    entries: &[BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: ShaderStage::FRAGMENT,
-                        ty: BindingType::Buffer {
-                            ty: BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                }),
+            move || {
+                Ok(BindGroupLayoutAsset {
+                    layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
+                        label: "Image2DMaterialBindGroupLayoutDescriptor".into(),
+                        entries: &[BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: ShaderStages::FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        }],
+                    }),
+                })
             },
         )
     }
@@ -101,7 +103,8 @@ impl Material for StandardMaterial2D {
     fn get_shader(&self) -> (&str, String) {
         (
             "StandardMaterial2D",
-            read_shader("corrosive-2d/shaders/image2d.wgsl").expect("failed to read shader"),
+            read_shader("packages/corrosive-2d/shaders/sprite2d.wgsl")
+                .expect("failed to read shader"),
         )
     }
 

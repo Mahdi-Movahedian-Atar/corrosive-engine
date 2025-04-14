@@ -3,22 +3,39 @@ pub mod other_tasks;
 use crate::comp::sub::{MarkedResources, Position3, Position4, StateExample};
 use crate::comp::{test, Position1, Position2};
 use crate::corrosive_engine;
-use corrosive_2d::comp::rect2d::Rect2D;
-use corrosive_2d::comp::RendererMeta2D;
+use corrosive_2d::comp::camera2d::ActiveCamera2D;
+use corrosive_2d::comp::sprite2d::Sprite2D;
+use corrosive_2d::comp::{sprite2d, Position2D, RendererMeta2D};
 use corrosive_2d::material2d::StandardMaterial2D;
+use corrosive_asset_manager::asset_server::AssetServer;
+use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{
-    Arch, DeltaTime, Locked, LockedRef, RArch, Ref, Res, Reset, Signal, State,
+    Arch, DeltaTime, Hierarchy, Locked, LockedRef, Member, RArch, Ref, Res, Reset, Signal, State,
 };
 use corrosive_ecs_core_macro::task;
 use rand::Rng;
 use std::iter::Map;
-use std::slice::Iter;
 use std::vec::IntoIter;
 
 #[task]
-pub fn test2_0() -> (RArch<(RendererMeta2D, Rect2D)>,) {
-    //println!("lllll");
-    (RArch::default(),)
+pub fn test2_0(
+    position: Hierarchy<Position2D>,
+    active_camera2d: Res<ActiveCamera2D>,
+) -> (RArch<(Member<Position2D>, RendererMeta2D, Sprite2D)>,) {
+    let mut a: RArch<(Member<Position2D>, RendererMeta2D, Sprite2D)> = RArch::default();
+    let new_position = position.new_entry(Position2D::new());
+
+    let rect2d = Sprite2D::new(AssetServer::load("assets/bitmap.png"), [0.0, 0.0]);
+    let meta = RendererMeta2D::new(
+        &AssetServer::add(static_hasher!("default"), || {
+            Ok(StandardMaterial2D::new(Default::default()))
+        }),
+        &rect2d,
+        &new_position,
+        &active_camera2d,
+    );
+    a.add((new_position, meta, rect2d));
+    (a,)
 }
 
 #[task]

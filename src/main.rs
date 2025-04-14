@@ -38,7 +38,7 @@ corrosive_engine_builder!(
 corrosive_engine_builder!(
     package "corrosive-ecs-renderer-backend",
     package "corrosive-2d",
-    update "test2_0"
+    setup "test2_0" after "run_renderer"
 );
 
 fn main() {

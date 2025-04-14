@@ -6,18 +6,21 @@ pub struct Vec2 {
 #[derive(Debug, Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 pub struct Mat3 {
-    pub m: [[f32; 3]; 3], // Column-major storage
+    pub m: [[f32; 3]; 3],
+    _padding: [f32; 3],
 }
 impl Mat3 {
     pub fn identity() -> Self {
         Self {
             m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            _padding: [0.0, 0.0, 0.0],
         }
     }
 
     pub fn translate(v: Vec2) -> Self {
         Self {
             m: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [v.x, v.y, 1.0]],
+            _padding: [0.0, 0.0, 0.0],
         }
     }
 
@@ -25,12 +28,14 @@ impl Mat3 {
         let (sin, cos) = angle_rad.sin_cos();
         Self {
             m: [[cos, sin, 0.0], [-sin, cos, 0.0], [0.0, 0.0, 1.0]],
+            _padding: [0.0, 0.0, 0.0],
         }
     }
 
     pub fn scale(s: Vec2) -> Self {
         Self {
             m: [[s.x, 0.0, 0.0], [0.0, s.y, 0.0], [0.0, 0.0, 1.0]],
+            _padding: [0.0, 0.0, 0.0],
         }
     }
 
@@ -79,6 +84,7 @@ impl Mat3 {
                 [inv_b, inv_d, 0.0],   // Column 1
                 [inv_tx, inv_ty, 1.0], // Column 2 (translation)
             ],
+            _padding: [0.0, 0.0, 0.0],
         })
     }
 

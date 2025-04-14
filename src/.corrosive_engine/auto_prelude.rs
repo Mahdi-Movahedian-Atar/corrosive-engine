@@ -16,14 +16,19 @@ pub use crate::task::setup2;
 pub use crate::task::test2_0;
 pub use crate::task::update_task;
 pub use crate::task::update_task_signal;
-pub use corrosive_2d::comp::rect2d::Rect2D;
+pub use corrosive_2d::comp::camera2d::ActiveCamera2D;
+pub use corrosive_2d::comp::camera2d::Camera2D;
+pub use corrosive_2d::comp::sprite2d::Sprite2D;
 pub use corrosive_2d::comp::Mesh2D;
 pub use corrosive_2d::comp::Position2D;
 pub use corrosive_2d::comp::Renderer2dData;
 pub use corrosive_2d::comp::RendererMeta2D;
+pub use corrosive_2d::task::init_camera;
 pub use corrosive_2d::task::render_2d;
 pub use corrosive_2d::task::start_2d_renderer;
-pub use corrosive_ecs_core::ecs_core::{Arch, Locked, LockedRef, Ref, Res, State};
+pub use corrosive_ecs_core::ecs_core::{
+    Arch, Hierarchy, Locked, LockedRef, Member, Ref, Res, State,
+};
 pub use corrosive_ecs_renderer_backend::comp::RenderGraph;
 pub use corrosive_ecs_renderer_backend::comp::Renderer;
 pub use corrosive_ecs_renderer_backend::comp::WindowOptions;

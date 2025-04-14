@@ -333,7 +333,7 @@ pub mod pipeline {
 use crate::STATE;
 use std::{fs, io};
 use wgpu::util::DeviceExt;
-use wgpu::Queue;
+use wgpu::{Extent3d, Queue, Texture};
 
 pub type Buffer = wgpu::Buffer;
 pub type BindGroup = wgpu::BindGroup;
@@ -367,7 +367,7 @@ pub type PipelineLayout = wgpu::PipelineLayout;
 pub type PipelineLayoutDescriptor<'a> = wgpu::PipelineLayoutDescriptor<'a>;
 pub type BindGroupLayoutDescriptor<'a> = wgpu::BindGroupLayoutDescriptor<'a>;
 pub type BindGroupLayoutEntry = wgpu::BindGroupLayoutEntry;
-pub type ShaderStage = wgpu::ShaderStages;
+pub type ShaderStages = wgpu::ShaderStages;
 pub type BindingType = wgpu::BindingType;
 pub type BufferBindingType = wgpu::BufferBindingType;
 pub type BindGroupLayout = wgpu::BindGroupLayout;
@@ -379,7 +379,19 @@ pub type Color = wgpu::Color;
 pub type StoreOp = wgpu::StoreOp;
 pub type BlendFactor = wgpu::BlendFactor;
 pub type BlendOperation = wgpu::BlendOperation;
+pub type BindingResource<'a> = wgpu::BindingResource<'a>;
 pub type RenderPass<'a> = wgpu::RenderPass<'a>;
+pub type TextureDescriptor<'a> = wgpu::TextureDescriptor<'a>;
+pub type TexelCopyTextureInfo<'a> = wgpu::TexelCopyTextureInfo<'a>;
+pub type TexelCopyBufferLayout = wgpu::TexelCopyBufferLayout;
+pub type Sampler = wgpu::Sampler;
+pub type TextureViewDescriptor<'a> = wgpu::TextureViewDescriptor<'a>;
+pub type SamplerDescriptor<'a> = wgpu::SamplerDescriptor<'a>;
+pub type AddressMode = wgpu::AddressMode;
+pub type FilterMode = wgpu::FilterMode;
+pub type TextureViewDimension = wgpu::TextureViewDimension;
+pub type TextureSampleType = wgpu::TextureSampleType;
+pub type SamplerBindingType = wgpu::SamplerBindingType;
 
 pub trait VertexRenderable {
     fn desc<'a>() -> VertexBufferLayout<'a>;
@@ -525,5 +537,37 @@ pub fn read_shader(path: &str) -> io::Result<String> {
         fs::read_to_string(format!("./assets/{}.wgsl", path))
     } else {
         fs::read_to_string(format!("./assets/{}", path))
+    }
+}
+pub fn create_texture(texture_descriptor: &TextureDescriptor) -> Texture {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.device.create_texture(texture_descriptor)
+        } else {
+            panic!("write_buffer must be called after run_renderer task.")
+        }
+    }
+}
+pub fn write_texture(
+    texture: TexelCopyTextureInfo<'_>,
+    data: &[u8],
+    data_layout: TexelCopyBufferLayout,
+    size: Extent3d,
+) {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.queue.write_texture(texture, data, data_layout, size)
+        } else {
+            panic!("write_buffer must be called after run_renderer task.")
+        }
+    }
+}
+pub fn create_sampler(descriptor: &SamplerDescriptor) -> Sampler {
+    unsafe {
+        if let Some(t) = &STATE {
+            t.device.create_sampler(descriptor)
+        } else {
+            panic!("write_buffer must be called after run_renderer task.")
+        }
     }
 }

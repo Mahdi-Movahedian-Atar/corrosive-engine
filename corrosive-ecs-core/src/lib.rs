@@ -20,9 +20,9 @@ pub mod ecs_core {
     pub struct LockedRef<T> {
         pub value: Arc<RwLock<Reference<T>>>,
     }
-    pub struct Member<'a, T: SharedBehavior> {
+    pub struct Member<T: SharedBehavior + 'static> {
         pub id: u64,
-        pub hierarchy: &'a Hierarchy<T>,
+        pub hierarchy: &'static Hierarchy<T>,
         pub value: Arc<RwLock<Reference<T>>>,
     }
 
@@ -111,12 +111,12 @@ pub mod ecs_core {
             *self.value.write().unwrap() = Reference::Expired;
         }
     }
-    impl<'a, T: SharedBehavior> Member<'a, T> {
-        pub fn new(value: T, hierarchy: &'a Hierarchy<T>) -> Member<'a, T> {
+    impl<T: SharedBehavior> Member<T> {
+        pub fn new(value: T, hierarchy: &Hierarchy<T>) -> Member<T> {
             hierarchy.new_entry(value)
         }
 
-        pub fn clone(&self) -> Member<'a, T> {
+        pub fn clone(&self) -> Member<T> {
             Member {
                 id: self.id.clone(),
                 hierarchy: self.hierarchy,
@@ -336,7 +336,7 @@ pub mod ecs_core {
             };
             Member {
                 id: id,
-                hierarchy: &self,
+                hierarchy: unsafe { std::mem::transmute(&self) },
                 value: Arc::new(RwLock::new(Reference::Some(value))),
             }
         }
@@ -346,7 +346,7 @@ pub mod ecs_core {
             let data = lock.nodes.get(i).clone()?;
             Some(Member {
                 id: i.clone(),
-                hierarchy: &self,
+                hierarchy: unsafe { std::mem::transmute(&self) },
                 value: data.clone(),
             })
         }
@@ -360,7 +360,7 @@ pub mod ecs_core {
                     let node = lock.nodes.get(x)?;
                     Some(Member {
                         id: x.clone(),
-                        hierarchy: &self,
+                        hierarchy: unsafe { std::mem::transmute(&self) },
                         value: node.clone(),
                     })
                 })
@@ -426,7 +426,7 @@ pub mod ecs_core {
                 .filter(|x| lock.dependencies.contains_key(x.0))
                 .map(|x| Member {
                     id: x.0.clone(),
-                    hierarchy: &self,
+                    hierarchy: unsafe { std::mem::transmute(&self) },
                     value: x.1.clone(),
                 })
                 .collect()

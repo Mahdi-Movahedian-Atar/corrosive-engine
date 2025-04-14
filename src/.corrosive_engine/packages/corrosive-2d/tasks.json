@@ -21,6 +21,18 @@
       "outputs": []
     },
     {
+      "name": "init_camera",
+      "inputs": [
+        {
+          "Resources": [
+            "active_camera",
+            "ActiveCamera2D"
+          ]
+        }
+      ],
+      "outputs": []
+    },
+    {
       "name": "render_2d",
       "inputs": [
         {

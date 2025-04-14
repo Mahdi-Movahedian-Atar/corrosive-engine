@@ -21,31 +21,21 @@ pub fn run_engine() {
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
     let is_fixed = AtomicBool::new(false);
     let reset: AtomicBool = AtomicBool::new(true);
-    let a0: RwLock<Vec<(Rect2D, RendererMeta2D)>> = RwLock::new(Vec::new());
-    let o0: RwLock<Vec<(Rect2D, RendererMeta2D)>> = RwLock::new(Vec::new());
+    let a0: RwLock<Vec<(Member<Position2D>, RendererMeta2D, Sprite2D)>> = RwLock::new(Vec::new());
+    let o0: RwLock<Vec<(Member<Position2D>, RendererMeta2D, Sprite2D)>> = RwLock::new(Vec::new());
     let or0: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let la0: AtomicU8 = AtomicU8::new(0);
-    let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
-    let r_Renderer2dData: Res<Renderer2dData> = Res::new(Default::default());
     let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
+    let r_Renderer2dData: Res<Renderer2dData> = Res::new(Default::default());
+    let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
     let r_Renderer: Res<Renderer> = Res::new(Default::default());
+    let r_ActiveCamera2D: Res<ActiveCamera2D> = Res::new(Default::default());
+    let h_Position2D: Hierarchy<Position2D> = Hierarchy::default();
     let mut loop_trigger = Trigger::new();
-    let mut bus_test2_0 = Trigger::new();
     let mut bus_render_2d = Trigger::new();
-    let mut test2_0_end = bus_test2_0.add_trigger();
     let mut render_2d_end = bus_render_2d.add_trigger();
-    let mut ut_test2_0 = loop_trigger.add_trigger();
     let mut ut_render_2d = loop_trigger.add_trigger();
     thread::scope(|s: &Scope| {
-        s.spawn(|| loop {
-            ut_test2_0.read("failed");
-            let o = test2_0();
-            (&o0)
-                .write()
-                .unwrap()
-                .extend(o.0.vec.into_iter().map(|(m0, m1)| (m1, m0)));
-            bus_test2_0.trigger();
-        });
         s.spawn(|| loop {
             ut_render_2d.read("failed");
             let o = render_2d(
@@ -55,16 +45,36 @@ pub fn run_engine() {
             bus_render_2d.trigger();
         });
         if reset.load(SeqCst) {
+            let mut bus_test2_0 = Trigger::new();
             let mut bus_start_2d_renderer = Trigger::new();
             let mut bus_run_renderer = Trigger::new();
+            let mut bus_init_camera = Trigger::new();
+            let mut test2_0_end = bus_test2_0.add_trigger();
+            let mut test2_0_run_renderer = bus_run_renderer.add_trigger();
             let mut start_2d_renderer_end = bus_start_2d_renderer.add_trigger();
             let mut run_renderer_end = bus_run_renderer.add_trigger();
             let mut run_renderer_start_2d_renderer = bus_start_2d_renderer.add_trigger();
+            let mut init_camera_end = bus_init_camera.add_trigger();
+            let mut init_camera_run_renderer = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
                 let handle_start_2d_renderer = s.spawn(|| {
                     let o = start_2d_renderer(r_RenderGraph.clone(), r_Renderer2dData.clone());
                     bus_start_2d_renderer.trigger();
+                });
+                let handle_test2_0 = s.spawn(|| {
+                    test2_0_run_renderer.read("failed");
+                    let o = test2_0(h_Position2D.clone(), r_ActiveCamera2D.clone());
+                    (&o0)
+                        .write()
+                        .unwrap()
+                        .extend(o.0.vec.into_iter().map(|(m0, m1, m2)| (m0, m1, m2)));
+                    bus_test2_0.trigger();
+                });
+                let handle_init_camera = s.spawn(|| {
+                    init_camera_run_renderer.read("failed");
+                    let o = init_camera(r_ActiveCamera2D.clone());
+                    bus_init_camera.trigger();
                 });
                 let handle_run_renderer = s.spawn(|| {
                     run_renderer_start_2d_renderer.read("failed");
@@ -78,6 +88,8 @@ pub fn run_engine() {
                 handle_start_2d_renderer
                     .join()
                     .expect("TODO: panic message");
+                handle_test2_0.join().expect("TODO: panic message");
+                handle_init_camera.join().expect("TODO: panic message");
                 handle_run_renderer.join().expect("TODO: panic message");
             });
         }
@@ -96,6 +108,7 @@ pub fn run_engine() {
                             new.push(item);
                             continue;
                         }
+                        item.0.expire();
                     }
                     *write = new;
                 }
@@ -106,8 +119,7 @@ pub fn run_engine() {
                 .unwrap()
                 .extend(o_signals.write().unwrap().drain());
             *o_signals.write().unwrap() = HashSet::new();
-            m_0.join()
-                .expect("Failed to update archetype of type -> [\"Rect2D\", \"RendererMeta2D\"]");
+            m_0 . join () . expect ("Failed to update archetype of type -> [\"Member<Position2D>\", \"RendererMeta2D\", \"Sprite2D\"]") ;
             current_time = Instant::now();
             let new_current_time = current_time
                 .duration_since(last_time)
@@ -123,7 +135,6 @@ pub fn run_engine() {
                 is_fixed.store(false, SeqCst);
             }
             loop_trigger.trigger();
-            test2_0_end.read("failed");
             render_2d_end.read("failed");
         }
     });

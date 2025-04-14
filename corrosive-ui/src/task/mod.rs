@@ -13,7 +13,7 @@ use corrosive_ecs_renderer_backend::helper::{
     Color, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, IndexFormat, LoadOp,
     Operations, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
     RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
-    ShaderStage, StoreOp, TextureView, VertexRenderable, VertexState,
+    ShaderStages, StoreOp, TextureView, VertexRenderable, VertexState,
 };
 use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
@@ -113,58 +113,60 @@ pub fn setup_ui_pass(graph: Res<RenderGraph>, buffers: Res<UIBuffers>) {
         }],
     );
 
-    let ass: Asset<PipelineAsset> = AssetServer::add(1, move || PipelineAsset {
-        layout: create_pipeline(&RenderPipelineDescriptor {
-            label: "ui_pipeline".into(),
-            layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
-                label: "ui_pipeline_layout".into(),
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            })),
-            vertex: VertexState {
-                module: &(shader),
-                entry_point: "vs_main".into(),
-                compilation_options: Default::default(),
-                buffers: &[UIVertex::desc()],
-            },
-            primitive: PrimitiveState {
-                topology: PrimitiveTopology::TriangleStrip,
-                strip_index_format: None,
-                front_face: FrontFace::Cw,
-                cull_mode: Face::Back.into(),
-                unclipped_depth: false,
-                polygon_mode: PolygonMode::Fill,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: FragmentState {
-                module: &(shader),
-                entry_point: "fs_main".into(),
-                compilation_options: Default::default(),
-                targets: &[ColorTargetState {
-                    format: get_surface_format(),
-                    blend: BlendState {
-                        color: BlendComponent {
-                            src_factor: BlendFactor::SrcAlpha,         // Source: Alpha
-                            dst_factor: BlendFactor::OneMinusSrcAlpha, // Destination: 1 - Alpha
-                            operation: BlendOperation::Add,            // Standard Alpha Blending
-                        },
-                        alpha: BlendComponent {
-                            src_factor: BlendFactor::One,              // Preserve Alpha
-                            dst_factor: BlendFactor::OneMinusSrcAlpha, // Blend Based on Alpha
-                            operation: BlendOperation::Add,
-                        },
+    let ass: Asset<PipelineAsset> = AssetServer::add(1, move || {
+        Ok(PipelineAsset {
+            layout: create_pipeline(&RenderPipelineDescriptor {
+                label: "ui_pipeline".into(),
+                layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
+                    label: "ui_pipeline_layout".into(),
+                    bind_group_layouts: &[&bind_group_layout],
+                    push_constant_ranges: &[],
+                })),
+                vertex: VertexState {
+                    module: &(shader),
+                    entry_point: "vs_main".into(),
+                    compilation_options: Default::default(),
+                    buffers: &[UIVertex::desc()],
+                },
+                primitive: PrimitiveState {
+                    topology: PrimitiveTopology::TriangleStrip,
+                    strip_index_format: None,
+                    front_face: FrontFace::Cw,
+                    cull_mode: Face::Back.into(),
+                    unclipped_depth: false,
+                    polygon_mode: PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: Default::default(),
+                fragment: FragmentState {
+                    module: &(shader),
+                    entry_point: "fs_main".into(),
+                    compilation_options: Default::default(),
+                    targets: &[ColorTargetState {
+                        format: get_surface_format(),
+                        blend: BlendState {
+                            color: BlendComponent {
+                                src_factor: BlendFactor::SrcAlpha,         // Source: Alpha
+                                dst_factor: BlendFactor::OneMinusSrcAlpha, // Destination: 1 - Alpha
+                                operation: BlendOperation::Add, // Standard Alpha Blending
+                            },
+                            alpha: BlendComponent {
+                                src_factor: BlendFactor::One,              // Preserve Alpha
+                                dst_factor: BlendFactor::OneMinusSrcAlpha, // Blend Based on Alpha
+                                operation: BlendOperation::Add,
+                            },
+                        }
+                        .into(),
+                        write_mask: ColorWrites::ALL,
                     }
-                    .into(),
-                    write_mask: ColorWrites::ALL,
+                    .into()],
                 }
-                .into()],
-            }
-            .into(),
-            multiview: None,
-            cache: None,
-        }),
+                .into(),
+                multiview: None,
+                cache: None,
+            }),
+        })
     });
 
     graph.f_write().add_node(Box::new(UIRenderNode {

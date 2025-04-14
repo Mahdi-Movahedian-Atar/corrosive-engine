@@ -1,5 +1,7 @@
-pub mod rect2d;
+pub mod camera2d;
+pub mod sprite2d;
 
+use crate::comp::camera2d::ActiveCamera2D;
 use crate::material2d::{Material2D, Material2DWrapper, StandardMaterial2D};
 use crate::math2d::{Mat3, Vec2};
 use crate::mesh2d::Vertex2D;
@@ -7,18 +9,19 @@ use crate::task::UnsafeRenderPass;
 use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_asset_manager::dynamic_hasher;
 use corrosive_asset_manager_macro::static_hasher;
-use corrosive_ecs_core::ecs_core::{Member, Reference, SharedBehavior};
+use corrosive_ecs_core::ecs_core::{Member, Reference, Res, SharedBehavior};
 use corrosive_ecs_core::trait_for;
 use corrosive_ecs_core_macro::{trait_bound, Component, Resource};
 use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
 use corrosive_ecs_renderer_backend::helper::{
     create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
-    create_pipeline_layout, create_shader_module, get_surface_format, BindGroup, BindGroupEntry,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
-    BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferUsages,
-    ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, PipelineLayoutDescriptor,
-    PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass, RenderPipelineDescriptor,
-    ShaderStage, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+    create_pipeline_layout, create_shader_module, get_resolution_bind_group_layout,
+    get_surface_format, BindGroup, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+    BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
+    BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace,
+    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
+    RenderPipelineDescriptor, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat,
+    VertexState, VertexStepMode,
 };
 use corrosive_ecs_renderer_backend::material::Material;
 use crossbeam_channel::{Receiver, Sender};
@@ -31,7 +34,8 @@ pub struct Position2D {
     pub local_position: Vec2,
     pub local_rotation: f32,
     pub local_scale: Vec2,
-    world_matrix: Mat3,
+    pub(crate) world_matrix: Mat3,
+    pub(crate) dirty: bool,
 }
 impl Default for Position2D {
     fn default() -> Self {
@@ -41,6 +45,7 @@ impl Default for Position2D {
             local_rotation: 0.0,
             local_scale: Vec2 { x: 1.0, y: 1.0 },
             world_matrix: Mat3::identity(),
+            dirty: true,
         }
     }
 }
@@ -52,6 +57,7 @@ impl Position2D {
             local_rotation: 0.0,
             local_scale: Vec2 { x: 1.0, y: 1.0 },
             world_matrix: Mat3::identity(),
+            dirty: true,
         }
     }
 
@@ -114,6 +120,7 @@ impl SharedBehavior for Position2D {
         let local_matrix = translation.multiply(&rotation).multiply(&scale);
 
         self.world_matrix = parent.world_matrix.multiply(&local_matrix);
+        self.dirty = true;
     }
 
     fn shaded_remove_behavior(&mut self) {
@@ -123,16 +130,17 @@ impl SharedBehavior for Position2D {
 
         let local_matrix = translation.multiply(&rotation).multiply(&scale);
 
-        self.world_matrix = local_matrix
+        self.world_matrix = local_matrix;
+        self.dirty = true;
     }
 }
 
 #[trait_bound]
 pub trait Mesh2D {
-    fn draw(&self);
+    fn draw(&self, render_pass: &mut RenderPass);
     fn update(&self, render_pass: &mut RenderPass);
     fn name<'a>(&self) -> &'a str;
-    fn get_bind_group_layout_desc(&self) -> Asset<BindGroupLayoutAsset>;
+    fn get_bind_group_layout_desc(&self) -> &Asset<BindGroupLayoutAsset>;
 }
 #[derive(Component)]
 pub struct RendererMeta2D {
@@ -145,27 +153,40 @@ pub struct RendererMeta2D {
 impl RendererMeta2D {
     pub fn new(
         material_2d: &Asset<impl Material2D>,
-        mesh_2d: impl Mesh2D,
+        mesh_2d: &impl Mesh2D,
         position_2d: &Member<Position2D>,
+        active_camera2d: &Res<ActiveCamera2D>,
     ) -> Self {
         let material_2d_wrapper = material_2d.get().generate_wrapper(material_2d.clone());
         let bind_group_layout: Asset<BindGroupLayoutAsset> =
             AssetServer::add(static_hasher!("2DTransformBindGroupLayout"), || {
-                BindGroupLayoutAsset {
+                Ok(BindGroupLayoutAsset {
                     layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
                         label: "2DTransformBindGroupLayoutDescriptor".into(),
-                        entries: &[BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: ShaderStage::FRAGMENT,
-                            ty: BindingType::Buffer {
-                                ty: BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
+                        entries: &[
+                            BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: ShaderStages::VERTEX_FRAGMENT,
+                                ty: BindingType::Buffer {
+                                    ty: BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
                             },
-                            count: None,
-                        }],
+                            BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: ShaderStages::VERTEX_FRAGMENT,
+                                ty: BindingType::Buffer {
+                                    ty: BufferBindingType::Uniform,
+                                    has_dynamic_offset: false,
+                                    min_binding_size: None,
+                                },
+                                count: None,
+                            },
+                        ],
                     }),
-                }
+                })
             });
 
         let transform_buffer = create_buffer_init(
@@ -179,17 +200,26 @@ impl RendererMeta2D {
         let transform_bind_group = create_bind_group(
             "TransformBindGroup",
             &bind_group_layout.get().layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: transform_buffer.as_entire_binding(),
-            }],
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: transform_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: <Option<Buffer> as Clone>::clone(&active_camera2d.f_read().buffer)
+                        .unwrap()
+                        .as_entire_binding(),
+                },
+            ],
         );
 
-        let pipeline_asset: Asset<PipelineAsset> =
-            AssetServer::add_sync(static_hasher!("ss"), || {
+        let pipeline_asset: Asset<PipelineAsset> = AssetServer::add_sync(
+            dynamic_hasher(format!("{}{}", mesh_2d.name(), material_2d.get().get_name()).as_str()),
+            || {
                 let material2d = material_2d.get();
                 let shader = material2d.get_shader();
-                PipelineAsset {
+                Ok(PipelineAsset {
                     layout: create_pipeline(&RenderPipelineDescriptor {
                         label: format!("{}{}", mesh_2d.name(), material2d.get_name())
                             .as_str()
@@ -198,6 +228,7 @@ impl RendererMeta2D {
                             label: "ui_pipeline_layout".into(),
                             bind_group_layouts: &[
                                 &bind_group_layout.get().layout,
+                                get_resolution_bind_group_layout(),
                                 &mesh_2d.get_bind_group_layout_desc().get().layout,
                                 &material2d.get_bind_group_layout().get().layout,
                             ],
@@ -227,8 +258,8 @@ impl RendererMeta2D {
                         primitive: PrimitiveState {
                             topology: PrimitiveTopology::TriangleStrip,
                             strip_index_format: None,
-                            front_face: FrontFace::Ccw,
-                            cull_mode: Face::Front.into(),
+                            front_face: FrontFace::Cw,
+                            cull_mode: Face::Back.into(),
                             unclipped_depth: false,
                             polygon_mode: PolygonMode::Fill,
                             conservative: false,
@@ -262,8 +293,9 @@ impl RendererMeta2D {
                         multiview: None,
                         cache: None,
                     }),
-                }
-            });
+                })
+            },
+        );
         Self {
             pipeline_asset,
             transform_data: (transform_buffer, transform_bind_group),

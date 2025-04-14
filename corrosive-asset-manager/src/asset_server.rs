@@ -1,5 +1,6 @@
 use crate::dynamic_hasher;
 use std::collections::HashMap;
+use std::error::Error;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 
@@ -9,7 +10,7 @@ pub trait AssetObject {
         Self: Sized;
 }
 pub trait AssetFile {
-    fn load_file(file: &str) -> Self
+    fn load_file(file: &str) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized;
 }
@@ -37,7 +38,10 @@ impl<T: 'static> Default for AssetServer<T> {
     }
 }
 impl<T: Send + Sync + AssetObject> AssetServer<T> {
-    pub fn add<'a>(id: u64, asset: impl FnOnce() -> T + Send + 'static) -> Asset<T> {
+    pub fn add<'a>(
+        id: u64,
+        asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
+    ) -> Asset<T> {
         let binding = T::get_server();
 
         let (val, ref_count) = unsafe {
@@ -53,15 +57,21 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
 
                 let new_id = id.clone();
                 std::thread::spawn(move || {
-                    let value = asset();
-                    if let Some(t) = T::get_server()
-                        .lock()
-                        .expect(format!("Could not add {}.", id).as_str())
-                        .values
-                        .get_mut(&new_id)
-                    {
-                        *t.write().unwrap() = AssetValue::Ready(value)
-                    }
+                    match asset() {
+                        Ok(v) => {
+                            if let Some(t) = T::get_server()
+                                .lock()
+                                .expect(format!("Could not add {}.", id).as_str())
+                                .values
+                                .get_mut(&new_id)
+                            {
+                                *t.write().unwrap() = AssetValue::Ready(v)
+                            }
+                        }
+                        Err(v) => {
+                            println!("{:?}", v)
+                        }
+                    };
                 });
             };
             (
@@ -76,7 +86,7 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
             id,
         }
     }
-    pub fn add_sync<'a>(id: u64, asset: impl FnOnce() -> T) -> Asset<T> {
+    pub fn add_sync<'a>(id: u64, asset: impl FnOnce() -> Result<T, Box<dyn Error>>) -> Asset<T> {
         let binding = T::get_server();
 
         let (val, ref_count) = unsafe {
@@ -90,15 +100,16 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
                 lock.values
                     .insert(id.clone(), RwLock::new(AssetValue::NotReady(v)));
 
-                let value = asset();
-                if let Some(t) = T::get_server()
-                    .lock()
-                    .expect(format!("Could not add {}.", id).as_str())
-                    .values
-                    .get_mut(&id.clone())
-                {
-                    *t.write().unwrap() = AssetValue::Ready(value)
-                }
+                match asset() {
+                    Ok(v) => {
+                        if let Some(t) = lock.values.get_mut(&id.clone()) {
+                            *t.write().unwrap() = AssetValue::Ready(v)
+                        }
+                    }
+                    Err(v) => {
+                        println!("{:?}", v)
+                    }
+                };
             };
             (
                 std::mem::transmute(&lock.values[&id]),
@@ -143,7 +154,12 @@ impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {
         AssetServer::add_sync(dynamic_hasher(file_path), || T::load_file(file_path))
     }
     pub fn load_default(file_path: &str) {
-        AssetServer::add_default(T::load_file(file_path))
+        match T::load_file(file_path) {
+            Ok(v) => AssetServer::add_default(v),
+            Err(e) => {
+                println!("{:?}", e)
+            }
+        }
     }
 }
 

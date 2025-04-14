@@ -2079,7 +2079,7 @@ pub mod codegen {
         quote! {
             #code
             pub use crate::corrosive_engine::arch_types::*;
-            pub use corrosive_ecs_core::ecs_core::{State, Res, Arch, Locked, LockedRef, Ref};
+            pub use corrosive_ecs_core::ecs_core::{State, Res, Arch, Locked, LockedRef, Ref, Member, Hierarchy};
         }
     }
 

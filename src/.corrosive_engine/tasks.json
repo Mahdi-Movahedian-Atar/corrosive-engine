@@ -43,12 +43,26 @@
   "tasks": [
     {
       "name": "test2_0",
-      "inputs": [],
+      "inputs": [
+        {
+          "Hierarchy": [
+            "position",
+            "Position2D"
+          ]
+        },
+        {
+          "Resources": [
+            "active_camera2d",
+            "ActiveCamera2D"
+          ]
+        }
+      ],
       "outputs": [
         {
           "Arch": [
+            "Member<Position2D>",
             "RendererMeta2D",
-            "Rect2D"
+            "Sprite2D"
           ]
         }
       ]
