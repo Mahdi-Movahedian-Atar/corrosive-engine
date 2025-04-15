@@ -84,19 +84,19 @@ impl Sprite2D {
                 "rect_2d_vertex_buffer",
                 bytemuck::cast_slice(&[
                     Vertex2D {
-                        position: [0f32, 1f32, 0f32],
+                        position: [-0.5f32, 0.5f32, 0f32],
                         uv: [0f32, 1f32],
                     },
                     Vertex2D {
-                        position: [1f32, 1f32, 0f32],
+                        position: [0.5f32, 0.5f32, 0f32],
                         uv: [1f32, 1f32],
                     },
                     Vertex2D {
-                        position: [0f32, 0f32, 0f32],
+                        position: [-0.5f32, -0.5f32, 0f32],
                         uv: [0f32, 0f32],
                     },
                     Vertex2D {
-                        position: [1f32, 0f32, 0f32],
+                        position: [0.5f32, -0.5f32, 0f32],
                         uv: [1f32, 0f32],
                     },
                 ]),

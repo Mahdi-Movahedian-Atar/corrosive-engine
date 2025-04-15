@@ -25,11 +25,11 @@ pub fn run_engine() {
     let o0: RwLock<Vec<(Member<Position2D>, RendererMeta2D, Sprite2D)>> = RwLock::new(Vec::new());
     let or0: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let la0: AtomicU8 = AtomicU8::new(0);
-    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
+    let r_ActiveCamera2D: Res<ActiveCamera2D> = Res::new(Default::default());
     let r_Renderer2dData: Res<Renderer2dData> = Res::new(Default::default());
     let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
+    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
     let r_Renderer: Res<Renderer> = Res::new(Default::default());
-    let r_ActiveCamera2D: Res<ActiveCamera2D> = Res::new(Default::default());
     let h_Position2D: Hierarchy<Position2D> = Hierarchy::default();
     let mut loop_trigger = Trigger::new();
     let mut bus_render_2d = Trigger::new();
@@ -45,19 +45,28 @@ pub fn run_engine() {
             bus_render_2d.trigger();
         });
         if reset.load(SeqCst) {
-            let mut bus_test2_0 = Trigger::new();
-            let mut bus_start_2d_renderer = Trigger::new();
             let mut bus_run_renderer = Trigger::new();
+            let mut bus_start_2d_renderer = Trigger::new();
+            let mut bus_test2_0 = Trigger::new();
             let mut bus_init_camera = Trigger::new();
-            let mut test2_0_end = bus_test2_0.add_trigger();
-            let mut test2_0_run_renderer = bus_run_renderer.add_trigger();
-            let mut start_2d_renderer_end = bus_start_2d_renderer.add_trigger();
             let mut run_renderer_end = bus_run_renderer.add_trigger();
             let mut run_renderer_start_2d_renderer = bus_start_2d_renderer.add_trigger();
+            let mut start_2d_renderer_end = bus_start_2d_renderer.add_trigger();
+            let mut test2_0_end = bus_test2_0.add_trigger();
+            let mut test2_0_run_renderer = bus_run_renderer.add_trigger();
             let mut init_camera_end = bus_init_camera.add_trigger();
             let mut init_camera_run_renderer = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
+                let handle_run_renderer = s.spawn(|| {
+                    run_renderer_start_2d_renderer.read("failed");
+                    let o = run_renderer(
+                        r_Renderer.clone(),
+                        r_WindowOptions.clone(),
+                        r_RenderGraph.clone(),
+                    );
+                    bus_run_renderer.trigger();
+                });
                 let handle_start_2d_renderer = s.spawn(|| {
                     let o = start_2d_renderer(r_RenderGraph.clone(), r_Renderer2dData.clone());
                     bus_start_2d_renderer.trigger();
@@ -76,21 +85,12 @@ pub fn run_engine() {
                     let o = init_camera(r_ActiveCamera2D.clone());
                     bus_init_camera.trigger();
                 });
-                let handle_run_renderer = s.spawn(|| {
-                    run_renderer_start_2d_renderer.read("failed");
-                    let o = run_renderer(
-                        r_Renderer.clone(),
-                        r_WindowOptions.clone(),
-                        r_RenderGraph.clone(),
-                    );
-                    bus_run_renderer.trigger();
-                });
+                handle_run_renderer.join().expect("TODO: panic message");
                 handle_start_2d_renderer
                     .join()
                     .expect("TODO: panic message");
                 handle_test2_0.join().expect("TODO: panic message");
                 handle_init_camera.join().expect("TODO: panic message");
-                handle_run_renderer.join().expect("TODO: panic message");
             });
         }
         loop {

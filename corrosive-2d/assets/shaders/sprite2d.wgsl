@@ -8,9 +8,9 @@ struct VertexOutput {
 };
 
 @group(0) @binding(0)
-var<uniform> transform : mat3x3<f32>;
+var<uniform> transform : mat4x4<f32>;
 @group(0) @binding(1)
-var<uniform> camera_matrix: mat3x3<f32>;
+var<uniform> camera_matrix: mat4x4<f32>;
 
 @group(1) @binding(0)
 var<uniform> resolution : vec2<f32>;
@@ -27,17 +27,12 @@ var diffuse_sampler: sampler;
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
 
-    let transformed_pos = transform * vec3<f32>(input.position.xy, 1.0);
-    let camera_pos = camera_matrix * transformed_pos;
+    let transformed_pos = transform * vec4<f32>(input.position, 1.0);
+    var camera_pos = camera_matrix * transformed_pos;
+    camera_pos.x *= resolution.y / resolution.x;
 
-    // Convert to clip space coordinates
-    output.clip_position = vec4<f32>(
-        camera_pos.xy / resolution * 2.0 - 1.0,
-        0.0,
-        1.0
-    );
+    output.clip_position = camera_pos;
 
-    // Pass through texture coordinates
     output.location = input.location;
 
     return output;

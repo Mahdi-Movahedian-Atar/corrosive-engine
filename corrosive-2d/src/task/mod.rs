@@ -89,12 +89,12 @@ pub fn init_camera(active_camera: Res<ActiveCamera2D>) {
         &match &lock.data {
             Some((_, t)) => {
                 if let Reference::Some(v) = &*t.f_read() {
-                    bytemuck::cast_slice(&[v.world_matrix]).to_vec()
+                    bytemuck::cast_slice(&[v.world_matrix.to_mat4_4()]).to_vec()
                 } else {
-                    bytemuck::cast_slice(&[Mat3::identity()]).to_vec()
+                    bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec()
                 }
             }
-            _ => bytemuck::cast_slice(&[Mat3::identity()]).to_vec(),
+            _ => bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec(),
         },
         BufferUsages::UNIFORM,
     ))

@@ -3,18 +3,18 @@
   "path": "./src",
   "setup_dependency": {
     "dependents": {
-      "Task(init_camera)": [
-        "Task(run_renderer)"
-      ],
-      "Task(start_2d_renderer)": [],
       "Task(run_renderer)": [
         "Task(start_2d_renderer)"
+      ],
+      "Task(start_2d_renderer)": [],
+      "Task(init_camera)": [
+        "Task(run_renderer)"
       ]
     },
     "in_degrees": {
+      "Task(init_camera)": 0,
       "Task(run_renderer)": 1,
-      "Task(start_2d_renderer)": 1,
-      "Task(init_camera)": 0
+      "Task(start_2d_renderer)": 1
     }
   },
   "runtime_dependency": {

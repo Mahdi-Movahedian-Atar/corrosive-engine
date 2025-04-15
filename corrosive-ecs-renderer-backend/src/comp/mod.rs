@@ -88,12 +88,6 @@ pub struct RenderGraph {
     pub(crate) execution_levels: Vec<Vec<usize>>,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct Resolution {
-    resolution: [u32; 2],
-}
-
 pub struct State<'a> {
     pub(crate) surface: wgpu::Surface<'a>,
     pub(crate) queue: wgpu::Queue,
@@ -167,9 +161,7 @@ impl<'a> State<'a> {
 
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: "resolution_buffer".into(),
-            contents: &bytemuck::cast_slice(&[Resolution {
-                resolution: [size.width, size.height],
-            }]),
+            contents: &bytemuck::cast_slice(&[size.width as f32, size.height as f32]),
             usage: BufferUsages::UNIFORM,
         });
 

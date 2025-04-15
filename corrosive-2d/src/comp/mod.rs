@@ -25,8 +25,6 @@ use corrosive_ecs_renderer_backend::helper::{
 };
 use corrosive_ecs_renderer_backend::material::Material;
 use crossbeam_channel::{Receiver, Sender};
-use std::ptr::NonNull;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, Component)]
 pub struct Position2D {
@@ -192,8 +190,10 @@ impl RendererMeta2D {
         let transform_buffer = create_buffer_init(
             "TransformBuffer",
             &match &*position_2d.f_read() {
-                Reference::Some(t) => bytemuck::cast_slice(&[t.world_matrix]).to_vec(),
-                Reference::Expired => bytemuck::cast_slice(&[Mat3::identity()]).to_vec(),
+                Reference::Some(t) => bytemuck::cast_slice(&[t.world_matrix.to_mat4_4()]).to_vec(),
+                Reference::Expired => {
+                    bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec()
+                }
             },
             BufferUsages::UNIFORM,
         );
