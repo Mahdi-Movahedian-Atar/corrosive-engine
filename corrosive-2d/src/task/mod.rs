@@ -6,8 +6,8 @@ use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::RenderGraph;
 use corrosive_ecs_renderer_backend::helper;
 use corrosive_ecs_renderer_backend::helper::{
-    create_buffer_init, get_resolution_bind_group, BufferUsages, Color, LoadOp, Operations,
-    RenderPass, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
+    create_buffer_init, get_resolution_bind_group, write_to_buffer, BufferUsages, Color, LoadOp,
+    Operations, RenderPass, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
 };
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -44,9 +44,9 @@ impl RenderNode for Renderer2DNode {
                 resolve_target: None,
                 ops: Operations {
                     load: LoadOp::Clear(Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
                         a: 1.0,
                     }),
                     store: StoreOp::Store,
@@ -89,14 +89,14 @@ pub fn init_camera(active_camera: Res<ActiveCamera2D>) {
         &match &lock.data {
             Some((_, t)) => {
                 if let Reference::Some(v) = &*t.f_read() {
-                    bytemuck::cast_slice(&[v.world_matrix.to_mat4_4()]).to_vec()
+                    bytemuck::cast_slice(&[v.view_matrix()]).to_vec()
                 } else {
                     bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec()
                 }
             }
             _ => bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec(),
         },
-        BufferUsages::UNIFORM,
+        BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     ))
 }
 #[task]
@@ -114,5 +114,39 @@ pub fn render_2d(meta: Arch<(&dyn Mesh2D, &RendererMeta2D)>, renderer2d_data: Re
             });
         }
         data.1.send(()).unwrap();
+    }
+}
+#[task]
+pub fn update_position(
+    pos: Arch<(&Member<Position2D>, &RendererMeta2D)>,
+    active_camera: Res<ActiveCamera2D>,
+) {
+    for p in pos.iter().enumerate() {
+        let mut lock = p.1 .0.dry_f_write();
+        match &mut *lock {
+            Reference::Some(t) => {
+                write_to_buffer(
+                    &p.1 .1.transform_data.0,
+                    0,
+                    bytemuck::cast_slice(&[t.uniform_matrix()]),
+                );
+                t.dirty = false;
+            }
+            Reference::Expired => pos.remove(p.0),
+        }
+    }
+    let lock = active_camera.f_write();
+
+    if let Some(b) = &lock.buffer {
+        if let Some(t) = &lock.data {
+            if let Reference::Some(p) = &mut *t.1.dry_f_write() {
+                write_to_buffer(b, 0, bytemuck::cast_slice(&[p.uniform_matrix()]));
+                p.dirty = false;
+            } else {
+                write_to_buffer(b, 0, bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]));
+            }
+        }
+    } else {
+        panic!("Run init_camera in setup.")
     }
 }

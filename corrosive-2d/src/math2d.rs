@@ -3,6 +3,30 @@ pub struct Vec2 {
     pub x: f32,
     pub y: f32,
 }
+impl Vec2 {
+    pub fn length(&self) -> f32 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
+
+    pub fn angle_between(self, other: Vec2) -> f32 {
+        let dot = self.x * other.x + self.y * other.y;
+        let det = self.x * other.y - self.y * other.x;
+        det.atan2(dot) // signed angle between -π and π
+    }
+
+    pub fn normalize(&self) -> Vec2 {
+        let len = self.length();
+        if len != 0.0 {
+            Vec2 {
+                x: self.x / len,
+                y: self.y / len,
+            }
+        } else {
+            Vec2 { x: 0.0, y: 0.0 }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
 pub struct Mat3 {
@@ -34,7 +58,13 @@ impl Mat3 {
         }
     }
 
-    pub fn multiply(&self, other: &Mat3) -> Mat3 {
+    pub fn from_scale_rotation_translation(scale: Vec2, rotation: f32, translation: Vec2) -> Self {
+        Mat3::translate(translation)
+            .multiply(&Mat3::rotate(rotation))
+            .multiply(&Mat3::scale(scale))
+    }
+
+    pub fn multiply(&self, other: &Mat3) -> Self {
         let mut result = Mat3::identity();
         for i in 0..3 {
             for j in 0..3 {
@@ -96,5 +126,33 @@ impl Mat3 {
             [0.0, 0.0, 1.0, 0.0],
             [self.m[2][0], self.m[2][1], 0.0, self.m[2][2]],
         ]
+    }
+
+    pub fn decompose(&self) -> (Vec2, f32, Vec2) {
+        let x_axis = Vec2 {
+            x: self.m[0][0],
+            y: self.m[1][0],
+        };
+        let y_axis = Vec2 {
+            x: self.m[0][1],
+            y: self.m[1][1],
+        };
+
+        let scale_x = x_axis.length();
+        let scale_y = y_axis.length();
+        let scale = Vec2 {
+            x: scale_x,
+            y: scale_y,
+        };
+
+        let rotation = x_axis.angle_between(Vec2 { x: 1.0, y: 0.0 });
+
+        // Translation
+        let translation = Vec2 {
+            x: self.m[0][2],
+            y: self.m[1][2],
+        };
+
+        (scale, rotation, translation)
     }
 }

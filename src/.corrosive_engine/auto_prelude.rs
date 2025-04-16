@@ -26,6 +26,7 @@ pub use corrosive_2d::comp::RendererMeta2D;
 pub use corrosive_2d::task::init_camera;
 pub use corrosive_2d::task::render_2d;
 pub use corrosive_2d::task::start_2d_renderer;
+pub use corrosive_2d::task::update_position;
 pub use corrosive_ecs_core::ecs_core::{
     Arch, Hierarchy, Locked, LockedRef, Member, Ref, Res, State,
 };

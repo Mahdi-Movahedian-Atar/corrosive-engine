@@ -32,7 +32,10 @@ pub struct Position2D {
     pub local_position: Vec2,
     pub local_rotation: f32,
     pub local_scale: Vec2,
-    pub(crate) world_matrix: Mat3,
+
+    pub global_position: Vec2,
+    pub global_rotation: f32,
+    pub global_scale: Vec2,
     pub(crate) dirty: bool,
 }
 impl Default for Position2D {
@@ -42,7 +45,9 @@ impl Default for Position2D {
             local_position: Vec2 { x: 0.0, y: 0.0 },
             local_rotation: 0.0,
             local_scale: Vec2 { x: 1.0, y: 1.0 },
-            world_matrix: Mat3::identity(),
+            global_position: Vec2 { x: 0.0, y: 0.0 },
+            global_rotation: 0.0,
+            global_scale: Vec2 { x: 1.0, y: 1.0 },
             dirty: true,
         }
     }
@@ -54,9 +59,27 @@ impl Position2D {
             local_position: Vec2 { x: 0.0, y: 0.0 },
             local_rotation: 0.0,
             local_scale: Vec2 { x: 1.0, y: 1.0 },
-            world_matrix: Mat3::identity(),
+            global_position: Vec2 { x: 0.0, y: 0.0 },
+            global_rotation: 0.0,
+            global_scale: Vec2 { x: 1.0, y: 1.0 },
             dirty: true,
         }
+    }
+
+    pub fn local_matrix(&self) -> Mat3 {
+        Mat3::from_scale_rotation_translation(
+            self.local_scale,
+            self.local_rotation,
+            self.local_position,
+        )
+    }
+
+    pub fn global_matrix(&self) -> Mat3 {
+        Mat3::from_scale_rotation_translation(
+            self.global_scale,
+            self.global_rotation,
+            self.global_position,
+        )
     }
 
     pub fn move_position(&mut self, position: Vec2) {
@@ -72,63 +95,71 @@ impl Position2D {
         self.local_scale = scale;
     }
 
-    pub fn transform_point(&self, point: Vec2) -> Vec2 {
-        Vec2 {
-            x: self.world_matrix.m[2][0]
-                + point.x * self.world_matrix.m[0][0]
-                + point.y * self.world_matrix.m[1][0],
-            y: self.world_matrix.m[2][1]
-                + point.x * self.world_matrix.m[0][1]
-                + point.y * self.world_matrix.m[1][1],
-        }
-    }
+    pub fn uniform_matrix(&self) -> [[f32; 4]; 4] {
+        let sx = self.global_scale.x;
+        let sy = self.global_scale.y;
+        let rotation = self.global_rotation;
+        let tx = self.global_position.x;
+        let ty = self.global_position.y;
+        let tz = self.depth;
 
-    pub fn get_world_position(&self) -> Vec2 {
-        Vec2 {
-            x: self.world_matrix.m[0][2],
-            y: self.world_matrix.m[0][2],
-        }
+        let cos = rotation.cos();
+        let sin = rotation.sin();
+        [
+            [cos * sx, sin * sx, 0.0, 0.0],
+            [-sin * sy, cos * sy, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [tx, ty, tz, 1.0],
+        ]
     }
-}
-pub fn move_world_transformation(member: Member<Position2D>, target: Vec2) {
-    member.write(|v| {
-        if let Reference::Some(v) = &mut *v.unwrap() {
-            v.local_position = if let Some(t) = member.get_parent() {
-                if let Reference::Some(t) = (&*t.f_read()) {
-                    t.world_matrix
-                        .clone()
-                        .inverse()
-                        .unwrap()
-                        .transform_point(target)
-                } else {
-                    target
-                }
-            } else {
-                target
-            }
-        }
-    })
+    pub fn view_matrix(&self) -> [[f32; 4]; 4] {
+        let px = self.global_position.x;
+        let py = self.global_position.y;
+        let r = self.global_rotation;
+        let sx = self.global_scale.x;
+        let sy = self.global_scale.y;
+
+        let t_inv = Mat3 {
+            m: [[1.0, 0.0, -px], [0.0, 1.0, -py], [0.0, 0.0, 1.0]],
+        };
+
+        // Inverse rotation: R⁻¹ = rotation by -r
+        let cos_r = r.cos();
+        let sin_r = r.sin();
+        let r_inv = Mat3 {
+            m: [[cos_r, sin_r, 0.0], [-sin_r, cos_r, 0.0], [0.0, 0.0, 1.0]],
+        };
+
+        // Inverse scale: S⁻¹ (assumes nonzero scale)
+        let s_inv = Mat3 {
+            m: [[1.0 / sx, 0.0, 0.0], [0.0, 1.0 / sy, 0.0], [0.0, 0.0, 1.0]],
+        };
+
+        let view = &s_inv.multiply(&r_inv);
+        let view = &view.multiply(&t_inv);
+        let mut view = view.to_mat4_4();
+        view[2][3] = self.depth;
+        view
+    }
 }
 impl SharedBehavior for Position2D {
     fn shaded_add_behavior(&mut self, parent: &Self) {
-        let translation = Mat3::translate(self.local_position);
-        let rotation = Mat3::rotate(self.local_rotation);
-        let scale = Mat3::scale(self.local_scale);
+        let parent_matrix = parent.global_matrix();
+        let local_matrix = self.local_matrix();
+        let global_matrix = parent_matrix.multiply(&local_matrix);
 
-        let local_matrix = translation.multiply(&rotation).multiply(&scale);
+        let (scale, rotation, translation) = global_matrix.decompose();
 
-        self.world_matrix = parent.world_matrix.multiply(&local_matrix);
+        self.global_scale = scale;
+        self.global_rotation = rotation;
+        self.global_position = translation;
         self.dirty = true;
     }
 
     fn shaded_remove_behavior(&mut self) {
-        let translation = Mat3::translate(self.local_position);
-        let rotation = Mat3::rotate(self.local_rotation);
-        let scale = Mat3::scale(self.local_scale);
-
-        let local_matrix = translation.multiply(&rotation).multiply(&scale);
-
-        self.world_matrix = local_matrix;
+        self.global_position = self.local_position;
+        self.global_rotation = self.local_rotation;
+        self.global_scale = self.local_scale;
         self.dirty = true;
     }
 }
@@ -190,12 +221,15 @@ impl RendererMeta2D {
         let transform_buffer = create_buffer_init(
             "TransformBuffer",
             &match &*position_2d.f_read() {
-                Reference::Some(t) => bytemuck::cast_slice(&[t.world_matrix.to_mat4_4()]).to_vec(),
+                Reference::Some(t) => {
+                    println!("{:?}", t.uniform_matrix());
+                    bytemuck::cast_slice(&[t.uniform_matrix()]).to_vec()
+                }
                 Reference::Expired => {
                     bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec()
                 }
             },
-            BufferUsages::UNIFORM,
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
         let transform_bind_group = create_bind_group(
             "TransformBindGroup",
@@ -258,8 +292,8 @@ impl RendererMeta2D {
                         primitive: PrimitiveState {
                             topology: PrimitiveTopology::TriangleStrip,
                             strip_index_format: None,
-                            front_face: FrontFace::Cw,
-                            cull_mode: Face::Back.into(),
+                            front_face: FrontFace::Ccw,
+                            cull_mode: Face::Front.into(),
                             unclipped_depth: false,
                             polygon_mode: PolygonMode::Fill,
                             conservative: false,

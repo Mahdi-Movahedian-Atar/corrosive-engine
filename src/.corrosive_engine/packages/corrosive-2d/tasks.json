@@ -56,6 +56,31 @@
         }
       ],
       "outputs": []
+    },
+    {
+      "name": "update_position",
+      "inputs": [
+        {
+          "Arch": [
+            "pos",
+            [
+              {
+                "Normal": "Member<Position2D>"
+              },
+              {
+                "Normal": "RendererMeta2D"
+              }
+            ]
+          ]
+        },
+        {
+          "Resources": [
+            "active_camera",
+            "ActiveCamera2D"
+          ]
+        }
+      ],
+      "outputs": []
     }
   ]
 }

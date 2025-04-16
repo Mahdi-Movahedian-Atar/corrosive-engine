@@ -7,6 +7,7 @@ use corrosive_2d::comp::camera2d::ActiveCamera2D;
 use corrosive_2d::comp::sprite2d::Sprite2D;
 use corrosive_2d::comp::{sprite2d, Position2D, RendererMeta2D};
 use corrosive_2d::material2d::StandardMaterial2D;
+use corrosive_2d::position2d_operations::Move2D;
 use corrosive_asset_manager::asset_server::AssetServer;
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{
@@ -25,19 +26,11 @@ pub fn test2_0(
 ) -> (RArch<(Member<Position2D>, RendererMeta2D, Sprite2D)>,) {
     let mut a: RArch<(Member<Position2D>, RendererMeta2D, Sprite2D)> = RArch::default();
     let new_position = position.new_entry(Position2D::new());
-    /*match &mut *new_position.dry_f_write() {
-        Reference::Some(t) => {
-            t.rotate(0.5);
-        }
-        Reference::Expired => {}
-    }
-    new_position.hierarchy.shared_behavior(&new_position.id);*/
-    new_position.f_write(|mut x| match &mut *x {
-        Reference::Some(t) => {
-            t.rotate(0.5);
-        }
-        Reference::Expired => {}
-    });
+    Move2D::start(&new_position)
+        .rotate_local(0.5)
+        .scale_local(0.0, 1.0)
+        .transition_local(0.0, 0.5)
+        .finish();
 
     let rect2d = Sprite2D::new(AssetServer::load("assets/bitmap.png"), [0.0, 0.0]);
     let meta = RendererMeta2D::new(
