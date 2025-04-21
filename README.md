@@ -1,0 +1,1 @@
+This project(main package and all workspace packages) are under GNU Affero General Public License v3.0.

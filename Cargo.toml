@@ -5,6 +5,7 @@ members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer
 name = "corrosive-engine"
 version = "0.1.0"
 edition = "2021"
+license = "GNU AGPLv3"
 
 [dependencies]
 corrosive-ecs-core = {path = "corrosive-ecs-core", features = ["all"]}
