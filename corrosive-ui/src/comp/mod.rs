@@ -5,13 +5,16 @@ use corrosive_asset_manager::asset_server::Asset;
 use corrosive_ecs_core::ecs_core::{Member, Ref, Reference, SharedBehavior};
 use corrosive_ecs_core_macro::{Component, Resource};
 use corrosive_ecs_renderer_backend::assets::PipelineAsset;
-use corrosive_ecs_renderer_backend::helper;
-use corrosive_ecs_renderer_backend::helper::{
-    create_bind_group_layout, write_to_buffer, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindGroupRenderable, BindingType, Buffer, BufferAddress, BufferBindingType, ShaderStages,
-    VertexAttribute, VertexBufferLayout, VertexFormat, VertexRenderable, VertexStepMode,
-};
 use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
+use corrosive_ecs_renderer_backend::public_functions::{
+    create_bind_group_layout, write_to_buffer, VertexRenderable,
+};
+use corrosive_ecs_renderer_backend::wgpu::{
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferAddress,
+    BufferBindingType, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat,
+    VertexStepMode,
+};
+use corrosive_ecs_renderer_backend::{public_functions, wgpu};
 use std::cmp::PartialEq;
 use std::sync::{Arc, RwLockReadGuard};
 
@@ -67,7 +70,7 @@ impl MaterialData for UIStyle {
         write_to_buffer(&material_data.buffer, 0, bytemuck::bytes_of(self));
     }
 
-    fn get_bind_group_layout() -> helper::BindGroupLayout {
+    fn get_bind_group_layout() -> wgpu::BindGroupLayout {
         create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: "UIStyle_Buffer_Layout".into(),
             entries: &[BindGroupLayoutEntry {

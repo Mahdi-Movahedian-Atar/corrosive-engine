@@ -4,12 +4,15 @@ use crate::math2d::Mat3;
 use corrosive_ecs_core::ecs_core::{Arch, Member, Ref, Reference, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::RenderGraph;
-use corrosive_ecs_renderer_backend::helper;
-use corrosive_ecs_renderer_backend::helper::{
-    create_buffer_init, get_resolution_bind_group, write_to_buffer, BufferUsages, Color, LoadOp,
-    Operations, RenderPass, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
+use corrosive_ecs_renderer_backend::public_functions::{
+    create_buffer_init, get_resolution_bind_group, write_to_buffer,
 };
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
+use corrosive_ecs_renderer_backend::wgpu::{
+    BufferUsages, Color, LoadOp, Operations, RenderPass, RenderPassColorAttachment,
+    RenderPassDescriptor, StoreOp,
+};
+use corrosive_ecs_renderer_backend::{public_functions, wgpu};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::marker::PhantomData;
 use std::ptr::NonNull;
@@ -35,7 +38,7 @@ impl RenderNode for Renderer2DNode {
         device: &Device,
         queue: &Queue,
         encoder: &mut CommandEncoder,
-        view: &helper::TextureView,
+        view: &wgpu::TextureView,
     ) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("2D Render Pass"),

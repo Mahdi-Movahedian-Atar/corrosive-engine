@@ -1,18 +1,20 @@
-use crate::helper::{BindGroupDescriptor, BindGroupEntry, BufferBindingType};
 use crate::render_graph::GraphNode;
+use crate::wgpu::BindGroupEntry;
 use crate::STATE;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::{Component, Resource};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 use wgpu::hal::dx12::PipelineLayout;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    BindGroup, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-    Buffer, BufferUsages, Device, RenderPipeline, ShaderStages, SurfaceTarget,
+    BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, Device,
+    RenderPipeline, ShaderStages, SurfaceTarget,
 };
 use winit::application::ApplicationHandler;
+use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window;
@@ -23,17 +25,25 @@ pub struct Renderer(pub Option<JoinHandle<()>>);
 
 #[derive(Resource)]
 pub struct WindowOptions {
-    window: Option<Arc<Window>>,
-    func: fn(&mut App, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent),
+    pub window: Option<Arc<Window>>,
+    pub func:
+        Vec<fn(&mut App, event_loop: &ActiveEventLoop, window_id: &WindowId, event: &WindowEvent)>,
 }
 impl Default for WindowOptions {
     fn default() -> Self {
         WindowOptions {
             window: None,
-            func: |app, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent| {
+            func: vec![|app,
+                        event_loop: &ActiveEventLoop,
+                        window_id: &WindowId,
+                        event: &WindowEvent| {
                 match event {
                     WindowEvent::ActivationTokenDone { .. } => {}
-                    WindowEvent::Resized(_) => {}
+                    WindowEvent::Resized(t) => unsafe {
+                        if let Some(s) = &mut STATE {
+                            s.resize(t)
+                        }
+                    },
                     WindowEvent::Moved(_) => {}
                     WindowEvent::CloseRequested => {}
                     WindowEvent::Destroyed => {}
@@ -70,7 +80,7 @@ impl Default for WindowOptions {
                         }
                     }
                 }
-            },
+            }],
         }
     }
 }
@@ -91,8 +101,8 @@ pub struct RenderGraph {
 pub struct State<'a> {
     pub(crate) surface: wgpu::Surface<'a>,
     pub(crate) queue: wgpu::Queue,
-    pub(crate) config: Arc<wgpu::SurfaceConfiguration>,
-    pub(crate) size: winit::dpi::PhysicalSize<u32>,
+    pub(crate) config: Arc<RwLock<wgpu::SurfaceConfiguration>>,
+    pub(crate) size: PhysicalSize<u32>,
     pub(crate) window: Arc<Window>,
     pub(crate) render_graph: Res<RenderGraph>,
     pub(crate) device: Device,
@@ -146,7 +156,7 @@ impl<'a> State<'a> {
             .copied()
             .unwrap_or(surface_caps.formats[0]);
 
-        let config = Arc::new(wgpu::SurfaceConfiguration {
+        let config = Arc::new(RwLock::new(wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: size.width,
@@ -155,14 +165,14 @@ impl<'a> State<'a> {
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
-        });
+        }));
 
-        surface.configure(&device, &config);
+        surface.configure(&device, &config.read().unwrap());
 
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: "resolution_buffer".into(),
             contents: &bytemuck::cast_slice(&[size.width as f32, size.height as f32]),
-            usage: BufferUsages::UNIFORM,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
         let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
@@ -206,85 +216,35 @@ impl<'a> State<'a> {
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        /*let mut encoder = self
-        .device
-        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Render Encoder"),
-        });*/
 
         self.render_graph
             .f_read()
             .execute(&self.device, &self.queue, view);
 
-        /*{
-            // 1.
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[
-                    // This is what @location(0) in the fragment shader targets
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color {
-                                r: 0.1,
-                                g: 0.2,
-                                b: 0.3,
-                                a: 1.0,
-                            }),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    }),
-                ],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(2, &self.light_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
-            render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-            render_pass
-                .draw_mesh_instanced(&self.obj_model.meshes[0], 0..self.instances.len() as u32);
-
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
-
-            use crate::model::DrawLight; // NEW!
-            render_pass.set_pipeline(&self.light_render_pipeline); // NEW!
-            render_pass.draw_light_model(
-                &self.obj_model,
-                &self.camera_bind_group,
-                &self.light_bind_group,
-            ); // NEW!
-
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw_light_model_instanced(
-                &self.obj_model,
-                0..self.instances.len() as u32,
-                &self.camera_bind_group,
-                &self.light_bind_group, // NEW
-            );
-        }
-
-        self.queue.submit(std::iter::once(encoder.finish()));*/
         output.present();
 
         Ok(())
+    }
+
+    pub fn resize(&mut self, new_size: &PhysicalSize<u32>) {
+        if new_size.width > 0 && new_size.height > 0 {
+            self.size = new_size.clone();
+            self.config.write().unwrap().width = new_size.width.clone();
+            self.config.write().unwrap().height = new_size.height.clone();
+            self.surface
+                .configure(&self.device, &self.config.read().unwrap());
+            self.queue.write_buffer(
+                &self.resolution_buffer,
+                0,
+                &bytemuck::cast_slice(&[new_size.width as f32, new_size.height as f32]),
+            )
+        }
     }
 }
 
 pub struct App {
     render_graph: Res<RenderGraph>,
-    window_options: Res<WindowOptions>,
+    pub window_options: Res<WindowOptions>,
 }
 
 impl App {
@@ -322,7 +282,9 @@ impl ApplicationHandler for App {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        let f = (self.window_options.f_read().func);
-        f(self, event_loop, window_id, event)
+        let funcs = self.window_options.f_read().func.clone();
+        funcs.iter().for_each(|f| {
+            f(self, event_loop, &window_id, &event);
+        });
     }
 }

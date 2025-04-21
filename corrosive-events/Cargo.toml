@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+corrosive-ecs-core = { version = "0.1.0", path = "../corrosive-ecs-core" }
+corrosive-ecs-core-macro = { version = "0.1.0", path = "../corrosive-ecs-core-macro" }
+corrosive-ecs-renderer-backend = { version = "0.1.0", path = "../corrosive-ecs-renderer-backend" }

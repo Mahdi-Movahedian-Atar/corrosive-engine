@@ -1,9 +1,9 @@
-use crate::helper::{create_texture, write_texture, TexelCopyTextureInfo};
+use crate::public_functions::{create_texture, write_texture};
 use corrosive_asset_manager;
 use corrosive_asset_manager::asset_server::AssetFile;
 use corrosive_asset_manager_macro::Asset;
 use std::error::Error;
-use wgpu::{RenderPipeline, Texture};
+use wgpu::{RenderPipeline, TexelCopyTextureInfo, Texture};
 
 #[derive(PartialEq, Asset)]
 pub struct PipelineAsset {

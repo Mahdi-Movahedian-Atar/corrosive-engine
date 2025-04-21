@@ -3,14 +3,9 @@ use corrosive_asset_manager_macro::{static_hasher, Asset};
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
 use corrosive_ecs_renderer_backend::color::Color;
-use corrosive_ecs_renderer_backend::helper::{
-    create_bind_group, create_bind_group_layout, create_buffer_init, create_shader_module,
-    get_queue, read_shader, BindGroup, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, Buffer, BufferAddress, BufferBindingType, BufferUsages,
-    PipelineLayoutDescriptor, ShaderModule, ShaderStages, VertexAttribute, VertexBufferLayout,
-    VertexFormat, VertexStepMode,
-};
 use corrosive_ecs_renderer_backend::material::{Material, MaterialDesc};
+use corrosive_ecs_renderer_backend::public_functions::*;
+use corrosive_ecs_renderer_backend::wgpu::*;
 
 pub trait Material2DWrapper {
     fn get_bind_group(&self) -> &'static BindGroup;

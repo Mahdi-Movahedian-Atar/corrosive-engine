@@ -694,6 +694,11 @@ dependencies = [
 [[package]]
 name = "corrosive-events"
 version = "0.1.0"
+dependencies = [
+ "corrosive-ecs-core",
+ "corrosive-ecs-core-macro",
+ "corrosive-ecs-renderer-backend",
+]
 
 [[package]]
 name = "corrosive-renderer"

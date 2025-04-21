@@ -13,17 +13,9 @@ use corrosive_ecs_core::ecs_core::{Member, Reference, Res, SharedBehavior};
 use corrosive_ecs_core::trait_for;
 use corrosive_ecs_core_macro::{trait_bound, Component, Resource};
 use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
-use corrosive_ecs_renderer_backend::helper::{
-    create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
-    create_pipeline_layout, create_shader_module, get_resolution_bind_group_layout,
-    get_surface_format, BindGroup, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
-    BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace,
-    PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPass,
-    RenderPipelineDescriptor, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat,
-    VertexState, VertexStepMode,
-};
 use corrosive_ecs_renderer_backend::material::Material;
+use corrosive_ecs_renderer_backend::public_functions::*;
+use corrosive_ecs_renderer_backend::wgpu::*;
 use crossbeam_channel::{Receiver, Sender};
 
 #[derive(Debug, Clone, Copy, Component)]

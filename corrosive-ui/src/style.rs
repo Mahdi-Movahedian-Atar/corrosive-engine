@@ -100,7 +100,7 @@ pub struct Style {
     pub grid_column: GridPlacement,
 }*/
 use corrosive_ecs_renderer_backend::color::Color;
-use corrosive_ecs_renderer_backend::helper::get_window_resolution;
+use corrosive_ecs_renderer_backend::public_functions::get_window_resolution;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Val {
@@ -114,7 +114,7 @@ pub enum Val {
 impl Val {
     pub fn to_f32_width(&self, parent: &(f32, f32)) -> f32 {
         match self {
-            Val::Px(x) => *get_window_resolution().0 as f32 / *x as f32,
+            Val::Px(x) => get_window_resolution().0 as f32 / *x as f32,
             Val::Per(x) => *x / 100.0 * parent.0,
             Val::PerW(x) => *x / 100.0 * parent.0,
             Val::PerH(x) => *x / 100.0 * parent.1,
@@ -124,7 +124,7 @@ impl Val {
     }
     pub fn to_f32_height(&self, parent: &(f32, f32)) -> f32 {
         match self {
-            Val::Px(x) => *get_window_resolution().1 as f32 / *x as f32,
+            Val::Px(x) => get_window_resolution().1 as f32 / *x as f32,
             Val::Per(x) => *x / 100.0 * parent.1,
             Val::PerW(x) => *x / 100.0 * parent.0,
             Val::PerH(x) => *x / 100.0 * parent.1,

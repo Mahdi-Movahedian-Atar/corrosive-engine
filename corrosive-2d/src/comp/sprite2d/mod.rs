@@ -5,10 +5,13 @@ use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::trait_for;
 use corrosive_ecs_core_macro::Component;
 use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, TextureAsset};
-use corrosive_ecs_renderer_backend::helper::{
-    create_bind_group, create_bind_group_layout, create_buffer_init, create_sampler, AddressMode,
-    BindGroup, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource,
-    BindingType, Buffer, BufferUsages, FilterMode, RenderPass, SamplerBindingType,
+use corrosive_ecs_renderer_backend::public_functions::{
+    create_bind_group, create_bind_group_layout, create_buffer_init, create_sampler,
+};
+use corrosive_ecs_renderer_backend::wgpu::hal::DynCommandEncoder;
+use corrosive_ecs_renderer_backend::wgpu::{
+    AddressMode, BindGroup, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+    BindingResource, BindingType, Buffer, BufferUsages, FilterMode, RenderPass, SamplerBindingType,
     SamplerDescriptor, ShaderStages, TextureSampleType, TextureViewDescriptor,
     TextureViewDimension,
 };

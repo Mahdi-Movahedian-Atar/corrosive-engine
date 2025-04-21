@@ -2,9 +2,8 @@ use crate::comp::Position2D;
 use crate::math2d::Mat3;
 use corrosive_ecs_core::ecs_core::{Member, Ref, Reference};
 use corrosive_ecs_core_macro::{Component, Resource, State};
-use corrosive_ecs_renderer_backend::helper::{
-    create_buffer_init, write_to_buffer, Buffer, BufferUsages,
-};
+use corrosive_ecs_renderer_backend::public_functions::{create_buffer_init, write_to_buffer};
+use corrosive_ecs_renderer_backend::wgpu::{Buffer, BufferUsages};
 
 #[derive(Component)]
 pub struct Camera2D {}

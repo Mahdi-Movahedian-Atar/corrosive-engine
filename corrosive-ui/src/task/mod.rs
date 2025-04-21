@@ -4,19 +4,10 @@ use corrosive_ecs_core::ecs_core::{Hierarchy, Reference, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::assets::PipelineAsset;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
-use corrosive_ecs_renderer_backend::helper::{
-    create_bind_group, create_bind_group_layout, create_buffer_init, create_pipeline,
-    create_pipeline_layout, create_shader_module, get_resolution_bind_group,
-    get_resolution_bind_group_layout, get_surface_format, get_window_ratio, BindGroupEntry,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindGroupRenderable, BindingType,
-    BlendComponent, BlendFactor, BlendOperation, BlendState, BufferBindingType, BufferUsages,
-    Color, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, IndexFormat, LoadOp,
-    Operations, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
-    RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
-    ShaderStages, StoreOp, TextureView, VertexRenderable, VertexState,
-};
 use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
+use corrosive_ecs_renderer_backend::public_functions::*;
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
+use corrosive_ecs_renderer_backend::wgpu::*;
 use std::sync::Arc;
 
 struct UIRenderNode {
