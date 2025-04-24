@@ -38,6 +38,7 @@ corrosive_engine_builder!(
 corrosive_engine_builder!(
     package "corrosive-ecs-renderer-backend",
     package "corrosive-2d",
+    package "corrosive-events",
     setup "test2_0" after "run_renderer"
 );
 

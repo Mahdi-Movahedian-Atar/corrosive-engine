@@ -3,7 +3,7 @@ use crate::STATE;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use wgpu::{SurfaceTexture, TextureView};
+use wgpu::{Extent3d, SurfaceTexture, TextureView};
 pub type CommandEncoder = wgpu::CommandEncoder;
 pub type Device = wgpu::Device;
 pub type Queue = wgpu::Queue;
@@ -47,7 +47,7 @@ impl RenderGraph {
             .push((self.pass_names[parent], self.pass_names[child]));
     }
 
-    pub fn execute(&self, device: &Device, queue: &wgpu::Queue, view: TextureView) {
+    pub fn execute(&self, device: &Device, queue: &wgpu::Queue, view: &TextureView) {
         let command_buffers_mutex = Arc::new(Mutex::new(Vec::new()));
 
         for level in &self.execution_levels {

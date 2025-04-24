@@ -115,14 +115,12 @@ impl Position2D {
             m: [[1.0, 0.0, -px], [0.0, 1.0, -py], [0.0, 0.0, 1.0]],
         };
 
-        // Inverse rotation: R⁻¹ = rotation by -r
         let cos_r = r.cos();
         let sin_r = r.sin();
         let r_inv = Mat3 {
             m: [[cos_r, sin_r, 0.0], [-sin_r, cos_r, 0.0], [0.0, 0.0, 1.0]],
         };
 
-        // Inverse scale: S⁻¹ (assumes nonzero scale)
         let s_inv = Mat3 {
             m: [[1.0 / sx, 0.0, 0.0], [0.0, 1.0 / sy, 0.0], [0.0, 0.0, 1.0]],
         };

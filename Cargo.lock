@@ -687,6 +687,7 @@ dependencies = [
  "corrosive-ecs-core",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",
+ "corrosive-events",
  "corrosive-ui",
  "rand 0.9.0-beta.1",
 ]
