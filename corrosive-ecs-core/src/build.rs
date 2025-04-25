@@ -13,7 +13,7 @@ pub mod general_helper {
     use syn::{parse2, parse_file, Item};
 
     pub fn create_engine() {
-        let main_rs = PathBuf::from("src/main.rs");
+        let main_rs = PathBuf::from("main.rs");
         let content = fs::read_to_string(&main_rs).expect("Failed to read lib");
 
         let ast = parse_file(&content).expect("Failed to parse lib");

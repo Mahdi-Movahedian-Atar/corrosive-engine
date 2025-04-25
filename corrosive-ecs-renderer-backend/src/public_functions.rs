@@ -1,6 +1,6 @@
 use crate::render_graph::Queue;
 use crate::STATE;
-use std::{fs, io};
+use std::{env, fs, io};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -153,8 +153,14 @@ pub fn write_to_buffer(buffer: &Buffer, offset: BufferAddress, data: &[u8]) {
 }
 pub fn read_shader(path: &str) -> io::Result<String> {
     if path.ends_with(".slang") {
+        #[cfg(debug_assertions)]{
+            return fs::read_to_string(format!("{}/{}", env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),path).as_str());
+        }
         fs::read_to_string(format!("./assets/{}.wgsl", path))
     } else {
+        #[cfg(debug_assertions)]{
+            return fs::read_to_string(format!("{}/assets/{}", env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),path).as_str());
+        }
         fs::read_to_string(format!("./assets/{}", path))
     }
 }

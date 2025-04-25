@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::env;
 
 mod comp;
-mod core_test;
 #[path = ".corrosive_engine/mod.rs"]
 mod corrosive_engine;
 mod task;

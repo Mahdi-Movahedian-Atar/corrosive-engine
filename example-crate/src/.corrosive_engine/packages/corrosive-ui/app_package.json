@@ -3,10 +3,10 @@
   "path": "./src",
   "setup_dependency": {
     "dependents": {
-      "Task(run_renderer)": [],
       "Task(setup_ui_pass)": [
         "Task(run_renderer)"
-      ]
+      ],
+      "Task(run_renderer)": []
     },
     "in_degrees": {
       "Task(run_renderer)": 1,
@@ -26,12 +26,12 @@
     "in_degrees": {}
   },
   "tasks": {
-    "rerender_ui": [
-      "Update",
-      null
-    ],
     "setup_ui_pass": [
       "Setup",
+      null
+    ],
+    "rerender_ui": [
+      "Update",
       null
     ]
   },
