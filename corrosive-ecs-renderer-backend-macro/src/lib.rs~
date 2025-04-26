@@ -1,0 +1,26 @@
+use proc_macro::TokenStream;
+use std::hash::{DefaultHasher, Hasher};
+use quote::quote;
+use syn::parse_macro_input;
+
+fn main() {
+    println!("Hello, world!");
+}
+
+#[proc_macro]
+pub fn static_hasher(input: TokenStream) -> TokenStream {
+    // Parse the input as a string literal.
+    let input_literal = parse_macro_input!(input as LitStr);
+    let input_str = input_literal.value();
+
+    let mut hasher = DefaultHasher::new();
+
+    hasher.write(input_str.as_bytes());
+    let hash = hasher.finish();
+
+    let output = quote! {
+        #hash
+    };
+
+    output.into()
+}

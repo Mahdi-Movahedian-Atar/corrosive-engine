@@ -1,0 +1,29 @@
+[package]
+name = "corrosive-ecs-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Mahdi Movahedian Atar movahedianatarmahdi@gmail.com"]
+description = "Core Functionality of Corrosive Engine"
+license = "AGPL-3.0-only OR LicenseRef-Proprietary"
+repository = "https://github.com/Mahdi-Movahedian-Atar/corrosive-engine"
+keywords = ["ecs", "game","gamedev", "engine" , "corrosive-engine"]
+categories = ["game-engines", "game-development"]
+exclude = ["*.rs~"]
+license-file = "LICENSE.md"
+documentation = "https://docs.rs/corrosive-ecs-core/0.1.0/corrosive_ecs_core/"
+
+[dependencies]
+serde = { version = "1.0.215", features = ["derive"] }
+walkdir = "2.5.0"
+syn = { version = "2.0.89" , features = ["full", "visit-mut", "visit"] }
+quote = "1.0.37"
+proc-macro2 = {version =  "1.0.91" , features = ["default","span-locations"]}
+serde_json = "1.0"
+bus = "2.4.1"
+[lib]
+[features]
+default = ["core"]
+all = ["core","build"]
+core = []
+build = []
+

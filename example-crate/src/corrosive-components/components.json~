@@ -1,0 +1,36 @@
+{
+  "path": "./src/comp",
+  "sub_maps": [
+    {
+      "path": "./src\\comp\\sub",
+      "sub_maps": [],
+      "components": [
+        "Position3",
+        "Position4",
+        "MarkedResources"
+      ]
+    },
+    {
+      "path": "./src\\comp\\sub",
+      "sub_maps": [],
+      "components": [
+        "Position3",
+        "Position4",
+        "MarkedResources"
+      ]
+    },
+    {
+      "path": "./src\\comp\\sub",
+      "sub_maps": [],
+      "components": [
+        "Position3",
+        "Position4",
+        "MarkedResources"
+      ]
+    }
+  ],
+  "components": [
+    "Position1",
+    "Position2"
+  ]
+}

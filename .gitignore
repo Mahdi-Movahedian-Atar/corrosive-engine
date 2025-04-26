@@ -1,0 +1,8 @@
+/target
+.idea
+.json
+.vscode
+*/dev-assets/packages
+*/assets/packages
+*/.corrosive_engine
+/docs/book

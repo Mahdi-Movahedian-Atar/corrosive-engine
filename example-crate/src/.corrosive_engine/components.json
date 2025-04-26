@@ -1,0 +1,43 @@
+{
+  "path": "./src/comp",
+  "sub_maps": [
+    {
+      "path": "./src/comp\\sub",
+      "sub_maps": [],
+      "components": [
+        {
+          "Component": "Position3"
+        },
+        {
+          "Component": "Position4"
+        },
+        {
+          "Component": "MarkedResources"
+        },
+        {
+          "Component": "StateExample"
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "Component": "Position1"
+    },
+    {
+      "Component": "Position2"
+    },
+    {
+      "TraitFor": [
+        "test",
+        [
+          "Locked<Position1>",
+          "Ref<Position2>"
+        ]
+      ]
+    },
+    {
+      "Trait": "test"
+    }
+  ]
+}

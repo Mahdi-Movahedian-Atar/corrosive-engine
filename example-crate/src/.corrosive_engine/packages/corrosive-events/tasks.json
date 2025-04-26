@@ -1,0 +1,30 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-events/src/task",
+  "sub_maps": [],
+  "tasks": [
+    {
+      "name": "start_events",
+      "inputs": [
+        {
+          "Resources": [
+            "window_options",
+            "WindowOptions"
+          ]
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "name": "update_events",
+      "inputs": [
+        {
+          "Resources": [
+            "input_res",
+            "Inputs"
+          ]
+        }
+      ],
+      "outputs": []
+    }
+  ]
+}

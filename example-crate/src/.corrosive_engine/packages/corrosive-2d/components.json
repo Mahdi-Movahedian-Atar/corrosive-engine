@@ -1,0 +1,48 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp",
+  "sub_maps": [
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\camera2d",
+      "sub_maps": [],
+      "components": [
+        {
+          "Component": "Camera2D"
+        },
+        {
+          "Component": "ActiveCamera2D"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-2d/src/comp\\sprite2d",
+      "sub_maps": [],
+      "components": [
+        {
+          "Component": "Sprite2D"
+        },
+        {
+          "TraitFor": [
+            "Mesh2D",
+            [
+              "Sprite2D"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "Component": "Position2D"
+    },
+    {
+      "Trait": "Mesh2D"
+    },
+    {
+      "Component": "RendererMeta2D"
+    },
+    {
+      "Component": "Renderer2dData"
+    }
+  ]
+}

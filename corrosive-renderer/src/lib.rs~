@@ -1,0 +1,11 @@
+use corrosive_ecs_core_macro::corrosive_engine_builder;
+
+mod camera;
+pub mod comp;
+pub mod task;
+mod texture;
+mod model;
+
+corrosive_engine_builder!(
+    setup "run_renderer"
+);
