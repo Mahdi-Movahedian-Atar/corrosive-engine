@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Mahdi Movahedian Atar movahedianatarmahdi@gmail.com"]
 description = "Core Functionality of Corrosive Engine"
-license = "GNU AGPLv3 OR LicenseRef-Proprietary"
+license = "AGPL-3.0-only OR LicenseRef-Proprietary"
 repository = "https://github.com/Mahdi-Movahedian-Atar/corrosive-engine"
 keywords = ["ecs", "game","gamedev", "engine" , "corrosive-engine"]
 categories = ["game-engines", "game-development"]
 exclude = ["*.rs~"]
+license-file = "LICENSE.md"
 
 [dependencies]
 serde = { version = "1.0.215", features = ["derive"] }
