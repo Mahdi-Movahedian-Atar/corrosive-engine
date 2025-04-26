@@ -1,12 +1,7 @@
 #![allow(warnings)]
 
 use crate::corrosive_engine::engine::run_engine;
-use corrosive_ecs_core::build::general_helper::create_engine;
 use corrosive_ecs_core_macro::corrosive_engine_builder;
-use corrosive_engine::auto_prelude::*;
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
-use std::env;
 
 mod comp;
 #[path = ".corrosive_engine/mod.rs"]

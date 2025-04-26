@@ -1,3 +1,10 @@
+This project is dual-licensed:
+
+- Under the GNU Affero General Public License v3.0 or later
+- Or under a proprietary license for the original author and those with explicit permission
+
+See the file `LICENSE-PROPRIETARY` for proprietary terms.
+
 GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 

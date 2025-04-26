@@ -5,7 +5,8 @@ members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer
 name = "corrosive-engine"
 version = "0.1.0"
 edition = "2021"
-license = "GNU AGPLv3"
+license = "GNU AGPLv3 OR LicenseRef-Proprietary"
+license-file = "LICENSE.md"
 
 [lib]
 

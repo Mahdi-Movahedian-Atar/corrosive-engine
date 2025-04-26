@@ -6,48 +6,35 @@ mod app;
 mod component;
 mod task;
 
-#[doc = include_str!("../docs/task.md")]
+
+/// Used to mark functions as tasks.
 #[proc_macro_attribute]
 pub fn task(attr: TokenStream, item: TokenStream) -> TokenStream {
     //task_fn(attr, item)
     item
 }
-
-#[proc_macro]
-pub fn remove_entity(_item: TokenStream) -> TokenStream {
-    let ident = parse_macro_input!(_item as Ident);
-
-    let output = quote! {
-        fn print_ident() {
-            println!("The identifier is: {}", stringify!(#ident));
-        }
-    };
-
-    println!("\"{output}\"");
-
-    TokenStream::from(output)
-}
-
+/// Used to schedule the engine.
 #[proc_macro]
 pub fn corrosive_engine_builder(item: TokenStream) -> TokenStream {
     app::corrosive_engine_builder(item).into()
 }
 
+/// Used to mark structs & enums as a component.
 #[proc_macro_derive(Component)]
 pub fn component(_input: TokenStream) -> TokenStream {
     TokenStream::new()
 }
-
+/// Used to mark structs & enums as a state.
 #[proc_macro_derive(State)]
 pub fn state(_input: TokenStream) -> TokenStream {
     TokenStream::new()
 }
-
+/// Used to mark structs & enums as a resource.
 #[proc_macro_derive(Resource)]
 pub fn resource(_input: TokenStream) -> TokenStream {
     TokenStream::new()
 }
-
+/// Used to mark structs & enums as a TraitBound.
 #[proc_macro_attribute]
 pub fn trait_bound(attr: TokenStream, item: TokenStream) -> TokenStream {
     item

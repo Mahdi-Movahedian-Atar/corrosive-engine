@@ -1,6 +1,8 @@
 use bus::{Bus, BusReader};
 
+/// Used by engine to manage task schedules.
 pub struct Trigger(Bus<()>);
+/// Used by engine to manage task schedules.
 pub struct TriggerReader(BusReader<()>);
 impl Trigger {
     pub fn new() -> Trigger {
