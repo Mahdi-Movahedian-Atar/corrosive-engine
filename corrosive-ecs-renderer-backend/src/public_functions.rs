@@ -8,6 +8,7 @@ use wgpu::{
     RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerDescriptor, TexelCopyBufferLayout,
     TexelCopyTextureInfo, Texture, TextureDescriptor, TextureFormat, VertexBufferLayout,
 };
+use wgpu::Device;
 
 pub trait VertexRenderable {
     fn desc<'a>() -> VertexBufferLayout<'a>;
@@ -137,6 +138,15 @@ pub fn get_queue<'a>() -> &'a Queue {
     unsafe {
         if let Some(t) = &STATE {
             &t.queue
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
+pub fn get_device<'a>() -> &'a Device {
+    unsafe {
+        if let Some(t) = &STATE {
+            &t.device
         } else {
             panic!("get_surface_format must be called after run_renderer task.")
         }

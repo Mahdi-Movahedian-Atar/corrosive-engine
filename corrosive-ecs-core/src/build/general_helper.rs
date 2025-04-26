@@ -10,10 +10,12 @@ use std::{env, fs};
 use syn::{parse2, parse_file, Item};
 
 pub fn create_engine() {
-    let main_rs = PathBuf::from("main.rs");
+    let mut app_path = env::var("CORROSIVE_APP_ROOT").expect("CORROSIVE_APP_ROOT is not set");
+    app_path.push_str("/src/main.rs");
+    let main_rs = PathBuf::from(app_path);
     let content = fs::read_to_string(&main_rs).expect("Failed to read lib");
 
-    let ast = parse_file(&content).expect("Failed to parse lib");
+    let ast = parse_file(&content).expect("Failed to parse main");
 
     let mut args: Option<AppPackage> = None;
     for item in ast.items {

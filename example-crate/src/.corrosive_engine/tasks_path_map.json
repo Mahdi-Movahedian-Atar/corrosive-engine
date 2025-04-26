@@ -9,8 +9,8 @@
     {
       "path": "./src/task\\mod.rs",
       "modified_time": {
-        "secs_since_epoch": 1744789894,
-        "nanos_since_epoch": 57729400
+        "secs_since_epoch": 1745651797,
+        "nanos_since_epoch": 889437800
       },
       "modified_state": "None",
       "sub_maps": []
@@ -18,25 +18,16 @@
     {
       "path": "./src/task\\other_tasks",
       "modified_time": {
-        "secs_since_epoch": 1739781116,
-        "nanos_since_epoch": 187890400
+        "secs_since_epoch": 1745651797,
+        "nanos_since_epoch": 889437800
       },
       "modified_state": "None",
       "sub_maps": [
         {
           "path": "./src/task\\other_tasks\\mod.rs",
           "modified_time": {
-            "secs_since_epoch": 1739781116,
-            "nanos_since_epoch": 762191000
-          },
-          "modified_state": "None",
-          "sub_maps": []
-        },
-        {
-          "path": "./src/task\\other_tasks\\mod.rs~",
-          "modified_time": {
-            "secs_since_epoch": 1739370907,
-            "nanos_since_epoch": 96958700
+            "secs_since_epoch": 1745651797,
+            "nanos_since_epoch": 889437800
           },
           "modified_state": "None",
           "sub_maps": []
@@ -44,25 +35,16 @@
         {
           "path": "./src/task\\other_tasks\\other_other_task",
           "modified_time": {
-            "secs_since_epoch": 1742570621,
-            "nanos_since_epoch": 722051400
+            "secs_since_epoch": 1745651797,
+            "nanos_since_epoch": 890438000
           },
           "modified_state": "None",
           "sub_maps": [
             {
               "path": "./src/task\\other_tasks\\other_other_task\\mod.rs",
               "modified_time": {
-                "secs_since_epoch": 1742570621,
-                "nanos_since_epoch": 723583000
-              },
-              "modified_state": "None",
-              "sub_maps": []
-            },
-            {
-              "path": "./src/task\\other_tasks\\other_other_task\\mod.rs~",
-              "modified_time": {
-                "secs_since_epoch": 1741696324,
-                "nanos_since_epoch": 648592100
+                "secs_since_epoch": 1745651797,
+                "nanos_since_epoch": 890438000
               },
               "modified_state": "None",
               "sub_maps": []
@@ -70,15 +52,6 @@
           ]
         }
       ]
-    },
-    {
-      "path": "./src/task\\mod.rs~",
-      "modified_time": {
-        "secs_since_epoch": 1744787898,
-        "nanos_since_epoch": 304303700
-      },
-      "modified_state": "None",
-      "sub_maps": []
     }
   ]
 }

@@ -34,6 +34,8 @@ pub use corrosive_ecs_renderer_backend::comp::RenderGraph;
 pub use corrosive_ecs_renderer_backend::comp::Renderer;
 pub use corrosive_ecs_renderer_backend::comp::WindowOptions;
 pub use corrosive_ecs_renderer_backend::task::run_renderer;
+pub use corrosive_egui::comp::EguiObject;
+pub use corrosive_egui::task::start_egui;
 pub use corrosive_events::comp::Inputs;
 pub use corrosive_events::task::start_events;
 pub use corrosive_events::task::update_events;
