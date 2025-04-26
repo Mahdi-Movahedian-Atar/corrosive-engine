@@ -8,6 +8,7 @@ license = "GNU AGPLv3 OR LicenseRef-Proprietary"
 repository = "https://github.com/Mahdi-Movahedian-Atar/corrosive-engine"
 keywords = ["ecs", "game","gamedev", "engine" , "corrosive-engine"]
 categories = ["game-engines", "game-development"]
+exclude = ["*.rs~"]
 
 [dependencies]
 serde = { version = "1.0.215", features = ["derive"] }
@@ -23,3 +24,4 @@ default = ["core"]
 all = ["core","build"]
 core = []
 build = []
+
