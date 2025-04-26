@@ -591,7 +591,7 @@ dependencies = [
  "bytemuck",
  "corrosive-asset-manager",
  "corrosive-asset-manager-macro",
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",
  "crossbeam-channel",
@@ -636,10 +636,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "corrosive-ecs-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b758fbcfd7146acd454b0bc386ff23f200104b8fa5c19d452016c2933b242bba"
+dependencies = [
+ "bus",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn 2.0.90",
+ "walkdir",
+]
+
+[[package]]
 name = "corrosive-ecs-core-macro"
 version = "0.1.0"
 dependencies = [
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -653,7 +668,7 @@ dependencies = [
  "bytemuck",
  "corrosive-asset-manager",
  "corrosive-asset-manager-macro",
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "env_logger",
  "image",
@@ -684,7 +699,7 @@ dependencies = [
  "corrosive-2d",
  "corrosive-asset-manager",
  "corrosive-asset-manager-macro",
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",
  "corrosive-events",
@@ -696,7 +711,7 @@ dependencies = [
 name = "corrosive-events"
 version = "0.1.0"
 dependencies = [
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",
 ]
@@ -707,7 +722,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytemuck",
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "env_logger",
  "fs_extra",
@@ -728,7 +743,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "corrosive-asset-manager",
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",
 ]
@@ -967,7 +982,7 @@ dependencies = [
  "corrosive-2d",
  "corrosive-asset-manager",
  "corrosive-asset-manager-macro",
- "corrosive-ecs-core",
+ "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",
  "corrosive-events",
