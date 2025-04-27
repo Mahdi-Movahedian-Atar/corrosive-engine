@@ -14,14 +14,16 @@ use corrosive_ecs_renderer_backend::winit::event::Event;
 use corrosive_ecs_renderer_backend::winit::window::Window;
 use egui_winit::{State as EguiState, State};
 use egui_wgpu::{Renderer as EguiRenderer, Renderer, ScreenDescriptor};
+use egui_winit::winit::event::WindowEvent;
 use crate::comp::EguiObject;
 
-static mut TEXTURES: LazyCell<TexturesDelta> =
-    LazyCell::new(|| Default::default());
+static INPUT: LazyLock<Mutex<Vec<WindowEvent>>> =
+    LazyLock::new(|| Default::default());
 
 struct EguiNode {
     egui_object: Res<EguiObject>,
-    window_options: Res<WindowOptions>
+    window_options: Res<WindowOptions>,
+    scale_factor: f32,
 }
 impl EguiNode{
     fn update(&self) -> egui::FullOutput {
@@ -33,11 +35,12 @@ impl EguiNode{
         let raw_input = state.take_egui_input(self.window_options.f_read().window());
         state.egui_ctx().run(raw_input, |ui| {
             // Build your UI here
-            egui::SidePanel::left("side_panel").show(ui, |ui| {
-                ui.heading("Egui + wgpu");
-                if ui.button("Click me!").clicked() {
-                    println!("Button clicked!");
-                }
+            egui::CentralPanel::default().show(ui, |ui| {
+                ui.centered_and_justified(|ui| {
+                    if ui.button("Click me!").clicked() {
+                        println!("Button clicked!");
+                    }
+                });
             });
         })
     }
@@ -54,24 +57,18 @@ impl RenderNode for EguiNode {
         encoder: &mut CommandEncoder,
         view: &wgpu::TextureView,
     ) {
+        let a = self.update();
+
         let mut lock = self.egui_object.f_write();
 
-        let a = {
             let mut state = match &mut lock.state {
                 None => { panic!()}
                 Some(t) => {t}
             };
-            let raw_input = state.take_egui_input(self.window_options.f_read().window());
-            state.egui_ctx().run(raw_input, |ui| {
-                // Build your UI here
-                egui::SidePanel::left("side_panel").show(ui, |ui| {
-                    ui.heading("Egui + wgpu");
-                    if ui.button("Click me!").clicked() {
-                        println!("Button clicked!");
-                    }
-                });
-            })
-        };
+
+            for i in INPUT.lock().unwrap().drain(..) {
+                state.on_window_event(self.window_options.f_read().window(),&i);
+            }
 
         {
             let mut renderer = match &mut lock.renderer {
@@ -84,22 +81,20 @@ impl RenderNode for EguiNode {
             }
         }
 
-        let scale_factor = self.window_options.f_read().window().scale_factor() as f32;
-
 
         let shapes = {
             let mut state = match &mut lock.state {
                 None => { panic!()}
                 Some(t) => {t}
             };
-            state.egui_ctx().tessellate(a.shapes, scale_factor)
+            state.egui_ctx().tessellate(a.shapes, self.scale_factor)
         };
 
         let a = get_window_resolution();
 
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [a.0,a.1],
-            pixels_per_point: scale_factor,
+            pixels_per_point: self.scale_factor,
         };
 
         let mut renderer = match &mut lock.renderer {
@@ -142,9 +137,14 @@ pub fn start_egui(graph: Res<RenderGraph>, window_options: Res<WindowOptions> ,e
         lock.renderer = Some(EguiRenderer::new(get_device(), get_surface_format(), None, 1, false))
     }
 
+    window_options.f_write().func.push(|a,b,c,d|{
+        INPUT.lock().unwrap().push(d.clone());
+    });
+
     graph.f_write().add_node(Box::new(EguiNode {
         window_options: window_options.clone(),
-        egui_object: egui_object.clone()
+        egui_object: egui_object.clone(),
+        scale_factor: window_options.f_read().window().scale_factor() as f32
     }));
     graph.f_write().prepare()
 }
