@@ -278,7 +278,7 @@ impl<'a> State<'a> {
                 resource: (resolution_buffer.as_entire_binding()),
             }],
         });
-        //yy
+
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("PostProcess Shader"),
             source: ShaderSource::Wgsl(
@@ -352,14 +352,12 @@ impl<'a> State<'a> {
             ],
         });
 
-        // 3) Pipeline layout
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: Some("postprocess pipeline layout"),
             bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
 
-        // 4) Render pipeline
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("postprocess pipeline"),
             layout: Some(&pipeline_layout),
