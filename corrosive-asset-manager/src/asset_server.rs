@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, RwLock};
+use std::sync::{LazyLock, Mutex, RwLock};
 
 pub trait AssetObject {
     fn get_server() -> &'static Mutex<AssetServer<Self>>
@@ -148,23 +148,47 @@ impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {
     pub fn load(file_path: &str) -> Asset<T> {
         let new = file_path.to_owned();
         AssetServer::add(dynamic_hasher(file_path), move || {
-            #[cfg(debug_assertions)]{
-                return T::load_file(format!("{}/{}", env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),new.as_str()).as_str())
+            #[cfg(debug_assertions)]
+            {
+                return T::load_file(
+                    format!(
+                        "{}/{}",
+                        env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
+                        new.as_str()
+                    )
+                    .as_str(),
+                );
             }
             T::load_file(new.as_str())
         })
     }
     pub fn load_sync(file_path: &str) -> Asset<T> {
         AssetServer::add_sync(dynamic_hasher(file_path), || {
-            #[cfg(debug_assertions)]{
-                return T::load_file(format!("{}/{}", env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),file_path).as_str())
+            #[cfg(debug_assertions)]
+            {
+                return T::load_file(
+                    format!(
+                        "{}/{}",
+                        env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
+                        file_path
+                    )
+                    .as_str(),
+                );
             }
             T::load_file(file_path)
         })
     }
     pub fn load_default(file_path: &str) {
-        #[cfg(debug_assertions)]{
-            match T::load_file(format!("{}/{}", env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),file_path).as_str()){
+        #[cfg(debug_assertions)]
+        {
+            match T::load_file(
+                format!(
+                    "{}/{}",
+                    env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
+                    file_path
+                )
+                .as_str(),
+            ) {
                 Ok(v) => AssetServer::add_default(v),
                 Err(e) => {
                     println!("{:?}", e)

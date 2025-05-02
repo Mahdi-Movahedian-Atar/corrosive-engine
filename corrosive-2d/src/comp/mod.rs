@@ -101,35 +101,59 @@ impl Position2D {
             [cos * sx, sin * sx, 0.0, 0.0],
             [-sin * sy, cos * sy, 0.0, 0.0],
             [0.0, 0.0, 1.0, 0.0],
-            [tx, ty, tz, 1.0],
+            [tx * sx, ty * sy, tz, 1.0],
         ]
     }
     pub fn view_matrix(&self) -> [[f32; 4]; 4] {
-        let px = self.global_position.x;
-        let py = self.global_position.y;
-        let r = self.global_rotation;
-        let sx = self.global_scale.x;
-        let sy = self.global_scale.y;
+        let inv_zoom = 1.0 / self.global_scale.x;
+        let (sin, cos) = (-self.global_rotation).sin_cos(); // Negative for view matrix
 
-        let t_inv = Mat3 {
-            m: [[1.0, 0.0, -px], [0.0, 1.0, -py], [0.0, 0.0, 1.0]],
-        };
+        // Combined rotation and scaling (inverse of camera transform)
+        let a = cos * inv_zoom;
+        let b = sin * inv_zoom;
+        let c = -sin * inv_zoom * get_window_ratio();
+        let d = cos * inv_zoom * get_window_ratio();
 
-        let cos_r = r.cos();
-        let sin_r = r.sin();
-        let r_inv = Mat3 {
-            m: [[cos_r, sin_r, 0.0], [-sin_r, cos_r, 0.0], [0.0, 0.0, 1.0]],
-        };
+        // Inverse translation components (negative camera position)
+        let tx = -self.global_position.x;
+        let ty = -self.global_position.y;
 
-        let s_inv = Mat3 {
-            m: [[1.0 / sx, 0.0, 0.0], [0.0, 1.0 / sy, 0.0], [0.0, 0.0, 1.0]],
-        };
+        // Apply rotation to translation before scaling
+        let rotated_tx = tx * cos - ty * sin;
+        let rotated_ty = tx * sin + ty * cos;
 
-        let view = &s_inv.multiply(&r_inv);
-        let view = &view.multiply(&t_inv);
-        let mut view = view.to_mat4_4();
-        view[2][3] = self.depth;
-        view
+        // Column-major matrix (suitable for OpenGL/WebGPU)
+        let view = [
+            [a,    c,    0.0, 0.0],  // First column
+            [b,    d,    0.0, 0.0],  // Second column
+            [0.0,  0.0,  1.0, 0.0],  // Third column
+            [
+                rotated_tx * inv_zoom,
+                rotated_ty * inv_zoom * get_window_ratio(),
+                0.0,
+                1.0
+            ],  // Fourth column
+        ];
+
+        let proj = [
+            [self.global_scale.x / get_window_ratio(), 0.0,        0.0, 0.0],
+            [0.0,           self.global_scale.x,       0.0, 0.0],
+            [0.0,           0.0,        1.0, 0.0],
+            [0.0,           0.0,        0.0, 1.0],
+        ];
+
+        let mut result = [[0.0; 4]; 4];
+
+        for i in 0..4 {
+            for j in 0..4 {
+                result[i][j] = proj[i][0] * view[0][j]
+                    + proj[i][1] * view[1][j]
+                    + proj[i][2] * view[2][j]
+                    + proj[i][3] * view[3][j];
+            }
+        }
+
+        result
     }
 }
 impl SharedBehavior for Position2D {

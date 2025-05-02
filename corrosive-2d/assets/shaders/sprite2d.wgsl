@@ -27,12 +27,11 @@ var diffuse_sampler: sampler;
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
 
-        let world_pos = transform * vec4<f32>(input.position, 1.0);
-        output.clip_position = camera_matrix * world_pos;
-        output.clip_position.y *= resolution.x / resolution.y;
+    let world_pos = transform * vec4<f32>(input.position, 1.0);
+    output.clip_position = camera_matrix * world_pos;
 
-        output.location = input.location;
-        return output;
+    output.location = input.location;
+    return output;
 }
 
 // Fragment Shader

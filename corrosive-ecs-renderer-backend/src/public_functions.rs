@@ -2,13 +2,13 @@ use crate::render_graph::Queue;
 use crate::STATE;
 use std::{env, fs, io};
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
+use wgpu::Device;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     Buffer, BufferAddress, BufferUsages, Extent3d, PipelineLayout, PipelineLayoutDescriptor,
     RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerDescriptor, TexelCopyBufferLayout,
     TexelCopyTextureInfo, Texture, TextureDescriptor, TextureFormat, VertexBufferLayout,
 };
-use wgpu::Device;
 
 pub trait VertexRenderable {
     fn desc<'a>() -> VertexBufferLayout<'a>;
@@ -98,7 +98,7 @@ pub fn get_surface_format() -> TextureFormat {
 pub fn get_window_ratio() -> f32 {
     unsafe {
         if let Some(t) = &STATE {
-            t.config.read().unwrap().width as f32 / t.config.read().unwrap().height as f32
+            t.v_size.width as f32 / t.v_size.height as f32
         } else {
             panic!("get_surface_format must be called after run_renderer task.")
         }
@@ -108,8 +108,8 @@ pub fn get_window_resolution() -> (u32, u32) {
     unsafe {
         if let Some(t) = &STATE {
             (
-                t.config.read().unwrap().width.clone(),
-                t.config.read().unwrap().height.clone(),
+                t.v_size.width.clone(),
+                t.v_size.height.clone(),
             )
         } else {
             panic!("get_surface_format must be called after run_renderer task.")
@@ -163,13 +163,29 @@ pub fn write_to_buffer(buffer: &Buffer, offset: BufferAddress, data: &[u8]) {
 }
 pub fn read_shader(path: &str) -> io::Result<String> {
     if path.ends_with(".slang") {
-        #[cfg(debug_assertions)]{
-            return fs::read_to_string(format!("{}/{}", env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),path).as_str());
+        #[cfg(debug_assertions)]
+        {
+            return fs::read_to_string(
+                format!(
+                    "{}/{}",
+                    env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
+                    path
+                )
+                .as_str(),
+            );
         }
         fs::read_to_string(format!("./assets/{}.wgsl", path))
     } else {
-        #[cfg(debug_assertions)]{
-            return fs::read_to_string(format!("{}/assets/{}", env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),path).as_str());
+        #[cfg(debug_assertions)]
+        {
+            return fs::read_to_string(
+                format!(
+                    "{}/assets/{}",
+                    env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
+                    path
+                )
+                .as_str(),
+            );
         }
         fs::read_to_string(format!("./assets/{}", path))
     }

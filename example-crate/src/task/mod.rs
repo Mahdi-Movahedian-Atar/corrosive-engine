@@ -3,7 +3,7 @@ pub mod other_tasks;
 use crate::comp::sub::{MarkedResources, Position3, Position4, StateExample};
 use crate::comp::{test, Position1, Position2};
 use crate::corrosive_engine;
-use corrosive_2d::comp::camera2d::ActiveCamera2D;
+use corrosive_2d::comp::camera2d::{ActiveCamera2D, Camera2D};
 use corrosive_2d::comp::sprite2d::Sprite2D;
 use corrosive_2d::comp::{sprite2d, Position2D, RendererMeta2D};
 use corrosive_2d::material2d::StandardMaterial2D;
@@ -15,22 +15,47 @@ use corrosive_ecs_core::ecs_core::{
     Signal, State,
 };
 use corrosive_ecs_core_macro::task;
+use corrosive_ecs_renderer_backend::winit::keyboard::KeyCode;
+use corrosive_events::comp::Inputs;
 use rand::Rng;
 use std::iter::Map;
+use std::process::id;
 use std::vec::IntoIter;
 
 #[task]
 pub fn test2_0(
     position: Hierarchy<Position2D>,
     active_camera2d: Res<ActiveCamera2D>,
-) -> (RArch<(Member<Position2D>, RendererMeta2D, Sprite2D)>,) {
+    active_camera: Res<ActiveCamera2D>,
+) -> (
+    RArch<(Member<Position2D>, RendererMeta2D, Sprite2D)>,
+    RArch<(Member<Position2D>, LockedRef<Camera2D>)>,
+) {
     let mut a: RArch<(Member<Position2D>, RendererMeta2D, Sprite2D)> = RArch::default();
+    let mut b: RArch<(Member<Position2D>, LockedRef<Camera2D>)> = RArch::default();
     let new_position = position.new_entry(Position2D::new());
     Move2D::start(&new_position)
-        .rotate_local(0.5)
-        .scale_local(0.0, 1.0)
-        .transition_local(0.0, 0.5)
+        .set_scale_local(2.0, 4.0)
         .finish();
+
+    let camera_position = position.new_entry(Position2D::default());
+    let camera = LockedRef::new(Camera2D {
+        left_boundary: Some(-1.0),
+        right_boundary: Some(1.0),
+        top_boundary: Some(2.0),
+        bottom_boundary: Some(-2.0),
+        min_zoom: Some(0.1),
+        max_zoom: Some(1.9),
+    });
+    Move2D::start(&camera_position)
+        //.transition_local(0.0, 1.0)
+        .set_scale_local(1.0, 1.0)
+        //.rotate_local(0.5)
+        .finish();
+    active_camera
+        .f_write()
+        .set_camera(&camera, &camera_position);
+    b.add((camera_position, camera));
 
     let rect2d = Sprite2D::new(AssetServer::load("assets/bitmap.png"), [0.0, 0.0]);
     let meta = RendererMeta2D::new(
@@ -42,7 +67,40 @@ pub fn test2_0(
         &active_camera2d,
     );
     a.add((new_position, meta, rect2d));
-    (a,)
+    (a, b)
+}
+
+#[task]
+pub fn move_camera(active_camera: Res<ActiveCamera2D>, input: Res<Inputs>, delta_time: DeltaTime) {
+    let cam_lock = active_camera.f_read();
+    let cam_pos = match cam_lock.get_camera_position() {
+        Some(p) => p,
+        None => return,
+    };
+    let input = input.f_read();
+    if input.is_key_held(KeyCode::KeyW) {
+        Move2D::start(&cam_pos)
+            .transition_local(0.0, (1.0 * delta_time) as f32)
+            .finish();
+    }
+    if input.is_key_held(KeyCode::KeyS) {
+        Move2D::start(&cam_pos)
+            .transition_local(0.0, (-1.0 * delta_time) as f32)
+            .finish();
+    }
+    if input.is_key_held(KeyCode::KeyD) {
+        Move2D::start(&cam_pos)
+            .transition_local((1.0 * delta_time) as f32, 0.0)
+            .finish();
+    }
+    if input.is_key_held(KeyCode::KeyA) {
+        Move2D::start(&cam_pos)
+            .transition_local((-1.0 * delta_time) as f32, 0.0)
+            .finish();
+    }
+    Move2D::start(&cam_pos)
+        .scale_global(input.get_mouse_wheel() * 0.1, input.get_mouse_wheel() * 0.1)
+        .finish();
 }
 
 #[task]

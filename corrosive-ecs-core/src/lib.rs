@@ -13,7 +13,6 @@ mod signal;
 mod state;
 mod trigger;
 
-
 /// Core functions for Corrosive ECS
 #[cfg(feature = "core")]
 pub mod ecs_core {

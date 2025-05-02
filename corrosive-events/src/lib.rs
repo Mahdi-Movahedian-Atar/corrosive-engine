@@ -5,6 +5,8 @@ use std::collections::hash_set::Iter;
 use std::collections::{HashMap, HashSet};
 use std::iter::Map;
 
+pub use corrosive_ecs_renderer_backend::winit::event;
+
 pub mod comp;
 pub mod task;
 

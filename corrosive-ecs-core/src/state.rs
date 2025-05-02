@@ -5,10 +5,10 @@ use std::sync::{Arc, LockResult, RwLock, RwLockReadGuard, RwLockWriteGuard};
 /// T Must implement the `Default` trait.
 /// Signals can be used as conditions in `corrosive_app_builder!`
 #[derive(Debug)]
-pub struct State<T:Default> {
+pub struct State<T: Default> {
     pub value: Arc<RwLock<T>>,
 }
-impl<T:Default> State<T> {
+impl<T: Default> State<T> {
     /// Used by engine to create a State.
     pub fn new(value: T) -> State<T> {
         State {

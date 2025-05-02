@@ -8,6 +8,7 @@ pub use crate::comp::Position2;
 pub use crate::corrosive_engine::arch_types::*;
 pub use crate::task::fixed_task;
 pub use crate::task::macro_test;
+pub use crate::task::move_camera;
 pub use crate::task::other_tasks::other_other_task::long_task;
 pub use crate::task::other_tasks::sync_task;
 pub use crate::task::setup;

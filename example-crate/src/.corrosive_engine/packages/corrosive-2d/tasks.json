@@ -74,6 +74,19 @@
           ]
         },
         {
+          "Arch": [
+            "cam_pos",
+            [
+              {
+                "Normal": "Member<Position2D>"
+              },
+              {
+                "Normal": "LockedRef<Camera2D>"
+              }
+            ]
+          ]
+        },
+        {
           "Resources": [
             "active_camera",
             "ActiveCamera2D"

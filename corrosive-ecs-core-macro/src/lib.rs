@@ -6,7 +6,6 @@ mod app;
 mod component;
 mod task;
 
-
 /// Used to mark functions as tasks.
 #[proc_macro_attribute]
 pub fn task(attr: TokenStream, item: TokenStream) -> TokenStream {

@@ -1,12 +1,10 @@
-use crate::comp::camera2d::ActiveCamera2D;
+use crate::comp::camera2d::{ActiveCamera2D, Camera2D};
 use crate::comp::{Mesh2D, Position2D, Renderer2dData, RendererMeta2D};
 use crate::math2d::Mat3;
-use corrosive_ecs_core::ecs_core::{Arch, Member, Ref, Reference, Res};
+use corrosive_ecs_core::ecs_core::{Arch, LockedRef, Member, Ref, Reference, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::RenderGraph;
-use corrosive_ecs_renderer_backend::public_functions::{
-    create_buffer_init, get_resolution_bind_group, write_to_buffer,
-};
+use corrosive_ecs_renderer_backend::public_functions::{create_buffer_init, get_resolution_bind_group, get_window_ratio, write_to_buffer};
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu::{
     BufferUsages, Color, LoadOp, Operations, RenderPass, RenderPassColorAttachment,
@@ -14,9 +12,11 @@ use corrosive_ecs_renderer_backend::wgpu::{
 };
 use corrosive_ecs_renderer_backend::{public_functions, wgpu};
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use std::cmp::min;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::sync::Arc;
+use crate::position2d_operations::Move2D;
 
 pub(crate) struct UnsafeRenderPass {
     ptr: NonNull<RenderPass<'static>>,
@@ -122,8 +122,99 @@ pub fn render_2d(meta: Arch<(&dyn Mesh2D, &RendererMeta2D)>, renderer2d_data: Re
 #[task]
 pub fn update_position(
     pos: Arch<(&Member<Position2D>, &RendererMeta2D)>,
+    cam_pos: Arch<(&Member<Position2D>, &LockedRef<Camera2D>)>,
     active_camera: Res<ActiveCamera2D>,
 ) {
+    for cam_poses in cam_pos.iter() {
+        {
+            let (x, y, scale_x) = if let Reference::Some(t) = &*cam_poses.0.f_read() {
+                if !t.dirty {
+                    return;
+                }
+                    (/*t.global_position.x * t.global_scale.x) * t.global_rotation.cos()
+                        + (t.global_position.y * t.global_scale.y) * t.global_rotation.sin(),
+                    (t.global_position.y * t.global_scale.y) * t.global_rotation.cos()
+                        + (t.global_position.x * t.global_scale.x) * t.global_rotation.sin(),*/
+                        t.global_position.x,
+                    t.global_position.y,
+                    t.global_scale.x,
+                    )
+            } else {
+                continue;
+            };
+
+            let (pos_x, pos_y, scale) = if let Reference::Some(c) = &*cam_poses.1.f_read() {
+                let mut new_scale = if let Some(p_l) = c.left_boundary {
+                    if let Some(p_r) = c.right_boundary {
+                        if (p_l - p_r).abs() < scale_x {
+                            (p_l - p_r).abs()
+                        } else {
+                            scale_x
+                        }
+                    } else {
+                        scale_x
+                    }
+                } else {
+                    scale_x
+                };
+
+                if let Some(p_t) = c.top_boundary {
+                    if let Some(p_b) = c.bottom_boundary {
+                        if (p_t - p_b).abs() < new_scale {
+                            new_scale = (p_t - p_b).abs();
+                        }
+                    }
+                };
+
+                if let Some(z) = c.min_zoom {
+                    if z > new_scale{
+                        new_scale = z;
+                    }
+                }
+                if let Some(z) = c.max_zoom {
+                    if z < new_scale{
+                        new_scale = z;
+                    }
+                }
+                let mut new_x = x ;
+                println!("{}",new_scale);
+                println!("{}",x - new_scale / 2.);
+                if let Some(l) = c.left_boundary{
+                    if l > x - new_scale / 2.0 {
+                        new_x = l + new_scale / 2.0
+                    }
+                }
+                if let Some(r) = c.right_boundary{
+                    if r < x + new_scale / 2.0{
+                        new_x = r - new_scale / 2.0
+                    }
+                }
+                let mut new_y = y ;
+
+                if let Some(b) = c.bottom_boundary{
+                    if b > y - new_scale * get_window_ratio() / 2.0{
+                        new_y = b + new_scale * get_window_ratio() / 2.0;
+                    }
+                }
+                if let Some(t) = c.top_boundary{
+                    if t < y + new_scale * get_window_ratio() / 2.0{
+                        new_y = t - new_scale * get_window_ratio() / 2.0;
+                    }
+                }
+
+                (new_x, new_y, new_scale)
+            } else {
+                continue;
+            };
+            Move2D::start(cam_poses.0)
+                .set_transition_global(pos_x, pos_y)
+                .set_scale_global(scale,scale).finish();
+            if let Reference::Some(t) = &mut *cam_poses.0.dry_f_write(){
+                t.dirty = false;
+            }
+        };
+        //let x =
+    }
     for p in pos.iter().enumerate() {
         let mut lock = p.1 .0.dry_f_write();
         match &mut *lock {
@@ -143,7 +234,7 @@ pub fn update_position(
     if let Some(b) = &lock.buffer {
         if let Some(t) = &lock.data {
             if let Reference::Some(p) = &mut *t.1.dry_f_write() {
-                write_to_buffer(b, 0, bytemuck::cast_slice(&[p.uniform_matrix()]));
+                write_to_buffer(b, 0, bytemuck::cast_slice(&[p.view_matrix()]));
                 p.dirty = false;
             } else {
                 write_to_buffer(b, 0, bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]));

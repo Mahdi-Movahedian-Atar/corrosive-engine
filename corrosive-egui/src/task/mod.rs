@@ -1,34 +1,36 @@
-use std::sync::{ LazyLock, Mutex};
-use egui::{Context};
+use crate::comp::EguiObject;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
-use corrosive_ecs_renderer_backend::render_graph::{ RenderNode};
-use corrosive_ecs_renderer_backend::{wgpu};
-use corrosive_ecs_renderer_backend::public_functions::{get_device, get_surface_format, get_window_resolution};
-use egui_winit::{State as EguiState};
+use corrosive_ecs_renderer_backend::public_functions::{
+    get_device, get_surface_format, get_window_resolution,
+};
+use corrosive_ecs_renderer_backend::render_graph::RenderNode;
+use corrosive_ecs_renderer_backend::wgpu;
+use egui::Context;
 use egui_wgpu::{Renderer as EguiRenderer, ScreenDescriptor};
 use egui_winit::winit::event::WindowEvent;
-use crate::comp::{EguiObject};
+use egui_winit::State as EguiState;
+use std::sync::{LazyLock, Mutex};
 
-static INPUT: LazyLock<Mutex<Vec<WindowEvent>>> =
-    LazyLock::new(|| Default::default());
+static INPUT: LazyLock<Mutex<Vec<WindowEvent>>> = LazyLock::new(|| Default::default());
 
 struct EguiNode {
     egui_object: Res<EguiObject>,
     window_options: Res<WindowOptions>,
     scale_factor: f32,
-
 }
-impl EguiNode{
+impl EguiNode {
     fn update(&self) -> egui::FullOutput {
         let mut lock = self.egui_object.f_write();
         match &mut lock.state {
-            None => { panic!()}
+            None => {
+                panic!()
+            }
             Some(t) => unsafe {
                 let raw_input = t.0.take_egui_input(self.window_options.f_read().window());
-                t.0.egui_ctx().run(raw_input,&mut t.1 )
-            }
+                t.0.egui_ctx().run(raw_input, &mut t.1)
+            },
         }
     }
 }
@@ -70,7 +72,10 @@ impl RenderNode for EguiNode {
 
         let shapes = {
             if let Some(state) = &egui_lock.state {
-                state.0.egui_ctx().tessellate(egui_output.shapes, self.scale_factor)
+                state
+                    .0
+                    .egui_ctx()
+                    .tessellate(egui_output.shapes, self.scale_factor)
             } else {
                 Vec::new()
             }
@@ -83,13 +88,7 @@ impl RenderNode for EguiNode {
         };
 
         if let Some(renderer) = &mut egui_lock.renderer {
-            renderer.update_buffers(
-                device,
-                queue,
-                encoder,
-                &shapes,
-                &screen_descriptor,
-            );
+            renderer.update_buffers(device, queue, encoder, &shapes, &screen_descriptor);
 
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Egui Render Pass"),
@@ -106,20 +105,44 @@ impl RenderNode for EguiNode {
                 occlusion_query_set: None,
             });
 
-            renderer.render(&mut render_pass.forget_lifetime(), &shapes, &screen_descriptor);
+            renderer.render(
+                &mut render_pass.forget_lifetime(),
+                &shapes,
+                &screen_descriptor,
+            );
         }
     }
 }
 
 #[task]
-pub fn start_egui(graph: Res<RenderGraph>, window_options: Res<WindowOptions> ,egui_object: Res<EguiObject>) {
+pub fn start_egui(
+    graph: Res<RenderGraph>,
+    window_options: Res<WindowOptions>,
+    egui_object: Res<EguiObject>,
+) {
     let ctx = Context::default();
     {
         let mut lock = egui_object.f_write();
-        lock.state = Some((EguiState::new(ctx.clone(), ctx.viewport_id(), window_options.f_read().window(), None, None, None),Box::new(|_| {})));
-        lock.renderer = Some(EguiRenderer::new(get_device(), get_surface_format(), None, 1, false));
+        lock.state = Some((
+            EguiState::new(
+                ctx.clone(),
+                ctx.viewport_id(),
+                window_options.f_read().window(),
+                None,
+                None,
+                None,
+            ),
+            Box::new(|_| {}),
+        ));
+        lock.renderer = Some(EguiRenderer::new(
+            get_device(),
+            get_surface_format(),
+            None,
+            1,
+            false,
+        ));
     }
-    window_options.f_write().func.push(|_,_,_,window_event|{
+    window_options.f_write().func.push(|_, _, _, window_event| {
         INPUT.lock().unwrap().push(window_event.clone());
     });
 

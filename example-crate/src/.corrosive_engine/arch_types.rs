@@ -44,6 +44,50 @@ impl<'a> EngineArch<(&'a Member<Position2D>, &'a RendererMeta2D)> for update_pos
     }
 }
 #[derive(Copy, Clone)]
+pub struct update_position1<'a> {
+    ve0: &'a Vec<(LockedRef<Camera2D>, Member<Position2D>)>,
+    rve0: &'a RwLock<HashSet<usize>>,
+    len: usize,
+}
+impl<'a> update_position1<'a> {
+    pub fn new(
+        ve0: &'a Vec<(LockedRef<Camera2D>, Member<Position2D>)>,
+        rve0: &'a RwLock<HashSet<usize>>,
+    ) -> Self {
+        update_position1 {
+            ve0,
+            rve0,
+            len: ve0.len(),
+        }
+    }
+}
+impl<'a> EngineArch<(&'a Member<Position2D>, &'a LockedRef<Camera2D>)> for update_position1<'a> {
+    fn remove(&self, mut index: usize) {
+        if index < self.ve0.len() {
+            self.rve0.write().unwrap().insert(index);
+            return;
+        };
+        index -= self.ve0.len();
+        eprintln!(
+            "Warning: index of out of {} is out of bounds",
+            "update_position"
+        );
+    }
+    fn len(&self) -> usize {
+        self.len
+    }
+    fn get_item(
+        &self,
+        mut index: usize,
+    ) -> Option<(&'a Member<Position2D>, &'a LockedRef<Camera2D>)> {
+        if index < self.ve0.len() {
+            return Some((&self.ve0[index].1, &self.ve0[index].0));
+        };
+        index -= self.ve0.len();
+        None
+    }
+}
+#[derive(Copy, Clone)]
 pub struct render_2d0<'a> {
     ve0: &'a Vec<(Member<Position2D>, RendererMeta2D, Sprite2D)>,
     rve0: &'a RwLock<HashSet<usize>>,

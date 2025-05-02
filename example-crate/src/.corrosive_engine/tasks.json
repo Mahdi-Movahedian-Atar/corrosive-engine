@@ -55,6 +55,12 @@
             "active_camera2d",
             "ActiveCamera2D"
           ]
+        },
+        {
+          "Resources": [
+            "active_camera",
+            "ActiveCamera2D"
+          ]
         }
       ],
       "outputs": [
@@ -64,8 +70,35 @@
             "RendererMeta2D",
             "Sprite2D"
           ]
+        },
+        {
+          "Arch": [
+            "Member<Position2D>",
+            "LockedRef<Camera2D>"
+          ]
         }
       ]
+    },
+    {
+      "name": "move_camera",
+      "inputs": [
+        {
+          "Resources": [
+            "active_camera",
+            "ActiveCamera2D"
+          ]
+        },
+        {
+          "Resources": [
+            "input",
+            "Inputs"
+          ]
+        },
+        {
+          "DeltaTime": "delta_time"
+        }
+      ],
+      "outputs": []
     },
     {
       "name": "setup",
