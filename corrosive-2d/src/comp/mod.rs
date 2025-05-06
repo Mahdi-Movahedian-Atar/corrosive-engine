@@ -3,7 +3,6 @@ pub mod sprite2d;
 
 use crate::comp::camera2d::ActiveCamera2D;
 use crate::material2d::{Material2D, Material2DWrapper, StandardMaterial2D};
-use crate::math2d::{Mat3, Vec2};
 use crate::mesh2d::Vertex2D;
 use crate::task::UnsafeRenderPass;
 use corrosive_asset_manager::asset_server::{Asset, AssetServer};
@@ -17,6 +16,7 @@ use corrosive_ecs_renderer_backend::material::Material;
 use corrosive_ecs_renderer_backend::public_functions::*;
 use corrosive_ecs_renderer_backend::wgpu::*;
 use crossbeam_channel::{Receiver, Sender};
+use glam::{EulerRot, Mat3, Mat4, Quat, Vec2, Vec3};
 
 #[derive(Debug, Clone, Copy, Component)]
 pub struct Position2D {
@@ -59,7 +59,7 @@ impl Position2D {
     }
 
     pub fn local_matrix(&self) -> Mat3 {
-        Mat3::from_scale_rotation_translation(
+        Mat3::from_scale_angle_translation(
             self.local_scale,
             self.local_rotation,
             self.local_position,
@@ -67,7 +67,7 @@ impl Position2D {
     }
 
     pub fn global_matrix(&self) -> Mat3 {
-        Mat3::from_scale_rotation_translation(
+        Mat3::from_scale_angle_translation(
             self.global_scale,
             self.global_rotation,
             self.global_position,
@@ -88,85 +88,45 @@ impl Position2D {
     }
 
     pub fn uniform_matrix(&self) -> [[f32; 4]; 4] {
-        let sx = self.global_scale.x;
-        let sy = self.global_scale.y;
-        let rotation = self.global_rotation;
-        let tx = self.global_position.x;
-        let ty = self.global_position.y;
-        let tz = self.depth;
-
-        let cos = rotation.cos();
-        let sin = rotation.sin();
-        [
-            [cos * sx, sin * sx, 0.0, 0.0],
-            [-sin * sy, cos * sy, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [tx * sx, ty * sy, tz, 1.0],
-        ]
+        Mat4::from_scale_rotation_translation(
+            self.global_scale.extend(1.0),
+            Quat::from_axis_angle(Vec3::Z, self.global_rotation),
+            self.global_position.extend(0.0),
+        )
+        .to_cols_array_2d()
     }
     pub fn view_matrix(&self) -> [[f32; 4]; 4] {
-        let inv_zoom = 1.0 / self.global_scale.x;
-        let (sin, cos) = (-self.global_rotation).sin_cos(); // Negative for view matrix
-
-        // Combined rotation and scaling (inverse of camera transform)
-        let a = cos * inv_zoom;
-        let b = sin * inv_zoom;
-        let c = -sin * inv_zoom * get_window_ratio();
-        let d = cos * inv_zoom * get_window_ratio();
-
-        // Inverse translation components (negative camera position)
-        let tx = -self.global_position.x;
-        let ty = -self.global_position.y;
-
-        // Apply rotation to translation before scaling
-        let rotated_tx = tx * cos - ty * sin;
-        let rotated_ty = tx * sin + ty * cos;
-
-        // Column-major matrix (suitable for OpenGL/WebGPU)
-        let view = [
-            [a,    c,    0.0, 0.0],  // First column
-            [b,    d,    0.0, 0.0],  // Second column
-            [0.0,  0.0,  1.0, 0.0],  // Third column
-            [
-                rotated_tx * inv_zoom,
-                rotated_ty * inv_zoom * get_window_ratio(),
-                0.0,
-                1.0
-            ],  // Fourth column
-        ];
-
-        let proj = [
-            [self.global_scale.x / get_window_ratio(), 0.0,        0.0, 0.0],
-            [0.0,           self.global_scale.x,       0.0, 0.0],
-            [0.0,           0.0,        1.0, 0.0],
-            [0.0,           0.0,        0.0, 1.0],
-        ];
-
-        let mut result = [[0.0; 4]; 4];
-
-        for i in 0..4 {
-            for j in 0..4 {
-                result[i][j] = proj[i][0] * view[0][j]
-                    + proj[i][1] * view[1][j]
-                    + proj[i][2] * view[2][j]
-                    + proj[i][3] * view[3][j];
-            }
-        }
-
-        result
+        let sx = 1.0 / self.global_scale.x;
+        let sy = get_window_ratio() / self.global_scale.x;
+        Mat4::from_scale_rotation_translation(
+            Vec3::new(sx, sy, 1.0),
+            Quat::from_axis_angle(Vec3::Z, self.global_rotation),
+            -(Vec3::new(
+                self.global_position.x * sx,
+                self.global_position.y * sx,
+                self.depth,
+            )),
+        )
+        .to_cols_array_2d()
     }
 }
 impl SharedBehavior for Position2D {
     fn shaded_add_behavior(&mut self, parent: &Self) {
         let parent_matrix = parent.global_matrix();
         let local_matrix = self.local_matrix();
-        let global_matrix = parent_matrix.multiply(&local_matrix);
+        let global_matrix = parent_matrix * local_matrix;
 
-        let (scale, rotation, translation) = global_matrix.decompose();
+        self.global_scale = Vec2::new(global_matrix.x_axis.length(), global_matrix.y_axis.length());
 
-        self.global_scale = scale;
-        self.global_rotation = rotation;
-        self.global_position = translation;
+        let rotation_matrix = Mat3::from_cols(
+            global_matrix.x_axis / self.global_scale.x,
+            global_matrix.y_axis / self.global_scale.y,
+            Vec3::Z,
+        );
+        let rotation_quat = Quat::from_mat3(&rotation_matrix);
+        self.global_rotation = rotation_quat.to_euler(EulerRot::XYZ).2;
+
+        self.global_position = Vec2::new(global_matrix.z_axis.x, global_matrix.z_axis.y);
         self.dirty = true;
     }
 
@@ -240,7 +200,7 @@ impl RendererMeta2D {
                     bytemuck::cast_slice(&[t.uniform_matrix()]).to_vec()
                 }
                 Reference::Expired => {
-                    bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec()
+                    bytemuck::cast_slice(&[Mat4::IDENTITY.to_cols_array_2d()]).to_vec()
                 }
             },
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,

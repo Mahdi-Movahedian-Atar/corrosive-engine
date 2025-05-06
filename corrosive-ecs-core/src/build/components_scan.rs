@@ -1,4 +1,3 @@
-
 use crate::build::general_scan::{ModifiedState, PathMap};
 use proc_macro2::Ident;
 use quote::ToTokens;

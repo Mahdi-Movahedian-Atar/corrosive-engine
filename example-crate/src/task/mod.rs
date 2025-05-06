@@ -35,20 +35,25 @@ pub fn test2_0(
     let mut b: RArch<(Member<Position2D>, LockedRef<Camera2D>)> = RArch::default();
     let new_position = position.new_entry(Position2D::new());
     Move2D::start(&new_position)
-        .set_scale_local(2.0, 4.0)
+        .set_scale_local(8.0, 8.0)
+        .set_transition_local(0.0, 0.0)
         .finish();
 
     let camera_position = position.new_entry(Position2D::default());
     let camera = LockedRef::new(Camera2D {
-        left_boundary: Some(-1.0),
-        right_boundary: Some(1.0),
+        right_boundary: Some(2.0),
         top_boundary: Some(2.0),
-        bottom_boundary: Some(-2.0),
-        min_zoom: Some(0.1),
-        max_zoom: Some(1.9),
+        left_boundary: Some(-2.0),
+        bottom_boundary: Some(-2.0), /*
+                                     right_boundary: Some(1.0),
+                                     top_boundary: Some(2.0),
+                                     bottom_boundary: Some(-2.0),*/
+        /*min_zoom: Some(0.1),
+        max_zoom: Some(1.9),*/
+        ..Default::default()
     });
     Move2D::start(&camera_position)
-        //.transition_local(0.0, 1.0)
+        .transition_local(1.0, 0.0)
         .set_scale_local(1.0, 1.0)
         //.rotate_local(0.5)
         .finish();

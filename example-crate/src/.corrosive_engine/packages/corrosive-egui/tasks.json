@@ -1,0 +1,30 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\corrosive-egui/src/task",
+  "sub_maps": [],
+  "tasks": [
+    {
+      "name": "start_egui",
+      "inputs": [
+        {
+          "Resources": [
+            "graph",
+            "RenderGraph"
+          ]
+        },
+        {
+          "Resources": [
+            "window_options",
+            "WindowOptions"
+          ]
+        },
+        {
+          "Resources": [
+            "egui_object",
+            "EguiObject"
+          ]
+        }
+      ],
+      "outputs": []
+    }
+  ]
+}

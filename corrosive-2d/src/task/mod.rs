@@ -1,10 +1,12 @@
 use crate::comp::camera2d::{ActiveCamera2D, Camera2D};
 use crate::comp::{Mesh2D, Position2D, Renderer2dData, RendererMeta2D};
-use crate::math2d::Mat3;
+use crate::position2d_operations::Move2D;
 use corrosive_ecs_core::ecs_core::{Arch, LockedRef, Member, Ref, Reference, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::RenderGraph;
-use corrosive_ecs_renderer_backend::public_functions::{create_buffer_init, get_resolution_bind_group, get_window_ratio, write_to_buffer};
+use corrosive_ecs_renderer_backend::public_functions::{
+    create_buffer_init, get_resolution_bind_group, get_window_ratio, write_to_buffer,
+};
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu::{
     BufferUsages, Color, LoadOp, Operations, RenderPass, RenderPassColorAttachment,
@@ -12,11 +14,11 @@ use corrosive_ecs_renderer_backend::wgpu::{
 };
 use corrosive_ecs_renderer_backend::{public_functions, wgpu};
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use glam::Mat4;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::sync::Arc;
-use crate::position2d_operations::Move2D;
 
 pub(crate) struct UnsafeRenderPass {
     ptr: NonNull<RenderPass<'static>>,
@@ -94,10 +96,10 @@ pub fn init_camera(active_camera: Res<ActiveCamera2D>) {
                 if let Reference::Some(v) = &*t.f_read() {
                     bytemuck::cast_slice(&[v.view_matrix()]).to_vec()
                 } else {
-                    bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec()
+                    bytemuck::cast_slice(&[Mat4::IDENTITY.to_cols_array_2d()]).to_vec()
                 }
             }
-            _ => bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]).to_vec(),
+            _ => bytemuck::cast_slice(&[Mat4::IDENTITY.to_cols_array_2d()]).to_vec(),
         },
         BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     ))
@@ -119,6 +121,16 @@ pub fn render_2d(meta: Arch<(&dyn Mesh2D, &RendererMeta2D)>, renderer2d_data: Re
         data.1.send(()).unwrap();
     }
 }
+
+#[derive(Debug, Copy, Clone)]
+struct Bounds {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+    min_zoom: f32,
+    max_zoom: f32,
+}
 #[task]
 pub fn update_position(
     pos: Arch<(&Member<Position2D>, &RendererMeta2D)>,
@@ -129,78 +141,57 @@ pub fn update_position(
         {
             let (x, y, scale_x) = if let Reference::Some(t) = &*cam_poses.0.f_read() {
                 if !t.dirty {
-                    return;
+                    continue;
                 }
-                    (/*t.global_position.x * t.global_scale.x) * t.global_rotation.cos()
+                (
+                    /*t.global_position.x * t.global_scale.x) * t.global_rotation.cos()
                         + (t.global_position.y * t.global_scale.y) * t.global_rotation.sin(),
                     (t.global_position.y * t.global_scale.y) * t.global_rotation.cos()
                         + (t.global_position.x * t.global_scale.x) * t.global_rotation.sin(),*/
-                        t.global_position.x,
+                    t.global_position.x,
                     t.global_position.y,
                     t.global_scale.x,
-                    )
+                )
             } else {
                 continue;
             };
 
             let (pos_x, pos_y, scale) = if let Reference::Some(c) = &*cam_poses.1.f_read() {
-                let mut new_scale = if let Some(p_l) = c.left_boundary {
-                    if let Some(p_r) = c.right_boundary {
-                        if (p_l - p_r).abs() < scale_x {
-                            (p_l - p_r).abs()
-                        } else {
-                            scale_x
-                        }
-                    } else {
-                        scale_x
-                    }
-                } else {
-                    scale_x
+                let mut new_x = x;
+                let mut new_y = y;
+
+                let mut new_scale = scale_x;
+                new_scale = new_scale.min(
+                    (c.right_boundary.unwrap_or(f32::MAX) - c.left_boundary.unwrap_or(f32::MIN))
+                        .abs()
+                        / 2.0,
+                );
+                new_scale = new_scale.min(
+                    (c.top_boundary.unwrap_or(f32::MAX) - c.bottom_boundary.unwrap_or(f32::MIN))
+                        .abs()
+                        * get_window_ratio()
+                        / 2.0,
+                );
+                new_scale = new_scale.max(c.min_zoom.unwrap_or(0.01));
+                new_scale = new_scale.min(c.max_zoom.unwrap_or(f32::MAX));
+
+                let left = c.left_boundary.unwrap_or(f32::MIN) + new_scale;
+                let right = c.right_boundary.unwrap_or(f32::MAX) - new_scale;
+                let bottom = c.bottom_boundary.unwrap_or(f32::MIN) * get_window_ratio() + new_scale;
+                let top = c.top_boundary.unwrap_or(f32::MAX) * get_window_ratio() - new_scale;
+
+                if new_x >= right {
+                    new_x = right;
                 };
-
-                if let Some(p_t) = c.top_boundary {
-                    if let Some(p_b) = c.bottom_boundary {
-                        if (p_t - p_b).abs() < new_scale {
-                            new_scale = (p_t - p_b).abs();
-                        }
-                    }
+                if new_x <= left {
+                    new_x = left;
                 };
-
-                if let Some(z) = c.min_zoom {
-                    if z > new_scale{
-                        new_scale = z;
-                    }
-                }
-                if let Some(z) = c.max_zoom {
-                    if z < new_scale{
-                        new_scale = z;
-                    }
-                }
-                let mut new_x = x ;
-                println!("{}",new_scale);
-                println!("{}",x - new_scale / 2.);
-                if let Some(l) = c.left_boundary{
-                    if l > x - new_scale / 2.0 {
-                        new_x = l + new_scale / 2.0
-                    }
-                }
-                if let Some(r) = c.right_boundary{
-                    if r < x + new_scale / 2.0{
-                        new_x = r - new_scale / 2.0
-                    }
-                }
-                let mut new_y = y ;
-
-                if let Some(b) = c.bottom_boundary{
-                    if b > y - new_scale * get_window_ratio() / 2.0{
-                        new_y = b + new_scale * get_window_ratio() / 2.0;
-                    }
-                }
-                if let Some(t) = c.top_boundary{
-                    if t < y + new_scale * get_window_ratio() / 2.0{
-                        new_y = t - new_scale * get_window_ratio() / 2.0;
-                    }
-                }
+                if new_y >= top {
+                    new_y = top;
+                };
+                if new_y <= bottom {
+                    new_y = bottom;
+                };
 
                 (new_x, new_y, new_scale)
             } else {
@@ -208,12 +199,12 @@ pub fn update_position(
             };
             Move2D::start(cam_poses.0)
                 .set_transition_global(pos_x, pos_y)
-                .set_scale_global(scale,scale).finish();
-            if let Reference::Some(t) = &mut *cam_poses.0.dry_f_write(){
+                .set_scale_global(scale, scale)
+                .finish();
+            if let Reference::Some(t) = &mut *cam_poses.0.dry_f_write() {
                 t.dirty = false;
             }
         };
-        //let x =
     }
     for p in pos.iter().enumerate() {
         let mut lock = p.1 .0.dry_f_write();
@@ -237,7 +228,11 @@ pub fn update_position(
                 write_to_buffer(b, 0, bytemuck::cast_slice(&[p.view_matrix()]));
                 p.dirty = false;
             } else {
-                write_to_buffer(b, 0, bytemuck::cast_slice(&[Mat3::identity().to_mat4_4()]));
+                write_to_buffer(
+                    b,
+                    0,
+                    bytemuck::cast_slice(&[Mat4::IDENTITY.to_cols_array_2d()]),
+                );
             }
         }
     } else {

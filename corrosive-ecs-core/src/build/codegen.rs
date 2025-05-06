@@ -1,4 +1,3 @@
-
 use crate::build::app_scan::{
     AppPackage, DependencyGraph, DependencyType, LogicalExpression, LogicalOperator, TaskType,
 };

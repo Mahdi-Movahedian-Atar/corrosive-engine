@@ -1,6 +1,6 @@
 use crate::comp::Position2D;
-use crate::math2d::Vec2;
 use corrosive_ecs_core::ecs_core::{Member, Reference};
+use glam::Vec2;
 use std::sync::RwLockWriteGuard;
 
 pub struct Move2D<'a> {

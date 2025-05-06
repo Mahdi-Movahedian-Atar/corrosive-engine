@@ -1,4 +1,3 @@
-
 use proc_macro2::{TokenStream, TokenTree};
 use quote::ToTokens;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

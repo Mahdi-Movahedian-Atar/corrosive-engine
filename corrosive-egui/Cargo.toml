@@ -1,0 +1,15 @@
+[package]
+name = "corrosive-egui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+corrosive-ecs-core = { version = "0.1.0", path = "../corrosive-ecs-core" }
+corrosive-ecs-core-macro = { version = "0.1.0", path = "../corrosive-ecs-core-macro" }
+corrosive-ecs-renderer-backend = {path = "../corrosive-ecs-renderer-backend" }
+egui = "0.31.1"
+egui-wgpu = "0.31.1"
+egui-winit = "0.31.1"
+
+[build-dependencies]
+corrosive-ecs-core = {path = "../corrosive-ecs-core" , features = ["build"]}

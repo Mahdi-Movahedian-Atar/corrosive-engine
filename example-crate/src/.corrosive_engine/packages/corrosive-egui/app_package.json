@@ -1,0 +1,31 @@
+{
+  "name": "corrosive-egui",
+  "path": "./src",
+  "setup_dependency": {
+    "dependents": {
+      "Task(start_egui)": [
+        "Task(run_renderer)"
+      ],
+      "Task(run_renderer)": []
+    },
+    "in_degrees": {
+      "Task(start_egui)": 0,
+      "Task(run_renderer)": 1
+    }
+  },
+  "runtime_dependency": {
+    "dependents": {},
+    "in_degrees": {}
+  },
+  "sync_dependency": {
+    "dependents": {},
+    "in_degrees": {}
+  },
+  "tasks": {
+    "start_egui": [
+      "Setup",
+      null
+    ]
+  },
+  "packages": []
+}
