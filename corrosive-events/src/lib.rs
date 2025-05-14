@@ -16,8 +16,13 @@ corrosive_engine_builder!(
 );
 
 pub struct Axis {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
+}
+impl Axis {
+    pub fn into_tuple(self) -> (f64, f64) {
+        (self.x, self.y)
+    }
 }
 #[derive(Eq, Hash, Ord, PartialEq, Clone, PartialOrd)]
 pub enum InputState<T> {

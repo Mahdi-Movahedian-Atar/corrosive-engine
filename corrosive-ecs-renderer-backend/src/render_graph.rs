@@ -16,6 +16,7 @@ pub trait RenderNode: Send + Sync {
         queue: &Queue,
         encoder: &mut CommandEncoder,
         view: &TextureView,
+        depth_view: &TextureView,
     );
 }
 pub(crate) struct GraphNode {
@@ -47,7 +48,13 @@ impl RenderGraph {
             .push((self.pass_names[parent], self.pass_names[child]));
     }
 
-    pub fn execute(&self, device: &Device, queue: &wgpu::Queue, view: &TextureView) {
+    pub fn execute(
+        &self,
+        device: &Device,
+        queue: &wgpu::Queue,
+        view: &TextureView,
+        depth_view: &TextureView,
+    ) {
         let command_buffers_mutex = Arc::new(Mutex::new(Vec::new()));
 
         for level in &self.execution_levels {
@@ -60,7 +67,7 @@ impl RenderGraph {
 
                     graph_node
                         .node
-                        .execute(device, queue, &mut local_encoder, &view);
+                        .execute(device, queue, &mut local_encoder, &view, depth_view);
 
                     let commands = local_encoder.finish();
                     command_buffers_mutex.lock().unwrap().push(commands);

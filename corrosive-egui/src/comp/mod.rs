@@ -26,6 +26,15 @@ impl EguiObject {
     pub fn set_ui(&mut self, ui: impl FnMut(&Context) + Send + Sync + 'static) {
         if let Some((_, t)) = &mut self.state {
             *t = Box::new(ui);
+        } else {
+            panic!("set_ui must be called after start_egui task.")
+        }
+    }
+    pub fn get_context(&self) -> Option<&Context> {
+        if let Some((s, _)) = &self.state {
+            Some(&s.egui_ctx())
+        } else {
+            None
         }
     }
     pub fn disable_input(&mut self) {

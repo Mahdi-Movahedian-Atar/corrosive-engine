@@ -26,12 +26,12 @@
     "in_degrees": {}
   },
   "tasks": {
-    "rerender_ui": [
-      "Update",
-      null
-    ],
     "setup_ui_pass": [
       "Setup",
+      null
+    ],
+    "rerender_ui": [
+      "Update",
       null
     ]
   },

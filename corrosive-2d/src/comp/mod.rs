@@ -4,7 +4,6 @@ pub mod sprite2d;
 use crate::comp::camera2d::ActiveCamera2D;
 use crate::material2d::{Material2D, Material2DWrapper, StandardMaterial2D};
 use crate::mesh2d::Vertex2D;
-use crate::task::UnsafeRenderPass;
 use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_asset_manager::dynamic_hasher;
 use corrosive_asset_manager_macro::static_hasher;
@@ -17,10 +16,21 @@ use corrosive_ecs_renderer_backend::public_functions::*;
 use corrosive_ecs_renderer_backend::wgpu::*;
 use crossbeam_channel::{Receiver, Sender};
 use glam::{EulerRot, Mat3, Mat4, Quat, Vec2, Vec3};
+use std::cell::UnsafeCell;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Depth {
+    Far,
+    Back,
+    Mid,
+    Front,
+    Near,
+}
 
 #[derive(Debug, Clone, Copy, Component)]
 pub struct Position2D {
-    pub depth: f32,
+    pub depth: Depth,
     pub local_position: Vec2,
     pub local_rotation: f32,
     pub local_scale: Vec2,
@@ -33,7 +43,7 @@ pub struct Position2D {
 impl Default for Position2D {
     fn default() -> Self {
         Self {
-            depth: 0.0,
+            depth: Depth::Mid,
             local_position: Vec2 { x: 0.0, y: 0.0 },
             local_rotation: 0.0,
             local_scale: Vec2 { x: 1.0, y: 1.0 },
@@ -47,7 +57,7 @@ impl Default for Position2D {
 impl Position2D {
     pub fn new() -> Self {
         Self {
-            depth: 0.0,
+            depth: Depth::Mid,
             local_position: Vec2 { x: 0.0, y: 0.0 },
             local_rotation: 0.0,
             local_scale: Vec2 { x: 1.0, y: 1.0 },
@@ -101,11 +111,11 @@ impl Position2D {
         Mat4::from_scale_rotation_translation(
             Vec3::new(sx, sy, 1.0),
             Quat::from_axis_angle(Vec3::Z, self.global_rotation),
-            -(Vec3::new(
+            -Vec3::new(
                 self.global_position.x * sx,
                 self.global_position.y * sx,
-                self.depth,
-            )),
+                0.0,
+            ),
         )
         .to_cols_array_2d()
     }
@@ -151,7 +161,12 @@ pub struct RendererMeta2D {
     pub(crate) transform_data: (Buffer, BindGroup),
     pub(crate) material: Box<dyn Material2DWrapper + Send + Sync>,
     pub(crate) mat_bind_group: &'static BindGroup,
+    pub(crate) depth: UnsafeCell<Depth>,
+    pub(crate) is_active: AtomicBool,
 }
+
+unsafe impl Send for RendererMeta2D {}
+unsafe impl Sync for RendererMeta2D {}
 
 impl RendererMeta2D {
     pub fn new(
@@ -192,11 +207,13 @@ impl RendererMeta2D {
                 })
             });
 
+        let mut depth = Depth::Mid;
+
         let transform_buffer = create_buffer_init(
             "TransformBuffer",
             &match &*position_2d.f_read() {
                 Reference::Some(t) => {
-                    println!("{:?}", t.uniform_matrix());
+                    depth = t.depth;
                     bytemuck::cast_slice(&[t.uniform_matrix()]).to_vec()
                 }
                 Reference::Expired => {
@@ -309,11 +326,20 @@ impl RendererMeta2D {
             transform_data: (transform_buffer, transform_bind_group),
             mat_bind_group: material_2d_wrapper.get_bind_group(),
             material: material_2d_wrapper,
+            depth: UnsafeCell::new(depth),
+            is_active: AtomicBool::new(true),
         }
+    }
+
+    pub fn disable(&self) {
+        self.is_active.store(false, Ordering::Relaxed);
+    }
+    pub fn enable(&self) {
+        self.is_active.store(true, Ordering::Relaxed);
     }
 }
 
 #[derive(Resource, Default)]
 pub struct Renderer2dData {
-    pub(crate) data: Option<(Receiver<UnsafeRenderPass>, Sender<()>)>,
+    pub(crate) data: Option<(Receiver<RenderPass<'static>>, Sender<()>)>,
 }

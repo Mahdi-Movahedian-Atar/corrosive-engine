@@ -1,5 +1,5 @@
 use crate::comp::camera2d::{ActiveCamera2D, Camera2D};
-use crate::comp::{Mesh2D, Position2D, Renderer2dData, RendererMeta2D};
+use crate::comp::{Depth, Mesh2D, Position2D, Renderer2dData, RendererMeta2D};
 use crate::position2d_operations::Move2D;
 use corrosive_ecs_core::ecs_core::{Arch, LockedRef, Member, Ref, Reference, Res};
 use corrosive_ecs_core_macro::task;
@@ -10,25 +10,16 @@ use corrosive_ecs_renderer_backend::public_functions::{
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu::{
     BufferUsages, Color, LoadOp, Operations, RenderPass, RenderPassColorAttachment,
-    RenderPassDescriptor, StoreOp,
+    RenderPassDepthStencilAttachment, RenderPassDescriptor, StoreOp,
 };
 use corrosive_ecs_renderer_backend::{public_functions, wgpu};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use glam::Mat4;
-use std::cmp::min;
-use std::marker::PhantomData;
-use std::ptr::NonNull;
-use std::sync::Arc;
-
-pub(crate) struct UnsafeRenderPass {
-    ptr: NonNull<RenderPass<'static>>,
-    _marker: PhantomData<&'static mut RenderPass<'static>>,
-}
-unsafe impl Send for UnsafeRenderPass {}
-unsafe impl Sync for UnsafeRenderPass {}
+use std::cmp::PartialEq;
+use std::sync::atomic::Ordering;
 struct Renderer2DNode {
     rx: Receiver<()>,
-    tx: Sender<UnsafeRenderPass>,
+    tx: Sender<RenderPass<'static>>,
 }
 impl RenderNode for Renderer2DNode {
     fn name(&self) -> &str {
@@ -41,6 +32,7 @@ impl RenderNode for Renderer2DNode {
         queue: &Queue,
         encoder: &mut CommandEncoder,
         view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
     ) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("2D Render Pass"),
@@ -61,24 +53,15 @@ impl RenderNode for Renderer2DNode {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-        let ptr = NonNull::from(unsafe {
-            std::mem::transmute::<&mut RenderPass<'_>, &mut RenderPass<'static>>(&mut render_pass)
-        });
 
-        let unsafe_pass = UnsafeRenderPass {
-            ptr,
-            _marker: PhantomData,
-        };
-
-        self.tx.send(unsafe_pass).unwrap();
+        self.tx.send(render_pass.forget_lifetime()).unwrap();
         self.rx.recv().unwrap();
-        drop(render_pass)
     }
 }
 
 #[task]
 pub fn start_2d_renderer(graph: Res<RenderGraph>, renderer2d_data: Res<Renderer2dData>) {
-    let (render_pass_tx, render_pass_rx) = unbounded::<UnsafeRenderPass>();
+    let (render_pass_tx, render_pass_rx) = unbounded::<RenderPass>();
     let (end_tx, end_rx) = unbounded::<()>();
     renderer2d_data.f_write().data = Some((render_pass_rx, end_tx));
     graph.f_write().add_node(Box::new(Renderer2DNode {
@@ -104,19 +87,91 @@ pub fn init_camera(active_camera: Res<ActiveCamera2D>) {
         BufferUsages::UNIFORM | BufferUsages::COPY_DST,
     ))
 }
+
 #[task]
 pub fn render_2d(meta: Arch<(&dyn Mesh2D, &RendererMeta2D)>, renderer2d_data: Res<Renderer2dData>) {
     if let Some(data) = &renderer2d_data.f_read().data {
         {
-            let render_pass = unsafe { data.0.recv().unwrap().ptr.as_ptr().as_mut().unwrap() };
+            let mut render_pass = &mut data.0.recv().unwrap();
             let resolution_bind_group = get_resolution_bind_group();
+            let meta: Vec<_> = meta
+                .iter()
+                .filter(|x| {
+                    if unsafe { *x.1.depth.get() } == Depth::Far {
+                        if !x.1.is_active.load(Ordering::Relaxed) {
+                            return false;
+                        }
+                        render_pass.set_pipeline(&x.1.pipeline_asset.get().layout);
+                        render_pass.set_bind_group(0, &x.1.transform_data.1, &[]);
+                        render_pass.set_bind_group(1, resolution_bind_group, &[]);
+                        render_pass.set_bind_group(3, x.1.material.get_bind_group(), &[]);
+                        x.0.draw(render_pass);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
+            let meta: Vec<_> = meta
+                .iter()
+                .filter(|x| {
+                    if unsafe { *x.1.depth.get() } == Depth::Back {
+                        if !x.1.is_active.load(Ordering::Relaxed) {
+                            return false;
+                        }
+                        render_pass.set_pipeline(&x.1.pipeline_asset.get().layout);
+                        render_pass.set_bind_group(0, &x.1.transform_data.1, &[]);
+                        render_pass.set_bind_group(1, resolution_bind_group, &[]);
+                        render_pass.set_bind_group(3, x.1.material.get_bind_group(), &[]);
+                        x.0.draw(render_pass);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
+            let meta: Vec<_> = meta
+                .iter()
+                .filter(|x| {
+                    if unsafe { *x.1.depth.get() } == Depth::Mid {
+                        if !x.1.is_active.load(Ordering::Relaxed) {
+                            return false;
+                        }
+                        render_pass.set_pipeline(&x.1.pipeline_asset.get().layout);
+                        render_pass.set_bind_group(0, &x.1.transform_data.1, &[]);
+                        render_pass.set_bind_group(1, resolution_bind_group, &[]);
+                        render_pass.set_bind_group(3, x.1.material.get_bind_group(), &[]);
+                        x.0.draw(render_pass);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
+            let meta: Vec<_> = meta
+                .iter()
+                .filter(|x| {
+                    if unsafe { *x.1.depth.get() } == Depth::Front {
+                        if !x.1.is_active.load(Ordering::Relaxed) {
+                            return false;
+                        }
+                        render_pass.set_pipeline(&x.1.pipeline_asset.get().layout);
+                        render_pass.set_bind_group(0, &x.1.transform_data.1, &[]);
+                        render_pass.set_bind_group(1, resolution_bind_group, &[]);
+                        render_pass.set_bind_group(3, x.1.material.get_bind_group(), &[]);
+                        x.0.draw(render_pass);
+                        return false;
+                    }
+                    true
+                })
+                .collect();
             meta.iter().for_each(|x| {
+                if !x.1.is_active.load(Ordering::Relaxed) {
+                    return;
+                }
                 render_pass.set_pipeline(&x.1.pipeline_asset.get().layout);
                 render_pass.set_bind_group(0, &x.1.transform_data.1, &[]);
                 render_pass.set_bind_group(1, resolution_bind_group, &[]);
                 render_pass.set_bind_group(3, x.1.material.get_bind_group(), &[]);
                 x.0.draw(render_pass);
-            });
+            })
         }
         data.1.send(()).unwrap();
     }
@@ -215,6 +270,9 @@ pub fn update_position(
                     0,
                     bytemuck::cast_slice(&[t.uniform_matrix()]),
                 );
+                unsafe {
+                    *p.1 .1.depth.get() = t.depth.clone();
+                }
                 t.dirty = false;
             }
             Reference::Expired => pos.remove(p.0),

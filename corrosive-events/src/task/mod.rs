@@ -100,6 +100,11 @@ pub fn start_events(window_options: Res<WindowOptions>) {
 pub fn update_events(input_res: Res<Inputs>) {
     let mut lock = INPUT_STORAGE.lock().unwrap();
     let mut input_res = input_res.f_write();
+
+    input_res.mouse_position_delta = PhysicalPosition {
+        x: input_res.mouse_position.x - lock.mouse_position.x,
+        y: input_res.mouse_position.y - lock.mouse_position.y,
+    };
     input_res.keys_down = lock.keys_down.clone();
     input_res.keys_hold = lock.keys_hold.clone();
     input_res.keys_up = lock.keys_up.clone();
@@ -108,12 +113,6 @@ pub fn update_events(input_res: Res<Inputs>) {
     input_res.mouse_buttons_up = lock.mouse_buttons_up.clone();
     input_res.mouse_position = lock.mouse_position.clone();
     input_res.mouse_wheel = lock.mouse_wheel;
-    input_res.mouse_position_delta = PhysicalPosition {
-        x: input_res.mouse_position.x - lock.mouse_position.x,
-        y: input_res.mouse_position.y - lock.mouse_position.y,
-    };
-    input_res.mouse_position = lock.mouse_position;
-    lock.mouse_position = PhysicalPosition::new(0f64, 0f64);
     lock.keys_up = HashSet::new();
     lock.keys_down = HashSet::new();
     lock.mouse_buttons_up = HashSet::new();

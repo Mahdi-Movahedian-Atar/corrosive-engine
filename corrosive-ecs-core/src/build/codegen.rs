@@ -323,12 +323,15 @@ pub fn generate_arch_types(arch_types: &ArchTypes) -> TokenStream {
             let mut new_fn_len: TokenStream = TokenStream::new();
             let mut remove_fn: TokenStream = TokenStream::new();
             let mut iter_code: TokenStream = TokenStream::new();
+            let mut life_time: TokenStream = TokenStream::new();
 
             let mut index: usize = 0;
 
             //members
             if input_arch_type.input_arch_type_indexes.is_empty() {
-                panic!("{} does not contain any archetype.", task.0)
+                new_fn_len = quote! {0usize}
+            } else {
+                life_time = quote! {'a}
             }
             for input_arch_type in &input_arch_type.input_arch_type_indexes {
                 let var_name: TokenStream = parse_str(format!("ve{}", index).as_str()).unwrap();
@@ -397,11 +400,11 @@ pub fn generate_arch_types(arch_types: &ArchTypes) -> TokenStream {
 
             code.extend(quote! {
                         #[derive(Copy, Clone)]
-                        pub struct #arch_type_name<'a> {
+                        pub struct #arch_type_name<#life_time> {
                         #members
                         len: usize,
                     }
-                        impl<'a> #arch_type_name<'a> {
+                        impl<#life_time> #arch_type_name<#life_time> {
                 pub fn new(
                     #members
                 ) -> Self {
@@ -411,7 +414,7 @@ pub fn generate_arch_types(arch_types: &ArchTypes) -> TokenStream {
                     }
                 }
             }
-            impl<'a> EngineArch<(#arch_type_type)> for #arch_type_name<'a> {
+            impl<'a> EngineArch<(#arch_type_type)> for #arch_type_name<#life_time> {
 
                     fn remove(&self, mut index: usize) {
                     #remove_fn

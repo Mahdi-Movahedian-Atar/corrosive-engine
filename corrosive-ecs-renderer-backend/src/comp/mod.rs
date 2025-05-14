@@ -19,7 +19,8 @@ use wgpu::{
     PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderPipeline,
     RenderPipelineDescriptor, Sampler, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource,
     ShaderStages, StoreOp, SurfaceTarget, Texture, TextureDescriptor, TextureDimension,
-    TextureSampleType, TextureUsages, TextureView, TextureViewDimension, VertexState,
+    TextureFormat, TextureSampleType, TextureUsages, TextureView, TextureViewDimension,
+    VertexState,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -189,6 +190,8 @@ pub struct State<'a> {
     pub(crate) v_sampler: Sampler,
     pub(crate) v_scale_buffer: Buffer,
     pub(crate) v_bind_group: BindGroup,
+    pub depth_texture: Texture,
+    pub depth_view: TextureView,
 }
 impl<'a> State<'a> {
     async fn new(window: Arc<Window>, render_graph: Res<RenderGraph>) -> State<'a> {
@@ -444,6 +447,23 @@ impl<'a> State<'a> {
             ],
         });
 
+        let depth_texture = device.create_texture(&TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Depth32Float,
+            usage: TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
         State {
             surface,
             queue,
@@ -463,6 +483,8 @@ impl<'a> State<'a> {
             v_sampler: sampler,
             v_scale_buffer: scale_buffer,
             v_bind_group: bind_group,
+            depth_texture,
+            depth_view,
         }
     }
     pub fn render(&self) -> Result<(), wgpu::SurfaceError> {
@@ -471,9 +493,12 @@ impl<'a> State<'a> {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        self.render_graph
-            .f_read()
-            .execute(&self.device, &self.queue, &self.v_texture_view);
+        self.render_graph.f_read().execute(
+            &self.device,
+            &self.queue,
+            &self.v_texture_view,
+            &self.depth_view,
+        );
 
         let mut encoder = self
             .device
@@ -567,6 +592,25 @@ impl<'a> State<'a> {
                     },
                 ],
             });
+
+            self.depth_texture = self.device.create_texture(&TextureDescriptor {
+                label: Some("Depth Texture"),
+                size: Extent3d {
+                    width: new_size.width,
+                    height: new_size.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Depth32Float,
+                usage: TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+
+            self.depth_view = self
+                .depth_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
         }
     }
 }

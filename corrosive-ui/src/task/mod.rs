@@ -9,6 +9,7 @@ use corrosive_ecs_renderer_backend::public_functions::*;
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu::*;
 use std::sync::Arc;
+use corrosive_ecs_renderer_backend::wgpu;
 
 struct UIRenderNode {
     buffers: Res<UIBuffers>,
@@ -24,6 +25,7 @@ impl<'a> RenderNode for UIRenderNode {
         queue: &Queue,
         encoder: &mut CommandEncoder,
         view: &TextureView,
+        _depth: &wgpu::TextureView,
     ) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("UI Render Pass"),

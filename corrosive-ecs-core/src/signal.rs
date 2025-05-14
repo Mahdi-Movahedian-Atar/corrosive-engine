@@ -5,8 +5,9 @@ use std::collections::HashSet;
 /// Signals can be used as conditions in `corrosive_app_builder!`
 #[derive(Default)]
 pub struct Signal {
-    vec: HashSet<String>,
+    pub vec: HashSet<String>,
 }
+
 impl Signal {
     /// Will trigger a certain signal.
     pub fn trigger(&mut self, signal: &str) {

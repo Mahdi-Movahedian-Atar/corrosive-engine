@@ -1,4 +1,4 @@
-use crate::comp::Position2D;
+use crate::comp::{Depth, Position2D};
 use corrosive_ecs_core::ecs_core::{Member, Reference};
 use glam::Vec2;
 use std::sync::RwLockWriteGuard;
@@ -23,6 +23,24 @@ impl<'a> Move2D<'a> {
             step: Step::None,
             lock: None,
         }
+    }
+    pub fn set_depth(mut self, depth: Depth) -> Self {
+        match &mut self.lock {
+            Some(x) => match &mut **x {
+                Reference::Some(t) => {
+                    t.depth = depth;
+                }
+                Reference::Expired => {}
+            },
+            None => match &mut *self.member.dry_f_write() {
+                Reference::Some(t) => {
+                    t.depth = depth;
+                }
+                Reference::Expired => {}
+            },
+        };
+
+        self
     }
     pub fn set_rotation_local(mut self, angle: f32) -> Self {
         match self.step {

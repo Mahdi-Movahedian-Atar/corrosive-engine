@@ -3,15 +3,16 @@ use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
 use corrosive_ecs_renderer_backend::public_functions::{
-    get_device, get_surface_format, get_window_resolution,
+    get_absolute_window_resolution, get_device, get_surface_format, get_window_resolution,
 };
 use corrosive_ecs_renderer_backend::render_graph::RenderNode;
-use corrosive_ecs_renderer_backend::wgpu;
-use egui::Context;
+use corrosive_ecs_renderer_backend::{wgpu, winit};
+use egui::{Context, Pos2};
 use egui_wgpu::{Renderer as EguiRenderer, ScreenDescriptor};
 use egui_winit::winit::event::WindowEvent;
 use egui_winit::State as EguiState;
 use std::sync::{LazyLock, Mutex};
+use corrosive_ecs_renderer_backend::winit::window::CursorIcon;
 
 static INPUT: LazyLock<Mutex<Vec<WindowEvent>>> = LazyLock::new(|| Default::default());
 
@@ -22,16 +23,33 @@ struct EguiNode {
 }
 impl EguiNode {
     fn update(&self) -> egui::FullOutput {
-        let mut lock = self.egui_object.f_write();
-        match &mut lock.state {
-            None => {
-                panic!()
+            let mut lock = self.egui_object.f_write();
+            match &mut lock.state {
+                None => {
+                    panic!()
+                }
+                Some(t) => unsafe {
+                    let raw_input = t.0.take_egui_input(self.window_options.f_read().window());
+                    t.0.egui_ctx().run(raw_input, |ctx|{
+                        t.1(ctx);
+                        let pointer = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+                        let (x,y)= get_window_resolution();
+                        if pointer.x <= 0.0 || pointer.y <= 0.0 || pointer.x >= x as f32 || pointer.y >= y as f32 {
+                            return ;
+                        }
+                        ctx.output(|x| {
+                            match x.cursor_icon {
+                                egui::CursorIcon::PointingHand => { self.window_options.f_read().window().set_cursor(CursorIcon::Pointer) },
+                                egui::CursorIcon::Text => self.window_options.f_read().window().set_cursor(CursorIcon::Text),
+                                egui::CursorIcon::ResizeHorizontal => self.window_options.f_read().window().set_cursor(CursorIcon::RowResize),
+                                egui::CursorIcon::ResizeVertical => self.window_options.f_read().window().set_cursor(CursorIcon::ColResize),
+                                egui::CursorIcon::Crosshair => self.window_options.f_read().window().set_cursor(CursorIcon::Crosshair),
+                                _ => {self.window_options.f_read().window().set_cursor(CursorIcon::Default)},
+                            };
+                        });
+                    })
+                },
             }
-            Some(t) => unsafe {
-                let raw_input = t.0.take_egui_input(self.window_options.f_read().window());
-                t.0.egui_ctx().run(raw_input, &mut t.1)
-            },
-        }
     }
 }
 impl RenderNode for EguiNode {
@@ -45,6 +63,7 @@ impl RenderNode for EguiNode {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
+        _depth: &wgpu::TextureView,
     ) {
         let egui_output = self.update();
 
@@ -121,6 +140,7 @@ pub fn start_egui(
     egui_object: Res<EguiObject>,
 ) {
     let ctx = Context::default();
+    egui_extras::install_image_loaders(&ctx);
     {
         let mut lock = egui_object.f_write();
         lock.state = Some((
@@ -143,7 +163,18 @@ pub fn start_egui(
         ));
     }
     window_options.f_write().func.push(|_, _, _, window_event| {
-        INPUT.lock().unwrap().push(window_event.clone());
+        let mut input = window_event.clone();
+        if let WindowEvent::CursorMoved {
+            device_id,
+            position,
+        } = &mut input
+        {
+            let (x, y) = get_window_resolution();
+            let (ax, ay) = get_absolute_window_resolution();
+            position.x = (position.x - (ax - x) as f64 / 2.0);
+            position.y = (position.y - (ay - y) as f64 / 2.0);
+        }
+        INPUT.lock().unwrap().push(input);
     });
 
     graph.f_write().add_node(Box::new(EguiNode {

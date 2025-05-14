@@ -62,7 +62,7 @@ pub fn test2_0(
         .set_camera(&camera, &camera_position);
     b.add((camera_position, camera));
 
-    let rect2d = Sprite2D::new(AssetServer::load("assets/bitmap.png"), [0.0, 0.0]);
+    let rect2d = Sprite2D::new(AssetServer::load("assets/default.jpg"), [0.0, 0.0]);
     let meta = RendererMeta2D::new(
         &AssetServer::add(static_hasher!("default"), || {
             Ok(StandardMaterial2D::new(Default::default()))

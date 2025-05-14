@@ -2,7 +2,9 @@ use crate::public_functions::{create_texture, write_texture};
 use corrosive_asset_manager;
 use corrosive_asset_manager::asset_server::AssetFile;
 use corrosive_asset_manager_macro::Asset;
+use image::ImageReader;
 use std::error::Error;
+use std::fs::File;
 use wgpu::{RenderPipeline, TexelCopyTextureInfo, Texture};
 
 #[derive(PartialEq, Asset)]
@@ -18,11 +20,14 @@ pub struct TextureAsset {
     pub texture: Texture,
 }
 impl AssetFile for TextureAsset {
-    fn load_file(file: &str) -> Result<Self, Box<dyn Error>>
+    fn load_file(file_name: &str) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized,
     {
-        let diffuse_image = image::open(file)?;
+        let file = File::open(file_name)?;
+        let reader = ImageReader::new(std::io::BufReader::new(file)).with_guessed_format()?;
+
+        let diffuse_image = reader.decode()?;
         let diffuse_rgba = diffuse_image.to_rgba8();
 
         use image::GenericImageView;
@@ -35,7 +40,7 @@ impl AssetFile for TextureAsset {
         };
 
         let texture = create_texture(&wgpu::TextureDescriptor {
-            label: file.into(),
+            label: file_name.into(),
             size: texture_size,
             mip_level_count: 1,
             sample_count: 1,

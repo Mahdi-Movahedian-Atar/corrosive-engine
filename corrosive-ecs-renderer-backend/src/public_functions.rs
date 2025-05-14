@@ -113,6 +113,15 @@ pub fn get_window_resolution() -> (u32, u32) {
         }
     }
 }
+pub fn get_absolute_window_resolution() -> (u32, u32) {
+    unsafe {
+        if let Some(t) = &STATE {
+            (t.size.width, t.size.height)
+        } else {
+            panic!("get_surface_format must be called after run_renderer task.")
+        }
+    }
+}
 pub fn get_resolution_bind_group<'a>() -> &'a BindGroup {
     unsafe {
         if let Some(t) = &STATE {

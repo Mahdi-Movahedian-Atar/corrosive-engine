@@ -10,6 +10,12 @@ corrosive-ecs-renderer-backend = {path = "../corrosive-ecs-renderer-backend" }
 egui = "0.31.1"
 egui-wgpu = "0.31.1"
 egui-winit = "0.31.1"
+egui_extras = { version = "0.31.1", features = ["all_loaders"] }
+image = "0.25.6"
+mime_guess2 = "2.2.0"
 
 [build-dependencies]
 corrosive-ecs-core = {path = "../corrosive-ecs-core" , features = ["build"]}
+
+[patch.crates-io]
+mime_guess2 = { version = "2.2.0" }
