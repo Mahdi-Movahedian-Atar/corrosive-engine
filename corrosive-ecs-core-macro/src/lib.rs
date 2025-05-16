@@ -1,6 +1,4 @@
 use proc_macro::TokenStream;
-use syn::__private::quote::quote;
-use syn::{parse_macro_input, Ident};
 
 mod app;
 mod component;
@@ -8,7 +6,7 @@ mod task;
 
 /// Used to mark functions as tasks.
 #[proc_macro_attribute]
-pub fn task(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn task(_attr: TokenStream, item: TokenStream) -> TokenStream {
     //task_fn(attr, item)
     item
 }
@@ -35,6 +33,6 @@ pub fn resource(_input: TokenStream) -> TokenStream {
 }
 /// Used to mark structs & enums as a TraitBound.
 #[proc_macro_attribute]
-pub fn trait_bound(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn trait_bound(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }

@@ -132,8 +132,8 @@ pub fn scan_tasks(path_map: &PathMap, task_map: &mut TaskMap) -> io::Result<()> 
         .sub_maps
         .retain(|item| visited_paths.contains(&item.path));
 
-    if let Some(T) = file_to_scan {
-        task_map.tasks = find_structs_with_task(T.path.as_path())
+    if let Some(t) = file_to_scan {
+        task_map.tasks = find_structs_with_task(t.path.as_path())
     } else {
         task_map.tasks = Vec::new()
     }

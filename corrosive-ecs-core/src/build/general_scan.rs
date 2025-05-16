@@ -76,14 +76,14 @@ pub fn scan_directory(path_map: &mut PathMap, start_path: &str) -> io::Result<()
             files.push(path.clone());
 
             match path_map.sub_maps.iter_mut().find(|item| item.path == path) {
-                Some(T) => {
-                    if T.modified_time != meta_data.modified()? {
-                        T.modified_time = meta_data.modified()?;
-                        T.modified_state = ModifiedState::Changed;
+                Some(t) => {
+                    if t.modified_time != meta_data.modified()? {
+                        t.modified_time = meta_data.modified()?;
+                        t.modified_state = ModifiedState::Changed;
                     } else {
-                        T.none()
+                        t.none()
                     }
-                    scan_directory(T, start_path)?
+                    scan_directory(t, start_path)?
                 }
                 None => {
                     path_map.sub_maps.push(PathMap {

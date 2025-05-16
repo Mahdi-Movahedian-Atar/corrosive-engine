@@ -1,22 +1,20 @@
-use crate::style::Wrap;
-use crate::style::Wrap::Warp;
-use crate::style::{Display, Overflow, Style, Val};
+use crate::style::Style;
 use corrosive_asset_manager::asset_server::Asset;
-use corrosive_ecs_core::ecs_core::{Member, Ref, Reference, SharedBehavior};
+use corrosive_ecs_core::ecs_core::SharedBehavior;
 use corrosive_ecs_core_macro::{Component, Resource};
 use corrosive_ecs_renderer_backend::assets::PipelineAsset;
 use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
 use corrosive_ecs_renderer_backend::public_functions::{
     create_bind_group_layout, write_to_buffer, VertexRenderable,
 };
+use corrosive_ecs_renderer_backend::wgpu;
 use corrosive_ecs_renderer_backend::wgpu::{
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferAddress,
     BufferBindingType, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat,
     VertexStepMode,
 };
-use corrosive_ecs_renderer_backend::{public_functions, wgpu};
 use std::cmp::PartialEq;
-use std::sync::{Arc, RwLockReadGuard};
+use std::sync::Arc;
 
 pub mod screen;
 

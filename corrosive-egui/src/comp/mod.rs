@@ -1,6 +1,5 @@
 use corrosive_ecs_core_macro::Resource;
 use egui::{Context, TexturesDelta};
-use std::cell::LazyCell;
 
 #[derive(Resource)]
 pub struct EguiObject {

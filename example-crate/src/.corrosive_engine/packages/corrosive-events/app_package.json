@@ -22,12 +22,12 @@
     }
   },
   "tasks": {
-    "start_events": [
-      "Setup",
-      null
-    ],
     "update_events": [
       "Sync",
+      null
+    ],
+    "start_events": [
+      "Setup",
       null
     ]
   },

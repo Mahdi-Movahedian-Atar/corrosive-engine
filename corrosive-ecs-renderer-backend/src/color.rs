@@ -94,7 +94,7 @@ impl Color {
 
     pub fn to_oklaba(&self) -> Self {
         match self.to_rgba() {
-            Color::RGBA(r, g, b, a) => {
+            Color::RGBA(r, g, b, aa) => {
                 let r_lin = srgb_to_linear(r);
                 let g_lin = srgb_to_linear(g);
                 let b_lin = srgb_to_linear(b);
@@ -120,7 +120,7 @@ impl Color {
                 let b = 0.0259040371 * lms_linear_l + 0.7827717662 * lms_linear_m
                     - 0.8086757660 * lms_linear_s;
 
-                Color::OklabA(l, a, b, a)
+                Color::OklabA(l, a, b, aa)
             }
             _ => self.to_rgba().to_oklaba(),
         }

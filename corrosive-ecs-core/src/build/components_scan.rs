@@ -132,8 +132,8 @@ pub fn scan_components(path_map: &PathMap, component_map: &mut ComponentMap) -> 
         .sub_maps
         .retain(|item| visited_paths.contains(&item.path));
 
-    if let Some(T) = file_to_scan {
-        component_map.components = find_structs_with_component(T.path.as_path())
+    if let Some(t) = file_to_scan {
+        component_map.components = find_structs_with_component(t.path.as_path())
     } else {
         component_map.components = Vec::new()
     }

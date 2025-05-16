@@ -252,7 +252,7 @@ pub fn update_position(
             } else {
                 continue;
             };
-            Move2D::start(cam_poses.0)
+            let _ = Move2D::start(cam_poses.0)
                 .set_transition_global(pos_x, pos_y)
                 .set_scale_global(scale, scale)
                 .finish();

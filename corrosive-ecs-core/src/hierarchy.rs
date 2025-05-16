@@ -79,6 +79,10 @@ impl<T: SharedBehavior> Member<T> {
         func(self.value.write().expect("Failed to force write a lock"));
         self.hierarchy.shared_behavior(&self.id);
     }
+    /// Will trigger the shared behavior of the hierarchy from this member.
+    pub fn shared_behavior(&self) {
+        self.hierarchy.shared_behavior(&self.id);
+    }
     pub fn get_children(&self) -> Vec<Member<T>> {
         self.hierarchy.get_children(&self.id)
     }
@@ -220,7 +224,7 @@ impl<T: SharedBehavior> Hierarchy<T> {
     }
     /// Will trigger the shared behavior of the hierarchy from a member.
     pub fn shared_behavior(&self, entry: &u64) {
-        let mut lock = &mut self.data.write().unwrap();
+        let lock = &mut self.data.write().unwrap();
         if let Some(dependents) = lock.dependents.get(entry) {
             let dependents = dependents.clone();
             dependents.iter().for_each(|x| shared_add(x, entry, lock));

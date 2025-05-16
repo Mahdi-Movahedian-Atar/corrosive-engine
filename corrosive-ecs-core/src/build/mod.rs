@@ -1,4 +1,5 @@
 /// Functions to scan the app data.
+#[allow(non_snake_case)]
 pub mod app_scan;
 /// Functions to generate the engines code.
 pub mod codegen;

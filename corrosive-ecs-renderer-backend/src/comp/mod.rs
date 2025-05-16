@@ -1,32 +1,25 @@
-use crate::assets::{BindGroupLayoutAsset, TextureAsset};
 use crate::render_graph::GraphNode;
 use crate::wgpu::BindGroupEntry;
 use crate::STATE;
-use corrosive_asset_manager::asset_server::Asset;
 use corrosive_ecs_core::ecs_core::Res;
-use corrosive_ecs_core_macro::{Component, Resource};
-use std::borrow::Cow;
+use corrosive_ecs_core_macro::Resource;
 use std::collections::HashMap;
-use std::fmt::format;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
-use wgpu::hal::dx12::PipelineLayout;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    util, BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroup, BindGroupDescriptor, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, BlendState, Buffer, BufferBindingType,
     BufferUsages, ColorTargetState, ColorWrites, Device, Extent3d, FragmentState, MultisampleState,
     PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderPipeline,
     RenderPipelineDescriptor, Sampler, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource,
-    ShaderStages, StoreOp, SurfaceTarget, Texture, TextureDescriptor, TextureDimension,
-    TextureFormat, TextureSampleType, TextureUsages, TextureView, TextureViewDimension,
-    VertexState,
+    ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureFormat,
+    TextureSampleType, TextureUsages, TextureView, TextureViewDimension, VertexState,
 };
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window;
+use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
 #[derive(Resource, Default)]
@@ -53,8 +46,8 @@ impl Default for WindowOptions {
             window: None,
             starch_mode: StarchMode::Starch,
             func: vec![|app,
-                        event_loop: &ActiveEventLoop,
-                        window_id: &WindowId,
+                        _event_loop: &ActiveEventLoop,
+                        _window_id: &WindowId,
                         event: &WindowEvent| {
                 match event {
                     WindowEvent::Resized(t) => unsafe {
@@ -177,7 +170,6 @@ pub struct State<'a> {
     pub(crate) config: Arc<RwLock<wgpu::SurfaceConfiguration>>,
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) v_size: PhysicalSize<u32>,
-    pub(crate) window: Arc<Window>,
     pub(crate) render_graph: Res<RenderGraph>,
     pub(crate) device: Device,
     pub(crate) resolution_buffer: Buffer,
@@ -470,7 +462,6 @@ impl<'a> State<'a> {
             config,
             size,
             v_size: size,
-            window,
             render_graph,
             device,
             resolution_buffer,

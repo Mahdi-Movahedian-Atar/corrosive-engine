@@ -159,7 +159,10 @@ impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {
                     .as_str(),
                 );
             }
-            T::load_file(new.as_str())
+            #[cfg(not(debug_assertions))]
+            {
+                T::load_file(new.as_str())
+            }
         })
     }
     pub fn load_sync(file_path: &str) -> Asset<T> {
@@ -175,7 +178,10 @@ impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {
                     .as_str(),
                 );
             }
-            T::load_file(file_path)
+            #[cfg(not(debug_assertions))]
+            {
+                T::load_file(new.as_str())
+            }
         })
     }
     pub fn load_default(file_path: &str) {
@@ -196,10 +202,13 @@ impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {
             }
             return;
         }
-        match T::load_file(file_path) {
-            Ok(v) => AssetServer::add_default(v),
-            Err(e) => {
-                println!("{:?}", e)
+        #[cfg(not(debug_assertions))]
+        {
+            match T::load_file(file_path) {
+                Ok(v) => AssetServer::add_default(v),
+                Err(e) => {
+                    println!("{:?}", e)
+                }
             }
         }
     }
@@ -228,7 +237,7 @@ impl<T: 'static> Clone for Asset<T> {
     fn clone(&self) -> Self {
         self.ref_count.fetch_add(1, Ordering::SeqCst);
         Asset {
-            asset_server: self.asset_server.clone(),
+            asset_server: self.asset_server,
             data: self.data,
             ref_count: self.ref_count,
             id: self.id.clone(),

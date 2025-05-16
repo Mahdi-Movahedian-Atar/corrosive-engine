@@ -38,6 +38,30 @@ pub mod ecs_core {
         Expired,
     }
 
+    impl <T> Reference<T> {
+        /// Unwraps the value if it is not expired.
+        /// Panics if its expired.
+        pub fn unwrap(&self) -> &T {
+            match self {
+                Reference::Some(t) => t,
+                Reference::Expired => panic!("Value is expired"),
+            }
+        }
+        pub fn unwrap_mut(&mut self) -> &mut T {
+            match self {
+                Reference::Some(t) => t,
+                Reference::Expired => panic!("Value is expired"),
+            }
+        }
+        /// Checks if the value is expired.
+        pub fn is_expired(&self) -> bool {
+            match self {
+                Reference::Some(_) => false,
+                Reference::Expired => true,
+            }
+        }
+    }
+
     /// Input delta tile values use as input to tasks.
     pub type DeltaTime<'a> = &'a f64;
 

@@ -21,131 +21,134 @@ pub fn run_engine() {
     let mut fixed_delta_time: u64 = 0.0f64 as u64;
     let is_fixed = AtomicBool::new(false);
     let reset: AtomicBool = AtomicBool::new(true);
-    let a0: RwLock<Vec<(Locked<Position1>, LockedRef<Position3>, Ref<Position2>)>> =
-        RwLock::new(Vec::new());
-    let o0: RwLock<Vec<(Locked<Position1>, LockedRef<Position3>, Ref<Position2>)>> =
-        RwLock::new(Vec::new());
+    let a0: RwLock<Vec<(Member<Position2D>, RendererMeta2D, Sprite2D)>> = RwLock::new(Vec::new());
+    let o0: RwLock<Vec<(Member<Position2D>, RendererMeta2D, Sprite2D)>> = RwLock::new(Vec::new());
     let or0: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let la0: AtomicU8 = AtomicU8::new(0);
-    let a1: RwLock<Vec<(Locked<Position1>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
-    let o1: RwLock<Vec<(Locked<Position1>, LockedRef<Position3>)>> = RwLock::new(Vec::new());
+    let a1: RwLock<Vec<(LockedRef<Camera2D>, Member<Position2D>)>> = RwLock::new(Vec::new());
+    let o1: RwLock<Vec<(LockedRef<Camera2D>, Member<Position2D>)>> = RwLock::new(Vec::new());
     let or1: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let la1: AtomicU8 = AtomicU8::new(0);
-    let st_StateExample: State<StateExample> = State::new(Default::default());
-    let r_MarkedResources: Res<MarkedResources> = Res::new(Default::default());
+    let r_Renderer2dData: Res<Renderer2dData> = Res::new(Default::default());
+    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
+    let r_Inputs: Res<Inputs> = Res::new(Default::default());
+    let r_EguiObject: Res<EguiObject> = Res::new(Default::default());
+    let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
+    let r_ActiveCamera2D: Res<ActiveCamera2D> = Res::new(Default::default());
+    let r_Renderer: Res<Renderer> = Res::new(Default::default());
+    let h_Position2D: Hierarchy<Position2D> = Hierarchy::default();
     let mut loop_trigger = Trigger::new();
-    let mut bus_update_task = Trigger::new();
-    let mut bus_long_task = Trigger::new();
-    let mut bus_update_task_signal = Trigger::new();
-    let mut bus_fixed_task = Trigger::new();
-    let mut update_task_end = bus_update_task.add_trigger();
-    let mut long_task_end = bus_long_task.add_trigger();
-    let mut update_task_signal_end = bus_update_task_signal.add_trigger();
-    let mut update_task_signal_long_task = bus_long_task.add_trigger();
-    let mut fixed_task_end = bus_fixed_task.add_trigger();
-    let mut fixed_task_long_task = bus_long_task.add_trigger();
-    let mut ut_update_task_signal = loop_trigger.add_trigger();
-    let mut ut_fixed_task = loop_trigger.add_trigger();
-    let mut ut_long_task = loop_trigger.add_trigger();
-    let mut ut_update_task = loop_trigger.add_trigger();
+    let mut bus_update_position = Trigger::new();
+    let mut bus_move_camera = Trigger::new();
+    let mut bus_render_2d = Trigger::new();
+    let mut update_position_end = bus_update_position.add_trigger();
+    let mut move_camera_end = bus_move_camera.add_trigger();
+    let mut render_2d_end = bus_render_2d.add_trigger();
+    let mut ut_update_position = loop_trigger.add_trigger();
+    let mut ut_move_camera = loop_trigger.add_trigger();
+    let mut ut_render_2d = loop_trigger.add_trigger();
     thread::scope(|s: &Scope| {
         s.spawn(|| loop {
-            ut_update_task_signal.read("failed");
-            update_task_signal_long_task.read("failed");
-            if (signals.read().unwrap().contains("Signal1")
-                && signals.read().unwrap().contains("signal2")
-                || signals.read().unwrap().contains("signal3")
-                    && *st_StateExample.f_read() == StateExample::A)
-            {
-                let o = update_task_signal(st_StateExample.clone());
-            }
-            bus_update_task_signal.trigger();
+            ut_update_position.read("failed");
+            let o = update_position(
+                Arch::new(&mut update_position0::new(&*a0.read().unwrap(), &or0)),
+                Arch::new(&mut update_position1::new(&*a1.read().unwrap(), &or1)),
+                r_ActiveCamera2D.clone(),
+            );
+            bus_update_position.trigger();
         });
         s.spawn(|| loop {
-            ut_fixed_task.read("failed");
-            fixed_task_long_task.read("failed");
-            if is_fixed.load(SeqCst) {
-                let o = fixed_task();
-            }
-            bus_fixed_task.trigger();
-        });
-        s.spawn(|| {
-            let mut lock: Option<ScopedJoinHandle<_>> = None::<ScopedJoinHandle<'_, _>>;
-            loop {
-                ut_long_task.read("failed");
-                match lock.take() {
-                    Some(task) if task.is_finished() => {
-                        task.join().expect("Task finished but failed to join");
-                    }
-                    Some(task) => {
-                        lock = Some(task);
-                    }
-                    None => {
-                        lock = Some(s.spawn(|| {
-                            la0.fetch_add(1, Ordering::SeqCst);
-                            la1.fetch_add(1, Ordering::SeqCst);
-                            let o = long_task(Arch::new(&mut long_task0::new(
-                                &*a0.read().unwrap(),
-                                &or0,
-                                &*a1.read().unwrap(),
-                                &or1,
-                            )));
-                            la0.fetch_sub(1, Ordering::SeqCst);
-                            la1.fetch_sub(1, Ordering::SeqCst);
-                        }));
-                    }
-                }
-                bus_long_task.trigger();
-            }
-        });
-        s.spawn(|| loop {
-            ut_update_task.read("failed");
-            let o = update_task(
-                Arch::new(&mut update_task0::new(
-                    &*a0.read().unwrap(),
-                    &or0,
-                    &*a0.read().unwrap(),
-                    &or0,
-                    &*a1.read().unwrap(),
-                    &or1,
-                )),
-                r_MarkedResources.clone(),
+            ut_move_camera.read("failed");
+            let o = move_camera(
+                r_ActiveCamera2D.clone(),
+                r_Inputs.clone(),
                 &f64::from_bits(delta_time.load(Ordering::Relaxed)),
             );
-            bus_update_task.trigger();
+            bus_move_camera.trigger();
+        });
+        s.spawn(|| loop {
+            ut_render_2d.read("failed");
+            let o = render_2d(
+                Arch::new(&mut render_2d0::new(&*a0.read().unwrap(), &or0)),
+                r_Renderer2dData.clone(),
+            );
+            bus_render_2d.trigger();
         });
         if reset.load(SeqCst) {
-            let mut bus_setup1 = Trigger::new();
-            let mut bus_setup2 = Trigger::new();
-            let mut bus_setup = Trigger::new();
-            let mut setup1_end = bus_setup1.add_trigger();
-            let mut setup2_end = bus_setup2.add_trigger();
-            let mut setup_end = bus_setup.add_trigger();
+            let mut bus_run_renderer = Trigger::new();
+            let mut bus_start_egui = Trigger::new();
+            let mut bus_start_2d_renderer = Trigger::new();
+            let mut bus_init_camera = Trigger::new();
+            let mut bus_start_events = Trigger::new();
+            let mut bus_test2_0 = Trigger::new();
+            let mut run_renderer_end = bus_run_renderer.add_trigger();
+            let mut run_renderer_start_2d_renderer = bus_start_2d_renderer.add_trigger();
+            let mut start_egui_end = bus_start_egui.add_trigger();
+            let mut start_egui_run_renderer = bus_run_renderer.add_trigger();
+            let mut start_2d_renderer_end = bus_start_2d_renderer.add_trigger();
+            let mut init_camera_end = bus_init_camera.add_trigger();
+            let mut init_camera_run_renderer = bus_run_renderer.add_trigger();
+            let mut start_events_end = bus_start_events.add_trigger();
+            let mut test2_0_end = bus_test2_0.add_trigger();
+            let mut test2_0_run_renderer = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
-                let handle_setup = s.spawn(|| {
-                    let o = setup();
+                let handle_start_2d_renderer = s.spawn(|| {
+                    let o = start_2d_renderer(r_RenderGraph.clone(), r_Renderer2dData.clone());
+                    bus_start_2d_renderer.trigger();
+                });
+                let handle_test2_0 = s.spawn(|| {
+                    test2_0_run_renderer.read("failed");
+                    let o = test2_0(
+                        h_Position2D.clone(),
+                        r_ActiveCamera2D.clone(),
+                        r_ActiveCamera2D.clone(),
+                    );
                     (&o0)
                         .write()
                         .unwrap()
-                        .extend(o.0.vec.into_iter().map(|(m0, m1, m2)| (m0, m2, m1)));
+                        .extend(o.0.vec.into_iter().map(|(m0, m1, m2)| (m0, m1, m2)));
                     (&o1)
                         .write()
                         .unwrap()
-                        .extend(o.1.vec.into_iter().map(|(m0, m1)| (m0, m1)));
-                    bus_setup.trigger();
+                        .extend(o.1.vec.into_iter().map(|(m0, m1)| (m1, m0)));
+                    bus_test2_0.trigger();
                 });
-                let handle_setup1 = s.spawn(|| {
-                    let o = setup1();
-                    bus_setup1.trigger();
+                let handle_run_renderer = s.spawn(|| {
+                    run_renderer_start_2d_renderer.read("failed");
+                    let o = run_renderer(
+                        r_Renderer.clone(),
+                        r_WindowOptions.clone(),
+                        r_RenderGraph.clone(),
+                    );
+                    bus_run_renderer.trigger();
                 });
-                let handle_setup2 = s.spawn(|| {
-                    let o = setup2();
-                    bus_setup2.trigger();
+                let handle_start_egui = s.spawn(|| {
+                    start_egui_run_renderer.read("failed");
+                    let o = start_egui(
+                        r_RenderGraph.clone(),
+                        r_WindowOptions.clone(),
+                        r_EguiObject.clone(),
+                    );
+                    bus_start_egui.trigger();
                 });
-                handle_setup.join().expect("TODO: panic message");
-                handle_setup1.join().expect("TODO: panic message");
-                handle_setup2.join().expect("TODO: panic message");
+                let handle_init_camera = s.spawn(|| {
+                    init_camera_run_renderer.read("failed");
+                    let o = init_camera(r_ActiveCamera2D.clone());
+                    bus_init_camera.trigger();
+                });
+                let handle_start_events = s.spawn(|| {
+                    let o = start_events(r_WindowOptions.clone());
+                    bus_start_events.trigger();
+                });
+                handle_start_2d_renderer
+                    .join()
+                    .expect("TODO: panic message");
+                handle_test2_0.join().expect("TODO: panic message");
+                handle_run_renderer.join().expect("TODO: panic message");
+                handle_start_egui.join().expect("TODO: panic message");
+                handle_init_camera.join().expect("TODO: panic message");
+                handle_start_events.join().expect("TODO: panic message");
             });
         }
         loop {
@@ -163,8 +166,7 @@ pub fn run_engine() {
                             new.push(item);
                             continue;
                         }
-                        item.1.expire();
-                        item.2.expire();
+                        item.0.expire();
                     }
                     *write = new;
                 }
@@ -184,6 +186,7 @@ pub fn run_engine() {
                             new.push(item);
                             continue;
                         }
+                        item.0.expire();
                         item.1.expire();
                     }
                     *write = new;
@@ -195,8 +198,8 @@ pub fn run_engine() {
                 .unwrap()
                 .extend(o_signals.write().unwrap().drain());
             *o_signals.write().unwrap() = HashSet::new();
-            m_0 . join () . expect ("Failed to update archetype of type -> [\"Locked<Position1>\", \"LockedRef<Position3>\", \"Ref<Position2>\"]") ;
-            m_1 . join () . expect ("Failed to update archetype of type -> [\"Locked<Position1>\", \"LockedRef<Position3>\"]") ;
+            m_0 . join () . expect ("Failed to update archetype of type -> [\"Member<Position2D>\", \"RendererMeta2D\", \"Sprite2D\"]") ;
+            m_1 . join () . expect ("Failed to update archetype of type -> [\"LockedRef<Camera2D>\", \"Member<Position2D>\"]") ;
             current_time = Instant::now();
             let new_current_time = current_time
                 .duration_since(last_time)
@@ -211,12 +214,11 @@ pub fn run_engine() {
             } else {
                 is_fixed.store(false, SeqCst);
             }
-            let o = sync_task(&f64::from_bits(delta_time.load(Ordering::Relaxed)));
+            let o = update_events(r_Inputs.clone());
             loop_trigger.trigger();
-            update_task_signal_end.read("failed");
-            fixed_task_end.read("failed");
-            long_task_end.read("failed");
-            update_task_end.read("failed");
+            update_position_end.read("failed");
+            move_camera_end.read("failed");
+            render_2d_end.read("failed");
         }
     });
 }

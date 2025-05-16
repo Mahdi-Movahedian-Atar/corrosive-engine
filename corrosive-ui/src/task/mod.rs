@@ -7,9 +7,9 @@ use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
 use corrosive_ecs_renderer_backend::material::{BindGroupData, MaterialData};
 use corrosive_ecs_renderer_backend::public_functions::*;
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
+use corrosive_ecs_renderer_backend::wgpu;
 use corrosive_ecs_renderer_backend::wgpu::*;
 use std::sync::Arc;
-use corrosive_ecs_renderer_backend::wgpu;
 
 struct UIRenderNode {
     buffers: Res<UIBuffers>,

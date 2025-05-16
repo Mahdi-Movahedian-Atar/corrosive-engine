@@ -1,9 +1,8 @@
-use crate::comp::{RenderGraph, State};
-use crate::STATE;
+use crate::comp::RenderGraph;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use wgpu::{Extent3d, SurfaceTexture, TextureView};
+use wgpu::TextureView;
 pub type CommandEncoder = wgpu::CommandEncoder;
 pub type Device = wgpu::Device;
 pub type Queue = wgpu::Queue;
@@ -115,11 +114,11 @@ impl RenderGraph {
         order
     }
 
-    fn depends_on(&self, child: &String, parent: &String) -> bool {
+    /*fn depends_on(&self, child: &String, parent: &String) -> bool {
         let child = &self.pass_names[child];
         let parent = &self.pass_names[parent];
         self.edges.iter().any(|(p, c)| p == parent && c == child)
-    }
+    }*/
     fn depends_on_index(&self, child: &usize, parent: &usize) -> bool {
         self.edges.iter().any(|(p, c)| p == parent && c == child)
     }

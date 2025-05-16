@@ -1,5 +1,4 @@
 use crate::assets::BindGroupLayoutAsset;
-use crate::public_functions;
 use corrosive_asset_manager::asset_server::Asset;
 
 pub struct BindGroupData {

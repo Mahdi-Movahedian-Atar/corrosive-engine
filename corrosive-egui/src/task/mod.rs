@@ -6,13 +6,13 @@ use corrosive_ecs_renderer_backend::public_functions::{
     get_absolute_window_resolution, get_device, get_surface_format, get_window_resolution,
 };
 use corrosive_ecs_renderer_backend::render_graph::RenderNode;
+use corrosive_ecs_renderer_backend::winit::window::CursorIcon;
 use corrosive_ecs_renderer_backend::{wgpu, winit};
 use egui::{Context, Pos2};
 use egui_wgpu::{Renderer as EguiRenderer, ScreenDescriptor};
 use egui_winit::winit::event::WindowEvent;
 use egui_winit::State as EguiState;
 use std::sync::{LazyLock, Mutex};
-use corrosive_ecs_renderer_backend::winit::window::CursorIcon;
 
 static INPUT: LazyLock<Mutex<Vec<WindowEvent>>> = LazyLock::new(|| Default::default());
 
@@ -23,33 +23,61 @@ struct EguiNode {
 }
 impl EguiNode {
     fn update(&self) -> egui::FullOutput {
-            let mut lock = self.egui_object.f_write();
-            match &mut lock.state {
-                None => {
-                    panic!()
-                }
-                Some(t) => unsafe {
-                    let raw_input = t.0.take_egui_input(self.window_options.f_read().window());
-                    t.0.egui_ctx().run(raw_input, |ctx|{
-                        t.1(ctx);
-                        let pointer = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
-                        let (x,y)= get_window_resolution();
-                        if pointer.x <= 0.0 || pointer.y <= 0.0 || pointer.x >= x as f32 || pointer.y >= y as f32 {
-                            return ;
-                        }
-                        ctx.output(|x| {
-                            match x.cursor_icon {
-                                egui::CursorIcon::PointingHand => { self.window_options.f_read().window().set_cursor(CursorIcon::Pointer) },
-                                egui::CursorIcon::Text => self.window_options.f_read().window().set_cursor(CursorIcon::Text),
-                                egui::CursorIcon::ResizeHorizontal => self.window_options.f_read().window().set_cursor(CursorIcon::RowResize),
-                                egui::CursorIcon::ResizeVertical => self.window_options.f_read().window().set_cursor(CursorIcon::ColResize),
-                                egui::CursorIcon::Crosshair => self.window_options.f_read().window().set_cursor(CursorIcon::Crosshair),
-                                _ => {self.window_options.f_read().window().set_cursor(CursorIcon::Default)},
-                            };
-                        });
-                    })
-                },
+        let mut lock = self.egui_object.f_write();
+        match &mut lock.state {
+            None => {
+                panic!()
             }
+            Some(t) => unsafe {
+                let raw_input = t.0.take_egui_input(self.window_options.f_read().window());
+                t.0.egui_ctx().run(raw_input, |ctx| {
+                    t.1(ctx);
+                    let pointer = ctx.pointer_hover_pos().unwrap_or(Pos2::new(0.0, 0.0));
+                    let (x, y) = get_window_resolution();
+                    if pointer.x <= 0.0
+                        || pointer.y <= 0.0
+                        || pointer.x >= x as f32
+                        || pointer.y >= y as f32
+                    {
+                        return;
+                    }
+                    ctx.output(|x| {
+                        match x.cursor_icon {
+                            egui::CursorIcon::PointingHand => self
+                                .window_options
+                                .f_read()
+                                .window()
+                                .set_cursor(CursorIcon::Pointer),
+                            egui::CursorIcon::Text => self
+                                .window_options
+                                .f_read()
+                                .window()
+                                .set_cursor(CursorIcon::Text),
+                            egui::CursorIcon::ResizeHorizontal => self
+                                .window_options
+                                .f_read()
+                                .window()
+                                .set_cursor(CursorIcon::RowResize),
+                            egui::CursorIcon::ResizeVertical => self
+                                .window_options
+                                .f_read()
+                                .window()
+                                .set_cursor(CursorIcon::ColResize),
+                            egui::CursorIcon::Crosshair => self
+                                .window_options
+                                .f_read()
+                                .window()
+                                .set_cursor(CursorIcon::Crosshair),
+                            _ => self
+                                .window_options
+                                .f_read()
+                                .window()
+                                .set_cursor(CursorIcon::Default),
+                        };
+                    });
+                })
+            },
+        }
     }
 }
 impl RenderNode for EguiNode {
@@ -76,7 +104,7 @@ impl RenderNode for EguiNode {
 
             if let Some(state) = &mut egui_lock.state {
                 for event in input_events.drain(..) {
-                    state.0.on_window_event(window.window(), &event);
+                    let _ = state.0.on_window_event(window.window(), &event);
                 }
             }
         } else {
@@ -109,7 +137,7 @@ impl RenderNode for EguiNode {
         if let Some(renderer) = &mut egui_lock.renderer {
             renderer.update_buffers(device, queue, encoder, &shapes, &screen_descriptor);
 
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Egui Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
@@ -165,14 +193,14 @@ pub fn start_egui(
     window_options.f_write().func.push(|_, _, _, window_event| {
         let mut input = window_event.clone();
         if let WindowEvent::CursorMoved {
-            device_id,
+            device_id: _,
             position,
         } = &mut input
         {
             let (x, y) = get_window_resolution();
             let (ax, ay) = get_absolute_window_resolution();
-            position.x = (position.x - (ax - x) as f64 / 2.0);
-            position.y = (position.y - (ay - y) as f64 / 2.0);
+            position.x = position.x - (ax - x) as f64 / 2.0;
+            position.y = position.y - (ay - y) as f64 / 2.0;
         }
         INPUT.lock().unwrap().push(input);
     });

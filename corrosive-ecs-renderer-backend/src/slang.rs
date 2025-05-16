@@ -4,8 +4,8 @@ use std::error::Error;
 use std::fs::Metadata;
 use std::{
     env,
-    fs::{self, File},
-    io::{self, Write},
+    fs::{self},
+    io::{self},
     path::{Path, PathBuf},
     process::Command,
 };

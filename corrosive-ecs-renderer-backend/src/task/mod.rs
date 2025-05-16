@@ -3,10 +3,7 @@ use crate::slang::ShaderManager;
 use crate::STATE;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
-use std::sync::Arc;
 use std::thread;
-use wgpu::hal::ShaderError::Device;
-use winit::application::ApplicationHandler;
 use winit::event_loop::{ControlFlow, EventLoop};
 
 #[task]

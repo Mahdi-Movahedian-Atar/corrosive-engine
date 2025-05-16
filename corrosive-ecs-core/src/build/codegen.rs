@@ -813,9 +813,9 @@ fn generate_app_task_body<'a>(
                     code.extend(quote! {#state_name.clone(),})
                 }
                 TaskInput::Hierarchy(_, v) => {
-                    let Hierarch_name: TokenStream =
+                    let hierarch_name: TokenStream =
                         parse_str(format!("h_{}", v).as_str()).unwrap();
-                    code.extend(quote! {#Hierarch_name.clone(),})
+                    code.extend(quote! {#hierarch_name.clone(),})
                 }
                 TaskInput::DeltaTime(_) => {
                     code.extend(quote! {&f64::from_bits(delta_time.load(Ordering::Relaxed)),});
@@ -1107,8 +1107,8 @@ fn generate_app_variables(
     }
 
     for task_option in task_options {
-        if let Some(T) = &task_option.1 .1 {
-            states.extend(T.get_states());
+        if let Some(t) = &task_option.1 .1 {
+            states.extend(t.get_states());
         }
     }
 

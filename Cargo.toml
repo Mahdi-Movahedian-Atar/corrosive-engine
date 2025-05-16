@@ -1,5 +1,5 @@
 [workspace]
-members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer", "corrosive-ecs-renderer-backend", "corrosive-ui", "corrosive-asset-manager", "corrosive-asset-manager-macro", "corrosive-2d", "corrosive-ecs-renderer-backend-macro", "corrosive-2d-macro", "corrosive-events", "example-crate", "corrosive-egui"]
+members = ["corrosive-ecs-core-macro", "corrosive-ecs-core", "corrosive-renderer", "corrosive-ecs-renderer-backend", "corrosive-ui", "corrosive-asset-manager", "corrosive-asset-manager-macro", "corrosive-2d", "corrosive-ecs-renderer-backend-macro", "corrosive-2d-macro", "corrosive-events", "example-crate", "corrosive-egui", "pixil"]
 
 [package]
 name = "corrosive-engine"
@@ -25,7 +25,6 @@ corrosive-asset-manager-macro= {path = "corrosive-asset-manager-macro" }
 corrosive-events= {path = "corrosive-events" }
 corrosive-egui= {path = "corrosive-egui" }
 example-crate= {path = "example-crate" }
-rand = "0.9.0-alpha.2"
 
 
 [build-dependencies]
