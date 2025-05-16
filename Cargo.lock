@@ -1220,6 +1220,7 @@ dependencies = [
  "corrosive-egui",
  "corrosive-events",
  "corrosive-ui",
+ "pixil",
  "rand 0.9.0-beta.1",
 ]
 

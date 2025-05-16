@@ -1,9 +1,12 @@
+use std::cell::LazyCell;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu::{RenderBundleEncoder, TextureView};
+use crate::render_set::RenderSet;
 
-static mut DYNAMIC_OBJECTS: Vec<RenderBundleEncoder<'static>> = Vec::new();
-static mut DYNAMIC_OBJECTS_INDEX: Vec<u64> = Vec::new();
+static mut DYNAMIC_OBJECTS:RenderSet<RenderBundleEncoder>= RenderSet::new() ;
 
 struct RenderPixilNode{
 

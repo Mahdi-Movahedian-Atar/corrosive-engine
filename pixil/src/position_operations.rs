@@ -743,8 +743,9 @@ impl<'a> MovePixil<'a> {
         match &self.step {
             Step::Global(_) => {},
             Step::Error => {},
-            Step::Local => match &mut *self.lock {
-                Reference::Some(s) => {
+            Step::Local =>  {
+                {
+                    let s = self.lock.unwrap();
                     let parents_transform = match self.member.get_parent() {
                         None => {
                             self.step = Step::Global(s.global.to_scale_rotation_translation());
@@ -767,10 +768,6 @@ impl<'a> MovePixil<'a> {
                     );
                     return;
                 }
-                Reference::Expired => {
-                    self.step = Step::Error;
-                    return;
-                }
             },
         }
     }
@@ -778,8 +775,8 @@ impl<'a> MovePixil<'a> {
         match &self.step {
             Step::Local => {},
             Step::Error => {},
-            Step::Global((scale, rotation, position)) => match &mut *self.lock {
-                Reference::Some(s) => {
+            Step::Global((scale, rotation, position)) =>  {
+                let s = self.lock.unwrap();
                     let inv_parents_transform = match self.member.get_parent() {
                         None => {
                             s.scale = scale.clone();
@@ -808,11 +805,6 @@ impl<'a> MovePixil<'a> {
                     self.step = Step::Local;
                     return;
                 }
-                Reference::Expired => {
-                    self.step = Step::Error;
-                    return;
-                }
-            },
+            }
         }
     }
-}

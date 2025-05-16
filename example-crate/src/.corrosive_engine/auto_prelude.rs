@@ -45,3 +45,4 @@ pub use corrosive_ui::comp::UIRenderMeta;
 pub use corrosive_ui::comp::UiNode;
 pub use corrosive_ui::task::rerender_ui;
 pub use corrosive_ui::task::setup_ui_pass;
+pub use pixil::task::renderer::start_pixil_renderer;
