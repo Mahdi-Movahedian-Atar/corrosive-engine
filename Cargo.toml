@@ -24,6 +24,7 @@ corrosive-asset-manager= {path = "corrosive-asset-manager" }
 corrosive-asset-manager-macro= {path = "corrosive-asset-manager-macro" }
 corrosive-events= {path = "corrosive-events" }
 corrosive-egui= {path = "corrosive-egui" }
+pixil = {path = "pixil" }
 example-crate= {path = "example-crate" }
 
 

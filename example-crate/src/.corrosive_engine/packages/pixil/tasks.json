@@ -1,0 +1,30 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/task",
+  "sub_maps": [
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/task\\renderer",
+      "sub_maps": [],
+      "tasks": [
+        {
+          "name": "start_pixil_renderer",
+          "inputs": [
+            {
+              "Resources": [
+                "render_setting",
+                "PixilRenderSettings"
+              ]
+            },
+            {
+              "Resources": [
+                "graph",
+                "RenderGraph"
+              ]
+            }
+          ],
+          "outputs": []
+        }
+      ]
+    }
+  ],
+  "tasks": []
+}

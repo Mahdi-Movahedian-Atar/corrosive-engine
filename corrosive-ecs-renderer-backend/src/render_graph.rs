@@ -43,6 +43,14 @@ impl RenderGraph {
     }
 
     pub fn add_dependency(&mut self, parent: &str, child: &str) {
+        if !self.pass_names.contains_key(parent) {
+            let i = self.pass_names.len();
+            self.pass_names.insert(parent.to_string(), i);
+        };
+        if !self.pass_names.contains_key(child) {
+            let i = self.pass_names.len();
+            self.pass_names.insert(child.to_string(), i);
+        };
         self.edges
             .push((self.pass_names[parent], self.pass_names[child]));
     }

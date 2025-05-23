@@ -9,8 +9,8 @@
     {
       "path": "./src/task\\mod.rs",
       "modified_time": {
-        "secs_since_epoch": 1746717607,
-        "nanos_since_epoch": 706690400
+        "secs_since_epoch": 1748013061,
+        "nanos_since_epoch": 173821100
       },
       "modified_state": "None",
       "sub_maps": []
@@ -52,15 +52,6 @@
           ]
         }
       ]
-    },
-    {
-      "path": "./src/task\\mod.rs~",
-      "modified_time": {
-        "secs_since_epoch": 1746717527,
-        "nanos_since_epoch": 497649700
-      },
-      "modified_state": "None",
-      "sub_maps": []
     }
   ]
 }

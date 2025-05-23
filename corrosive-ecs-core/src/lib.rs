@@ -38,7 +38,7 @@ pub mod ecs_core {
         Expired,
     }
 
-    impl <T> Reference<T> {
+    impl<T> Reference<T> {
         /// Unwraps the value if it is not expired.
         /// Panics if its expired.
         pub fn unwrap(&self) -> &T {

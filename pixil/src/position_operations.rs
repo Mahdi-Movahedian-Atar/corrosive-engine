@@ -10,18 +10,20 @@ pub struct MovePixil<'a> {
     lock: Lock<'a>,
 }
 pub struct ExpiredValue {}
-enum Lock<'a>{
+enum Lock<'a> {
     Lock(RwLockWriteGuard<'a, Reference<PositionPixil>>),
-    NotLock
+    NotLock,
 }
 impl Lock<'_> {
     fn drop(mut self) {
         self = Lock::NotLock
     }
-    fn unwrap(&mut self) -> & mut PositionPixil  {
+    fn unwrap(&mut self) -> &mut PositionPixil {
         match self {
-            Lock::Lock(v) => {v.unwrap_mut()}
-            Lock::NotLock => {panic!("Lock does not exists")}
+            Lock::Lock(v) => v.unwrap_mut(),
+            Lock::NotLock => {
+                panic!("Lock does not exists")
+            }
         }
     }
 }
@@ -524,20 +526,19 @@ impl<'a> MovePixil<'a> {
                 step: Step::Local,
                 lock: Lock::Lock(member.dry_f_write()),
             }
-        }else {
+        } else {
             Self {
                 member,
                 step: Step::Error,
                 lock: Lock::NotLock,
             }
         }
-
     }
     pub fn finish(mut self) -> Result<(), ExpiredValue> {
         match &self.step {
-            Step::Local => {self.to_global()}
-            Step::Global(..) => {self.to_local()}
-            _=>{}
+            Step::Local => self.to_global(),
+            Step::Global(..) => self.to_local(),
+            _ => {}
         }
         self.lock.unwrap().dirty = true;
         self.lock.drop();
@@ -555,27 +556,27 @@ impl<'a> MovePixil<'a> {
                 self.lock.unwrap().rotation = angles;
                 self
             }
-                Step::Global(..) => {
-                    self.to_local();
-                    self.set_rotation_local(angles)
-                },
-                Step::Error => self,
+            Step::Global(..) => {
+                self.to_local();
+                self.set_rotation_local(angles)
+            }
+            Step::Error => self,
         }
     }
     pub fn set_rotation_global(mut self, angles: Quat) -> Self {
         match self.step {
-            Step::Global((_, mut r,_)) => {
+            Step::Global((_, mut r, _)) => {
                 r = angles;
                 self
             }
             Step::Local => {
                 self.to_global();
                 self.set_rotation_global(angles)
-            },
+            }
             Step::Error => self,
         }
     }
-    pub fn rotate_around_local(mut self, angle: f32,axis: Vec3) -> Self {
+    pub fn rotate_around_local(mut self, angle: f32, axis: Vec3) -> Self {
         match self.step {
             Step::Local => {
                 let mut r = &self.lock.unwrap().rotation;
@@ -584,51 +585,46 @@ impl<'a> MovePixil<'a> {
             }
             Step::Global(..) => {
                 self.to_local();
-                self.rotate_around_local(angle,axis)
-            },
+                self.rotate_around_local(angle, axis)
+            }
             Step::Error => self,
         }
     }
-    pub fn rotate_around_global(mut self, angle: f32,axis: Vec3) -> Self {
+    pub fn rotate_around_global(mut self, angle: f32, axis: Vec3) -> Self {
         match self.step {
-            Step::Global((_, mut r,_)) => {
+            Step::Global((_, mut r, _)) => {
                 r = r.add(Quat::from_axis_angle(axis, angle));
                 self
             }
             Step::Local => {
                 self.to_global();
-                self.rotate_around_global(angle,axis)
-            },
+                self.rotate_around_global(angle, axis)
+            }
             Step::Error => self,
         }
     }
     pub fn look_at(mut self, target: Vec3) -> Self {
         match self.step {
-            Step::Global((_, mut r,p)) => {
+            Step::Global((_, mut r, p)) => {
                 let forward = (target - p).normalize();
 
-                r = Mat4::from_cols(
-                    Vec4::X,
-                    Vec4::Y,
-                    forward.extend(0.0),
-                    Vec4::W
-                ).to_scale_rotation_translation().1;
+                r = Mat4::from_cols(Vec4::X, Vec4::Y, forward.extend(0.0), Vec4::W)
+                    .to_scale_rotation_translation()
+                    .1;
 
                 self
             }
             Step::Local => {
                 self.to_global();
                 self.look_at(target)
-            },
+            }
             Step::Error => self,
         }
     }
     pub fn look_at_member(mut self, target: &Member<PositionPixil>) -> Self {
         let target = match &*target.f_read() {
-            Reference::Some(v) => {
-                v.global.to_scale_rotation_translation().2
-            }
-            Reference::Expired => {return self}
+            Reference::Some(v) => v.global.to_scale_rotation_translation().2,
+            Reference::Expired => return self,
         };
         self.look_at(target)
     }
@@ -642,20 +638,20 @@ impl<'a> MovePixil<'a> {
             Step::Global(..) => {
                 self.to_local();
                 self.set_transition_local(position)
-            },
+            }
             Step::Error => self,
         }
     }
     pub fn set_transition_global(mut self, position: Vec3) -> Self {
         match self.step {
-            Step::Global((_,_,mut p)) => {
+            Step::Global((_, _, mut p)) => {
                 p = position;
                 self
             }
             Step::Local => {
                 self.to_local();
                 self.set_transition_global(position)
-            },
+            }
             Step::Error => self,
         }
     }
@@ -668,20 +664,20 @@ impl<'a> MovePixil<'a> {
             Step::Global(..) => {
                 self.to_local();
                 self.transition_local(position)
-            },
+            }
             Step::Error => self,
         }
     }
     pub fn transition_global(mut self, position: Vec3) -> Self {
         match self.step {
-            Step::Global((_,_,mut p)) => {
+            Step::Global((_, _, mut p)) => {
                 p += position;
                 self
             }
             Step::Local => {
                 self.to_local();
                 self.transition_global(position)
-            },
+            }
             Step::Error => self,
         }
     }
@@ -695,20 +691,20 @@ impl<'a> MovePixil<'a> {
             Step::Global(..) => {
                 self.to_local();
                 self.set_scale_local(scale)
-            },
+            }
             Step::Error => self,
         }
     }
     pub fn set_scale_global(mut self, scale: Vec3) -> Self {
         match self.step {
-            Step::Global((mut s,_,_)) => {
+            Step::Global((mut s, _, _)) => {
                 s = scale;
                 self
             }
             Step::Local => {
                 self.to_local();
                 self.set_scale_global(scale)
-            },
+            }
             Step::Error => self,
         }
     }
@@ -721,90 +717,89 @@ impl<'a> MovePixil<'a> {
             Step::Global(..) => {
                 self.to_local();
                 self.scale_local(scale)
-            },
+            }
             Step::Error => self,
         }
     }
     pub fn scale_global(mut self, scale: Vec3) -> Self {
         match self.step {
-            Step::Global((mut s,_,_)) => {
+            Step::Global((mut s, _, _)) => {
                 s += scale;
                 self
             }
             Step::Local => {
                 self.to_local();
                 self.scale_global(scale)
-            },
+            }
             Step::Error => self,
         }
     }
 
     fn to_global(&mut self) {
         match &self.step {
-            Step::Global(_) => {},
-            Step::Error => {},
-            Step::Local =>  {
-                {
-                    let s = self.lock.unwrap();
-                    let parents_transform = match self.member.get_parent() {
-                        None => {
+            Step::Global(_) => {}
+            Step::Error => {}
+            Step::Local => {
+                let s = self.lock.unwrap();
+                let parents_transform = match self.member.get_parent() {
+                    None => {
+                        self.step = Step::Global(s.global.to_scale_rotation_translation());
+                        return;
+                    }
+                    Some(v) => match &*v.f_read() {
+                        Reference::Some(v) => v.global,
+                        Reference::Expired => {
                             self.step = Step::Global(s.global.to_scale_rotation_translation());
                             return;
                         }
-                        Some(v) => match &*v.f_read() {
-                            Reference::Some(v) => v.global,
-                            Reference::Expired => {
-                                self.step = Step::Global(s.global.to_scale_rotation_translation());
-                                return;
-                            }
-                        },
-                    };
-                    Step::Global(
-                        (parents_transform
-                            * Mat4::from_scale_rotation_translation(
-                                s.scale, s.rotation, s.position,
-                            ))
-                        .to_scale_rotation_translation(),
-                    );
-                    return;
-                }
-            },
-        }
-    }
-    fn to_local(&mut self)  {
-        match &self.step {
-            Step::Local => {},
-            Step::Error => {},
-            Step::Global((scale, rotation, position)) =>  {
-                let s = self.lock.unwrap();
-                    let inv_parents_transform = match self.member.get_parent() {
-                        None => {
-                            s.scale = scale.clone();
-                            s.rotation = rotation.clone();
-                            s.position = position.clone();
-                            s.global = Mat4::from_scale_rotation_translation(*scale, *rotation, *position);
-                            self.step = Step::Local;
-                            return;
-                        }
-                        Some(v) => match &*v.f_read() {
-                            Reference::Some(v) => v.global.inverse(),
-                            Reference::Expired => {
-                                s.scale = scale.clone();
-                                s.rotation = rotation.clone();
-                                s.position = position.clone();
-                                s.global = Mat4::from_scale_rotation_translation(*scale, *rotation, *position);
-                                self.step = Step::Local;
-                                return;
-                            }
-                        },
-                    };
-                    let (scale,rotation,translation) = (inv_parents_transform * s.global).to_scale_rotation_translation();
-                    s.scale = scale;
-                    s.rotation = rotation;
-                    s.position = translation;
-                    self.step = Step::Local;
-                    return;
-                }
+                    },
+                };
+                Step::Global(
+                    (parents_transform
+                        * Mat4::from_scale_rotation_translation(s.scale, s.rotation, s.position))
+                    .to_scale_rotation_translation(),
+                );
+                return;
             }
         }
     }
+    fn to_local(&mut self) {
+        match &self.step {
+            Step::Local => {}
+            Step::Error => {}
+            Step::Global((scale, rotation, position)) => {
+                let s = self.lock.unwrap();
+                let inv_parents_transform = match self.member.get_parent() {
+                    None => {
+                        s.scale = scale.clone();
+                        s.rotation = rotation.clone();
+                        s.position = position.clone();
+                        s.global =
+                            Mat4::from_scale_rotation_translation(*scale, *rotation, *position);
+                        self.step = Step::Local;
+                        return;
+                    }
+                    Some(v) => match &*v.f_read() {
+                        Reference::Some(v) => v.global.inverse(),
+                        Reference::Expired => {
+                            s.scale = scale.clone();
+                            s.rotation = rotation.clone();
+                            s.position = position.clone();
+                            s.global =
+                                Mat4::from_scale_rotation_translation(*scale, *rotation, *position);
+                            self.step = Step::Local;
+                            return;
+                        }
+                    },
+                };
+                let (scale, rotation, translation) =
+                    (inv_parents_transform * s.global).to_scale_rotation_translation();
+                s.scale = scale;
+                s.rotation = rotation;
+                s.position = translation;
+                self.step = Step::Local;
+                return;
+            }
+        }
+    }
+}

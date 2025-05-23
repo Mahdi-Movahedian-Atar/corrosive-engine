@@ -421,7 +421,7 @@ impl<'a> State<'a> {
         let view = dummy_view.create_view(&Default::default());
 
         let bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("postprocess bind group"),
+            label: Some("PostProcess bind group"),
             layout: &bind_group_layout,
             entries: &[
                 BindGroupEntry {

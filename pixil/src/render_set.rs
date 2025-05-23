@@ -1,13 +1,14 @@
+use corrosive_asset_manager::asset_server::Asset;
+use std::alloc::Layout;
 use std::sync::Mutex;
 
 pub struct SparseSet<T> {
-    sparse: Vec<usize>,   // Maps keys to indices in dense/data
-    dense: Vec<usize>,    // Contains active keys
-    data: Vec<T>,         // Contains values associated with keys
+    sparse: Vec<usize>,
+    dense: Vec<usize>,
+    data: Vec<T>,
 }
-
 impl<T> SparseSet<T> {
-    pub(crate) const  fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
             sparse: Vec::new(),
             dense: Vec::new(),
@@ -68,12 +69,16 @@ impl<T> SparseSet<T> {
         self.dense.is_empty()
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (usize, &T)> {
-        self.dense.iter().zip(self.data.iter()).map(|(&k, v)| (k, v))
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
+        self.data.iter()
     }
 
-    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = (usize, &mut T)> {
-        self.dense.iter().zip(self.data.iter_mut()).map(|(&k, v)| (k, v))
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.data.iter_mut()
+    }
+
+    pub(crate) fn get_enabled(&self) -> &Vec<T> {
+        &self.data
     }
 
     pub(crate) fn get_index(&self, key: usize) -> Option<usize> {
@@ -89,51 +94,59 @@ impl<T> SparseSet<T> {
     }
 }
 
-pub(crate) struct RenderSet<T>{
-    pub(crate) data : Mutex<RenderData<T>>
+pub(crate) struct RenderSet<T> {
+    pub(crate) data: Mutex<RenderData<T>>,
 }
-pub struct RenderData<T>{
+
+pub struct RenderData<T> {
     pub(crate) latest: usize,
     pub(crate) enabled: SparseSet<T>,
     pub(crate) disabled: SparseSet<T>,
 }
-impl<T> RenderSet<T>{
-    pub(crate) const fn new() -> RenderSet<T>{
-        RenderSet{
-            data: Mutex::new(RenderData{
+impl<T> RenderSet<T> {
+    pub(crate) const fn new() -> RenderSet<T> {
+        RenderSet {
+            data: Mutex::new(RenderData {
                 latest: 0,
                 enabled: SparseSet::new(),
                 disabled: SparseSet::new(),
-            })
+            }),
         }
     }
-    pub(crate) fn add_enabled(&self, id: T){
+    pub(crate) fn add_enabled(&self, id: T) {
         let data = &mut *self.data.lock().unwrap();
         data.latest += 1;
         data.enabled.insert(data.latest, id);
     }
-    pub(crate) fn add_disabled(&self, id: T){
+    pub(crate) fn add_disabled(&self, id: T) {
         let data = &mut *self.data.lock().unwrap();
         data.latest += 1;
         data.disabled.insert(data.latest, id);
     }
-    pub(crate) fn remove(&self, id: usize){
+    pub(crate) fn remove(&self, id: usize) {
         let mut data = self.data.lock().unwrap();
         data.disabled.remove(id);
         data.enabled.remove(id);
     }
-    pub(crate) fn enable(&self, id: usize){
+    pub(crate) fn enable(&self, id: usize) {
         let mut data = self.data.lock().unwrap();
-        match data.disabled.remove(id){
+        match data.disabled.remove(id) {
             None => {}
-            Some(v) => {data.enabled.insert(id,v);}
+            Some(v) => {
+                data.enabled.insert(id, v);
+            }
         }
     }
-    pub(crate) fn disable(&self, id: usize){
+    pub(crate) fn disable(&self, id: usize) {
         let mut data = self.data.lock().unwrap();
-        match data.enabled.remove(id){
+        match data.enabled.remove(id) {
             None => {}
-            Some(v) => {data.disabled.insert(id,v);}
+            Some(v) => {
+                data.disabled.insert(id, v);
+            }
         }
     }
 }
+
+unsafe impl<T> Send for RenderSet<T> {}
+unsafe impl<T> Sync for RenderSet<T> {}

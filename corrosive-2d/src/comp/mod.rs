@@ -250,7 +250,7 @@ impl RendererMeta2D {
                             .as_str()
                             .into(),
                         layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
-                            label: "ui_pipeline_layout".into(),
+                            label: "corrosive_2d_pipeline_layout".into(),
                             bind_group_layouts: &[
                                 &bind_group_layout.get().layout,
                                 get_resolution_bind_group_layout(),

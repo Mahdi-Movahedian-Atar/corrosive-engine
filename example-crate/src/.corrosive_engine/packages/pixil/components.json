@@ -1,0 +1,38 @@
+{
+  "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp",
+  "sub_maps": [
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\camera",
+      "sub_maps": [],
+      "components": []
+    },
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\dynamic",
+      "sub_maps": [],
+      "components": [
+        {
+          "Component": "PixilDynamicObject"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\position_pixil",
+      "sub_maps": [],
+      "components": [
+        {
+          "Component": "PositionPixil"
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\render",
+      "sub_maps": [],
+      "components": [
+        {
+          "Component": "PixilRenderSettings"
+        }
+      ]
+    }
+  ],
+  "components": []
+}

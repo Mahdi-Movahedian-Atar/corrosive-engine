@@ -8,7 +8,7 @@ use corrosive_2d::comp::sprite2d::Sprite2D;
 use corrosive_2d::comp::{sprite2d, Position2D, RendererMeta2D};
 use corrosive_2d::material2d::StandardMaterial2D;
 use corrosive_2d::position2d_operations::Move2D;
-use corrosive_asset_manager::asset_server::AssetServer;
+use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{
     Arch, DeltaTime, Hierarchy, Locked, LockedRef, Member, RArch, Ref, Reference, Res, Reset,
@@ -17,11 +17,31 @@ use corrosive_ecs_core::ecs_core::{
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::winit::keyboard::KeyCode;
 use corrosive_events::comp::Inputs;
+use pixil::comp::dynamic::PixilDynamicObject;
+use pixil::comp::position_pixil::PositionPixil;
+use pixil::material::{PixilDefaultMaterial, PixilMaterial};
 use rand::Rng;
 use std::iter::Map;
 use std::process::id;
 use std::vec::IntoIter;
 
+#[task]
+pub fn pixil_test(
+    h: Hierarchy<PositionPixil>,
+) -> (RArch<(PixilDynamicObject, Member<PositionPixil>)>,) {
+    let mut r: RArch<(PixilDynamicObject, Member<PositionPixil>)> = RArch::default();
+    let a = h.new_entry(PositionPixil::default());
+    r.add((
+        PixilDynamicObject::new(
+            AssetServer::load("assets/test.obj"),
+            &AssetServer::add(1, || Ok(PixilDefaultMaterial::new())),
+            &a,
+            "test",
+        ),
+        a,
+    ));
+    (r,)
+}
 #[task]
 pub fn test2_0(
     position: Hierarchy<Position2D>,

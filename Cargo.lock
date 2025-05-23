@@ -767,6 +767,7 @@ dependencies = [
  "corrosive-events",
  "corrosive-ui",
  "example-crate",
+ "pixil",
 ]
 
 [[package]]
@@ -3018,12 +3019,14 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 name = "pixil"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "corrosive-asset-manager",
  "corrosive-asset-manager-macro",
  "corrosive-ecs-core 0.1.0",
  "corrosive-ecs-core-macro",
  "corrosive-ecs-renderer-backend",
  "glam",
+ "tobj",
 ]
 
 [[package]]
@@ -4141,6 +4144,9 @@ name = "tobj"
 version = "4.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04aca6092e5978e708ee784e8ab9b5cf3cdb598b28f99a2f257446e7081a7025"
+dependencies = [
+ "ahash",
+]
 
 [[package]]
 name = "tokio"

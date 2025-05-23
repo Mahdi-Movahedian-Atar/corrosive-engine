@@ -42,6 +42,25 @@
   ],
   "tasks": [
     {
+      "name": "pixil_test",
+      "inputs": [
+        {
+          "Hierarchy": [
+            "h",
+            "PositionPixil"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "Arch": [
+            "PixilDynamicObject",
+            "Member<PositionPixil>"
+          ]
+        }
+      ]
+    },
+    {
       "name": "test2_0",
       "inputs": [
         {

@@ -10,8 +10,7 @@ corrosive-ecs-renderer-backend = {path = "../corrosive-ecs-renderer-backend" }
 corrosive-asset-manager = { version = "0.1.0", path = "../corrosive-asset-manager" }
 corrosive-asset-manager-macro = { version = "0.1.0", path = "../corrosive-asset-manager-macro" }
 glam = "0.30.3"
-bytemuck = "1.21.0"
-tobj = "4.0.3"
+sparseset = "1.0.1"
 
 [build-dependencies]
 corrosive-ecs-core = {path = "../corrosive-ecs-core" , features = ["build"]}
