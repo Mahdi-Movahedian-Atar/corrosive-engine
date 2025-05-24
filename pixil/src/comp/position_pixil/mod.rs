@@ -2,13 +2,18 @@ use corrosive_ecs_core::ecs_core::SharedBehavior;
 use glam::{Mat4, Quat, Vec3};
 use corrosive_ecs_core_macro::Component;
 
-#[derive(Debug, Clone, PartialEq,Component,Default)]
+#[derive(Debug, Clone, PartialEq,Component)]
 pub struct PositionPixil {
     pub(crate) position: Vec3,
     pub(crate) rotation: Quat,
     pub(crate) scale: Vec3,
     pub(crate) global: Mat4,
     pub(crate) dirty: bool,
+}
+impl Default for PositionPixil {
+    fn default() -> Self {
+        PositionPixil::NEW
+    }
 }
 
 impl PositionPixil {

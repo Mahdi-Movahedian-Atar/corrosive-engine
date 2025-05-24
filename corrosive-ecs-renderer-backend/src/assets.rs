@@ -1,17 +1,17 @@
 use crate::public_functions::{create_texture, write_texture};
 use corrosive_asset_manager;
 use corrosive_asset_manager::asset_server::AssetFile;
-use corrosive_asset_manager_macro::Asset;
+use corrosive_asset_manager_macro::{Asset, Cache};
 use image::ImageReader;
 use std::error::Error;
 use std::fs::File;
 use wgpu::{RenderPipeline, TexelCopyTextureInfo, Texture};
 
-#[derive(PartialEq, Asset)]
+#[derive(PartialEq, Asset , Cache)]
 pub struct PipelineAsset {
     pub layout: RenderPipeline,
 }
-#[derive(PartialEq, Asset)]
+#[derive(PartialEq, Asset , Cache)]
 pub struct BindGroupLayoutAsset {
     pub layout: wgpu::BindGroupLayout,
 }

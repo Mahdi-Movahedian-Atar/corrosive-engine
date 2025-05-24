@@ -4,6 +4,7 @@ use crate::mesh::{Mesh, Vertex};
 use crate::task::renderer::DYNAMIC_OBJECTS;
 use crate::view_data::VIEW_DATA;
 use corrosive_asset_manager::asset_server::{Asset, AssetServer};
+use corrosive_asset_manager::cache_server::{Cache, CacheServer};
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::{Member, Reference};
 use corrosive_ecs_core_macro::Component;
@@ -13,19 +14,38 @@ use corrosive_ecs_renderer_backend::wgpu;
 use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, IndexFormat, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderBundleDescriptor, RenderBundleEncoderDescriptor, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
 use crate::comp::position_pixil::PositionPixil;
 
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [0.0, 0.5, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-0.5, -0.5, 0.0], normal: [0.0, 1.0, 0.0], },
+    Vertex { position: [0.5, -0.5, 0.0], normal: [0.0, 0.0, 1.0] },
+];
+
 #[derive(Component)]
 pub struct PixilDynamicObject {
-    pub mesh: Asset<Mesh>,
+    //pub mesh: Asset<Mesh>,
     pub(crate) material: Box<dyn PixilMaterialWrapper + Send + Sync>,
     pub(crate) transform_data: (Buffer, BindGroup),
 }
 impl PixilDynamicObject {
     pub fn new(mesh: Asset<Mesh>, material: &Asset<impl PixilMaterial>,position_pixil:&Member<PositionPixil> , name: &str) -> Self {
+        let mesh = Mesh{
+            vertex_buffer: create_buffer_init(
+                    "Vertex Buffer",
+                    bytemuck::cast_slice(VERTICES),
+                    BufferUsages::VERTEX,
+            ),
+            index_buffer: create_buffer_init(
+                "Index Buffer",
+                bytemuck::cast_slice(&[0,1,2,0]),
+                BufferUsages::INDEX,
+            ),
+            index_count: 4,
+        };
+
         let material_ref = material.get();
 
-        //todo: add as cash
-        let bind_group_layout: Asset<BindGroupLayoutAsset> =
-            AssetServer::add(static_hasher!("PixilTransformBindGroupLayout"), || {
+        let bind_group_layout: Cache<BindGroupLayoutAsset> =
+            CacheServer::add(static_hasher!("PixilTransformBindGroupLayout"), || {
                 Ok(BindGroupLayoutAsset {
                     layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
                         label: "PixilTransformBindGroupLayoutDescriptor".into(),
@@ -81,14 +101,14 @@ impl PixilDynamicObject {
         material_ref.encode_to_bundle(&mut bundle);
         bundle.set_bind_group(0, &VIEW_DATA.bind_group, &[]);
         bundle.set_bind_group(1, &transform_bind_group, &[]);
-        bundle.set_vertex_buffer(0, mesh.get().vertex_buffer.slice(..));
-        bundle.set_index_buffer(mesh.get().index_buffer.slice(..), IndexFormat::Uint32);
-        bundle.draw_indexed(0..mesh.get().index_count, 0, 0..1);
+        bundle.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+        bundle.set_index_buffer(mesh.index_buffer.slice(..), IndexFormat::Uint32);
+        bundle.draw_indexed(0..mesh.index_count, 0, 0..1);
 
         DYNAMIC_OBJECTS.add_enabled(bundle.finish(&RenderBundleDescriptor { label: name.into() }));
 
         Self {
-            mesh,
+            //mesh,
             material: material_ref.generate_wrapper(material.clone()),
             transform_data: (transform_buffer,transform_bind_group),
         }

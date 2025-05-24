@@ -35,7 +35,38 @@ pub fn asset(input: TokenStream) -> TokenStream {
     })
     .into()
 }
+#[proc_macro_derive(Cache)]
+pub fn cache(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
 
+    let name = input.ident.to_string();
+    let static_name: proc_macro2::TokenStream =
+        parse_str(format!("{}_CACHE", name.to_uppercase()).as_str()).unwrap();
+    let name = input.ident.to_token_stream();
+
+    let generics = &input.generics;
+
+    let mut liftmes: proc_macro2::TokenStream = quote! {<};
+    generics
+        .lifetimes()
+        .for_each(|_| liftmes = quote! {#liftmes '_,});
+    liftmes = quote! {#liftmes>};
+
+    (quote! {
+            static #static_name: corrosive_asset_manager::cache_server::CacheServerObject<#name> = corrosive_asset_manager::cache_server::CacheServerObject {
+            server: std::sync::LazyLock::new(|| std::sync::Mutex::new(Default::default())),
+        };
+        impl corrosive_asset_manager::cache_server::CacheObject for #name #liftmes {
+            fn get_server() -> &'static std::sync::Mutex<corrosive_asset_manager::cache_server::CacheServer<Self>>
+            where
+                Self: Sized,
+            {
+                &#static_name.server
+            }
+        }
+    })
+        .into()
+}
 #[proc_macro]
 pub fn static_hasher(input: TokenStream) -> TokenStream {
     let input_literal = parse_macro_input!(input as LitStr);

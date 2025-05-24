@@ -17,8 +17,10 @@ use corrosive_ecs_core::ecs_core::{
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::winit::keyboard::KeyCode;
 use corrosive_events::comp::Inputs;
+use pixil::comp::camera::{ActivePixilCamera, PixilCamera};
 use pixil::comp::dynamic::PixilDynamicObject;
 use pixil::comp::position_pixil::PositionPixil;
+use pixil::glam::{Quat, Vec3};
 use pixil::material::{PixilDefaultMaterial, PixilMaterial};
 use rand::Rng;
 use std::iter::Map;
@@ -28,9 +30,31 @@ use std::vec::IntoIter;
 #[task]
 pub fn pixil_test(
     h: Hierarchy<PositionPixil>,
-) -> (RArch<(PixilDynamicObject, Member<PositionPixil>)>,) {
+    ac: Res<ActivePixilCamera>,
+) -> (
+    RArch<(PixilDynamicObject, Member<PositionPixil>)>,
+    RArch<(LockedRef<PixilCamera>, Member<PositionPixil>)>,
+) {
     let mut r: RArch<(PixilDynamicObject, Member<PositionPixil>)> = RArch::default();
-    let a = h.new_entry(PositionPixil::default());
+    let mut r2: RArch<(LockedRef<PixilCamera>, Member<PositionPixil>)> = RArch::default();
+
+    let a = h.new_entry(PositionPixil::new(
+        Vec3::new(0.0, -0.0, 1.0),
+        Quat::IDENTITY,
+        Vec3::new(1.0, 1.0, 1.0),
+    ));
+    let b = h.new_entry(PositionPixil::new(
+        Vec3::new(0.0, 0.0, 0.0),
+        Quat::IDENTITY,
+        Vec3::new(1.0, 1.0, 1.0),
+    ));
+    let c = LockedRef::new(PixilCamera {
+        fov: 90.0_f32.to_radians(),
+        near: 0.01,
+        far: 100.0,
+    });
+    *ac.f_write() = ActivePixilCamera::new(&b, &c);
+
     r.add((
         PixilDynamicObject::new(
             AssetServer::load("assets/test.obj"),
@@ -40,7 +64,9 @@ pub fn pixil_test(
         ),
         a,
     ));
-    (r,)
+    r2.add((c, b));
+
+    (r, r2)
 }
 #[task]
 pub fn test2_0(

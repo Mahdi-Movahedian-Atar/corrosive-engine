@@ -8,6 +8,8 @@ pub mod render_set;
 pub mod task;
 mod view_data;
 
+pub use glam;
+
 corrosive_engine_builder! {
     setup "start_pixil_renderer" after "run_renderer",
 }
