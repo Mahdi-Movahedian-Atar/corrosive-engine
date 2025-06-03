@@ -1,34 +1,59 @@
+use crate::comp::camera::ActivePixilCamera;
+use crate::comp::light::LightData;
 use crate::comp::render::PixilRenderSettings;
 use crate::render_set::RenderSet;
+use crate::view_data::VIEW_DATA;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
-use corrosive_ecs_renderer_backend::comp::RenderGraph;
+use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
 use corrosive_ecs_renderer_backend::public_functions::{
-    get_device, get_surface_format, get_window_ratio,
+    create_buffer_init, get_device, get_surface_format, get_window_ratio, read_shader,
+    write_to_buffer,
 };
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu;
 use corrosive_ecs_renderer_backend::wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, Color, ColorTargetState, ColorWrites, Extent3d,
-    FragmentState, LoadOp, Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology,
-    RenderBundle, RenderBundleEncoder, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor,
-    ShaderSource, ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension,
-    TextureSampleType, TextureUsages, TextureView, TextureViewDimension, VertexState,
+    BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType,
+    BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor,
+    ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, LoadOp, Operations,
+    PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle, RenderBundleEncoder,
+    RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
+    SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, StoreOp, Texture,
+    TextureDescriptor, TextureDimension, TextureSampleType, TextureUsages, TextureView,
+    TextureViewDimension, VertexState,
 };
+use corrosive_ecs_renderer_backend::winit::event::WindowEvent;
+use glam::Vec4;
 use std::cell::{LazyCell, UnsafeCell};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Instant;
+use crate::ordered_set::{OrderedSet, ReserveStrategy};
+
+#[repr(align(16))]
+struct Cluster {
+    min_point: Vec4,
+    max_point: Vec4,
+    count: u32,
+    light_indices: [u32; 100],
+}
 
 pub static DYNAMIC_OBJECTS: RenderSet<RenderBundle> = RenderSet::new();
+pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet<LightData>> = LazyLock::new(||{
+    OrderedSet::new(ReserveStrategy::Align(16))
+});
 
 struct RenderPixilNode {
     render_bind_group: BindGroup,
     render_bind_group_layout: BindGroupLayout,
     render_pipeline: RenderPipeline,
+    cluster_buffer: Buffer,
+    cluster_bind_group: BindGroup,
+    cluster_pipeline: ComputePipeline,
+    lights_pipeline: ComputePipeline,
     render_settings: Res<PixilRenderSettings>,
+    light_bind_group: BindGroup,
 }
 impl RenderNode for RenderPixilNode {
     fn name(&self) -> &str {
@@ -44,13 +69,28 @@ impl RenderNode for RenderPixilNode {
         depth_view: &TextureView,
     ) {
         {
+            let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("Pixil Compute Pass"),
+                timestamp_writes: None,
+            });
+            compute_pass.set_pipeline(&self.cluster_pipeline);
+            compute_pass.set_bind_group(0, &self.cluster_bind_group, &[]);
+            let size = self.render_settings.f_write().grid_size;
+            compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
+
+            compute_pass.set_pipeline(&self.lights_pipeline);
+            compute_pass.set_bind_group(0,&self.light_bind_group, &[]);
+            compute_pass.set_bind_group(1,&DYNAMIC_LIGHTS.data.lock().unwrap().bind_group, &[]);
+            compute_pass.dispatch_workgroups(27, 1, 1);
+        }
+        {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Pixil Low Resolutions"),
                 color_attachments: &[Option::from(RenderPassColorAttachment {
                     view: self.render_settings.f_write().get_view(),
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Load,
+                        load: LoadOp::Clear(Color::BLACK),
                         store: StoreOp::Store,
                     },
                 })],
@@ -85,8 +125,30 @@ impl RenderNode for RenderPixilNode {
 }
 
 #[task]
-pub fn start_pixil_renderer(render_setting: Res<PixilRenderSettings>, graph: Res<RenderGraph>) {
-    let shader = get_device().create_shader_module(ShaderModuleDescriptor {
+pub fn start_pixil_renderer(
+    render_setting: Res<PixilRenderSettings>,
+    graph: Res<RenderGraph>,
+    window: Res<WindowOptions>,
+) {
+    let device = get_device();
+
+    //window
+    let setting_clone = render_setting.clone();
+    window.f_write().func.push(Arc::new(move |_, _, _, s| {
+        if let WindowEvent::Resized(_) = s {
+            {
+                setting_clone.f_write().update_texture();
+            }
+            let s = setting_clone.f_read().render_size;
+            write_to_buffer(
+                &VIEW_DATA.resolution_buffer,
+                0,
+                bytemuck::cast_slice(&[(s as f32 * get_window_ratio()) as u32, s]),
+            )
+        }
+    }));
+
+    let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: Some("pixil renderer Shader"),
         source: ShaderSource::Wgsl(
             "
@@ -96,6 +158,7 @@ pub fn start_pixil_renderer(render_setting: Res<PixilRenderSettings>, graph: Res
             };
             @group(0) @binding(0) var tex: texture_2d<f32>;
             @group(0) @binding(1) var samp: sampler;
+            @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 
             @vertex fn vs_main(@builtin(vertex_index) vid: u32) -> VertexOutput {
                 var output: VertexOutput;
@@ -116,16 +179,17 @@ pub fn start_pixil_renderer(render_setting: Res<PixilRenderSettings>, graph: Res
             }
 
             @fragment fn fs_main(coord: VertexOutput) -> @location(0) vec4<f32> {
-                if (coord.uv.x > 1 || coord.uv.y > 1){
-                    return vec4<f32>(0.0);
-                }
+                let tex_size = vec2<f32>(f32(resolution.x), f32(resolution.y));
+
+                let snapped_uv = (floor(coord.uv * tex_size) + vec2<f32>(0.5)) / tex_size;
+
                 return textureSample(tex, samp, coord.uv);
             }"
             .into(),
         ),
     });
 
-    let sampler = get_device().create_sampler(&SamplerDescriptor {
+    let sampler = device.create_sampler(&SamplerDescriptor {
         label: Some("pixil renderer sampler"),
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
@@ -140,7 +204,7 @@ pub fn start_pixil_renderer(render_setting: Res<PixilRenderSettings>, graph: Res
         border_color: None,
     });
 
-    let bind_group_layout = get_device().create_bind_group_layout(&BindGroupLayoutDescriptor {
+    let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
         label: Some("pixil renderer bind group layout"),
         entries: &[
             BindGroupLayoutEntry {
@@ -156,13 +220,23 @@ pub fn start_pixil_renderer(render_setting: Res<PixilRenderSettings>, graph: Res
             BindGroupLayoutEntry {
                 binding: 1,
                 visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                ty: BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 2,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
                 count: None,
             },
         ],
     });
 
-    let bind_group = get_device().create_bind_group(&BindGroupDescriptor {
+    let bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: Some("pixil renderer bind group"),
         layout: &bind_group_layout,
         entries: &[
@@ -174,16 +248,20 @@ pub fn start_pixil_renderer(render_setting: Res<PixilRenderSettings>, graph: Res
                 binding: 1,
                 resource: wgpu::BindingResource::Sampler(&sampler),
             },
+            BindGroupEntry {
+                binding: 2,
+                resource: VIEW_DATA.resolution_buffer.as_entire_binding(),
+            },
         ],
     });
 
-    let pipeline_layout = get_device().create_pipeline_layout(&PipelineLayoutDescriptor {
+    let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("pixil renderer pipeline layout"),
         bind_group_layouts: &[&bind_group_layout],
         push_constant_ranges: &[],
     });
 
-    let pipeline = get_device().create_render_pipeline(&RenderPipelineDescriptor {
+    let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
         label: Some("pixil renderer pipeline"),
         layout: Some(&pipeline_layout),
         vertex: VertexState {
@@ -212,11 +290,220 @@ pub fn start_pixil_renderer(render_setting: Res<PixilRenderSettings>, graph: Res
         cache: None,
     });
 
+    //clusters
+
+    let cluster_buffer = device.create_buffer(&BufferDescriptor {
+        label: "ClusterBuffer".into(),
+        size: {
+            let size = render_setting.f_read().grid_size;
+            (size[0] * size[1] * size[2] * size_of::<Cluster>() as u32) as BufferAddress
+        },
+        usage: BufferUsages::STORAGE,
+        mapped_at_creation: false,
+    });
+
+    let cluster_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        label: Some("cluster bind group layout"),
+        entries: &[
+            BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 1,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 2,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 3,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 4,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Storage { read_only: false },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    });
+
+    let cluster_bind_group = {
+        let mut settings = render_setting.write().unwrap();
+        let data = settings.get_buffers();
+        device.create_bind_group(&BindGroupDescriptor {
+            label: Some("ClusterBindGroup"),
+            layout: &cluster_bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: data.0.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: VIEW_DATA.view_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: data.1.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: VIEW_DATA.resolution_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: cluster_buffer.as_entire_binding(),
+                },
+            ],
+        })
+    };
+
+    let cluster_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+        label: "Clustering pipeline".into(),
+        layout: Some(&device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: "Clustering pipeline layout".into(),
+            bind_group_layouts: &[&cluster_bind_group_layout],
+            push_constant_ranges: &[],
+        })),
+        module: &(device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("pixil clustering shader"),
+            source: ShaderSource::Wgsl(
+                read_shader("packages/pixil/shaders/clustering.wgsl")
+                    .expect("failed to read shader")
+                    .into(),
+            ),
+        })),
+        entry_point: "main".into(),
+        compilation_options: Default::default(),
+        cache: None,
+    });
+
+    //lights
+
+    let light_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        label: Some("cluster bind group layout"),
+        entries: &[
+            BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 1,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Storage { read_only: false },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    });
+
+    let light_bind_group = device.create_bind_group(&BindGroupDescriptor {
+        label: Some("LightBindGroup"),
+        layout: &light_bind_group_layout,
+        entries: &[
+            BindGroupEntry {
+                binding: 0,
+                resource: VIEW_DATA.view_buffer.as_entire_binding(),
+            },
+            BindGroupEntry {
+                binding: 1,
+                resource: cluster_buffer.as_entire_binding(),
+            },
+        ],
+    });
+
+    let lights_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
+        label: "Light pipeline".into(),
+        layout: Some(&device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: "Light pipeline layout".into(),
+            bind_group_layouts: &[&light_bind_group_layout,&DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_layout],
+            push_constant_ranges: &[],
+        })),
+        module: &(device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("pixil lights_to_clusters shader"),
+            source: ShaderSource::Wgsl(
+                read_shader("packages/pixil/shaders/lights_to_clusters.wgsl")
+                    .expect("failed to read shader")
+                    .into(),
+            ),
+        })),
+        entry_point: "main".into(),
+        compilation_options: Default::default(),
+        cache: None,
+    });
+
+    //test
+
+    DYNAMIC_LIGHTS.add(LightData {
+        position: [0.0,0.0,0.0,1.0,],
+        color: [1.0,1.0,1.0,1.0],
+        radius: 100.0,
+        intensity: 10.0,
+    });
+
     graph.f_write().add_node(Box::new(RenderPixilNode {
         render_bind_group: bind_group,
         render_bind_group_layout: bind_group_layout,
         render_pipeline: pipeline,
         render_settings: render_setting,
+        cluster_pipeline,
+        cluster_bind_group,
+        cluster_buffer,
+        lights_pipeline,
+        light_bind_group
     }));
     graph.f_write().prepare();
+}
+
+#[task]
+pub fn update_camera(
+    active_camera: Res<ActivePixilCamera>,
+    renderer_settings: Res<PixilRenderSettings>,
+) {
+    let active_camera = active_camera.f_read();
+    active_camera.update_view_matrix();
+    let z_params = active_camera.get_z_params();
+    renderer_settings
+        .f_write()
+        .update_z_params(z_params.0, z_params.1);
 }

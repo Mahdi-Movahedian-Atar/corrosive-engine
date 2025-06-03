@@ -38,28 +38,86 @@ pub struct WindowOptions {
     pub window: Option<Arc<Window>>,
     pub starch_mode: StarchMode,
     pub func:
-        Vec<fn(&mut App, event_loop: &ActiveEventLoop, window_id: &WindowId, event: &WindowEvent)>,
+        Vec<Arc<dyn for<'a> Fn(&'a mut App, &'a ActiveEventLoop, &'a WindowId, &'a WindowEvent)>>,
 }
+unsafe impl Send for WindowOptions {}
+unsafe impl Sync for WindowOptions {}
 impl Default for WindowOptions {
     fn default() -> Self {
         WindowOptions {
             window: None,
             starch_mode: StarchMode::Starch,
-            func: vec![|app,
-                        _event_loop: &ActiveEventLoop,
-                        _window_id: &WindowId,
-                        event: &WindowEvent| {
-                match event {
-                    WindowEvent::Resized(t) => unsafe {
-                        match &app.window_options.f_read().starch_mode {
-                            StarchMode::Keep(w, h) => {
-                                let aspect = *w as f32 / *h as f32;
-                                if &t.width < w || &t.height < h {
-                                    if aspect < t.width as f32 / t.height as f32 {
+            func: vec![Arc::new(
+                |app: &mut App,
+                 _event_loop: &ActiveEventLoop,
+                 _window_id: &WindowId,
+                 event: &WindowEvent| {
+                    match event {
+                        WindowEvent::Resized(t) => unsafe {
+                            match &app.window_options.f_read().starch_mode {
+                                StarchMode::Keep(w, h) => {
+                                    let aspect = *w as f32 / *h as f32;
+                                    if &t.width < w || &t.height < h {
+                                        if aspect < t.width as f32 / t.height as f32 {
+                                            if let Some(s) = &mut STATE {
+                                                s.resize(
+                                                    &PhysicalSize::new(
+                                                        (t.height as f32 * aspect) as u32,
+                                                        t.height,
+                                                    ),
+                                                    t,
+                                                );
+                                            }
+                                        } else {
+                                            if let Some(s) = &mut STATE {
+                                                s.resize(
+                                                    &PhysicalSize::new(
+                                                        t.width,
+                                                        (t.width as f32 / aspect) as u32,
+                                                    ),
+                                                    t,
+                                                );
+                                            }
+                                        }
+                                    } else {
+                                        if let Some(s) = &mut STATE {
+                                            s.resize(&PhysicalSize::new(*w, *h), t);
+                                        }
+                                    }
+                                }
+                                StarchMode::KeepWidth(w) => {
+                                    if &t.width > w {
+                                        if let Some(s) = &mut STATE {
+                                            s.resize(&PhysicalSize::new(*w, t.height), t);
+                                        }
+                                    } else {
+                                        if let Some(s) = &mut STATE {
+                                            s.resize(t, t);
+                                        }
+                                    }
+                                }
+                                StarchMode::KeepHeight(h) => {
+                                    if &t.height > h {
+                                        if let Some(s) = &mut STATE {
+                                            s.resize(&PhysicalSize::new(t.width, *h), t);
+                                        }
+                                    } else {
+                                        if let Some(s) = &mut STATE {
+                                            s.resize(t, t);
+                                        }
+                                    }
+                                }
+                                StarchMode::Starch => {
+                                    if let Some(s) = &mut STATE {
+                                        s.resize(t, t)
+                                    }
+                                }
+                                StarchMode::AspectRatio(a) => {
+                                    if *a < t.width as f32 / t.height as f32 {
                                         if let Some(s) = &mut STATE {
                                             s.resize(
                                                 &PhysicalSize::new(
-                                                    (t.height as f32 * aspect) as u32,
+                                                    (t.height as f32 * *a) as u32,
                                                     t.height,
                                                 ),
                                                 t,
@@ -70,83 +128,29 @@ impl Default for WindowOptions {
                                             s.resize(
                                                 &PhysicalSize::new(
                                                     t.width,
-                                                    (t.width as f32 / aspect) as u32,
+                                                    (t.width as f32 / *a) as u32,
                                                 ),
                                                 t,
                                             );
                                         }
                                     }
-                                } else {
-                                    if let Some(s) = &mut STATE {
-                                        s.resize(&PhysicalSize::new(*w, *h), t);
-                                    }
                                 }
                             }
-                            StarchMode::KeepWidth(w) => {
-                                if &t.width > w {
-                                    if let Some(s) = &mut STATE {
-                                        s.resize(&PhysicalSize::new(*w, t.height), t);
-                                    }
-                                } else {
-                                    if let Some(s) = &mut STATE {
-                                        s.resize(t, t);
-                                    }
-                                }
-                            }
-                            StarchMode::KeepHeight(h) => {
-                                if &t.height > h {
-                                    if let Some(s) = &mut STATE {
-                                        s.resize(&PhysicalSize::new(t.width, *h), t);
-                                    }
-                                } else {
-                                    if let Some(s) = &mut STATE {
-                                        s.resize(t, t);
-                                    }
-                                }
-                            }
-                            StarchMode::Starch => {
-                                if let Some(s) = &mut STATE {
-                                    s.resize(t, t)
-                                }
-                            }
-                            StarchMode::AspectRatio(a) => {
-                                if *a < t.width as f32 / t.height as f32 {
-                                    if let Some(s) = &mut STATE {
-                                        s.resize(
-                                            &PhysicalSize::new(
-                                                (t.height as f32 * *a) as u32,
-                                                t.height,
-                                            ),
-                                            t,
-                                        );
-                                    }
-                                } else {
-                                    if let Some(s) = &mut STATE {
-                                        s.resize(
-                                            &PhysicalSize::new(
-                                                t.width,
-                                                (t.width as f32 / *a) as u32,
-                                            ),
-                                            t,
-                                        );
+                        },
+                        WindowEvent::RedrawRequested => {
+                            if let Some(t) = &app.window_options.f_read().window {
+                                t.request_redraw();
+                                unsafe {
+                                    if let Some(t) = &STATE {
+                                        t.render().unwrap()
                                     }
                                 }
                             }
                         }
-                    },
-                    WindowEvent::RedrawRequested => {
-                        if let Some(t) = &app.window_options.f_read().window {
-                            t.request_redraw();
-                            unsafe {
-                                if let Some(t) = &STATE {
-                                    t.render().unwrap()
-                                }
-                            }
-                        }
+                        _ => {}
                     }
-                    _ => {}
-                }
-            }],
+                },
+            )],
         }
     }
 }
@@ -646,9 +650,9 @@ impl ApplicationHandler for App {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        let funcs = self.window_options.f_read().func.clone();
-        funcs.iter().for_each(|f| {
-            f(self, event_loop, &window_id, &event);
-        });
+        let funcs = self.window_options.f_read().func.clone(); // assuming func: Vec<Arc<Fn...>>
+        for f in funcs {
+            f.as_ref()(self, event_loop, &window_id, &event);
+        }
     }
 }

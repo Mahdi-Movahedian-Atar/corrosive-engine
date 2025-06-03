@@ -1,10 +1,10 @@
+use crate::asset_server::AssetValue;
 use crate::dynamic_hasher;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex, RwLock};
-use crate::asset_server::AssetValue;
 
 pub trait CacheObject {
     fn get_server() -> &'static Mutex<CacheServer<Self>>
@@ -47,7 +47,7 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
         let (val) = unsafe {
             let mut lock = binding.lock().unwrap();
 
-            if  lock.values.get(&id).is_none() {
+            if lock.values.get(&id).is_none() {
                 let v = std::mem::transmute(&lock.default);
                 lock.values
                     .insert(id.clone(), RwLock::new(CacheValue::NotReady(v)));
@@ -72,10 +72,7 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
             }
             std::mem::transmute(&lock.values[&id])
         };
-        Cache {
-            data: val,
-            id,
-        }
+        Cache { data: val, id }
     }
     pub fn add_sync<'a>(id: u64, asset: impl FnOnce() -> Result<T, Box<dyn Error>>) -> Cache<T> {
         let binding = T::get_server();
@@ -83,33 +80,30 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
         let (val) = unsafe {
             let mut lock = binding.lock().unwrap();
 
-            if  lock.values.get(&id).is_none() {
+            if lock.values.get(&id).is_none() {
                 let v = std::mem::transmute(&lock.default);
                 lock.values
                     .insert(id.clone(), RwLock::new(CacheValue::NotReady(v)));
                 let new_id = id.clone();
-                    match asset() {
-                        Ok(v) => {
-                            if let Some(t) = T::get_server()
-                                .lock()
-                                .expect(format!("Could not add {}.", id).as_str())
-                                .values
-                                .get_mut(&new_id)
-                            {
-                                *t.write().unwrap() = CacheValue::Ready(v)
-                            }
+                match asset() {
+                    Ok(v) => {
+                        if let Some(t) = T::get_server()
+                            .lock()
+                            .expect(format!("Could not add {}.", id).as_str())
+                            .values
+                            .get_mut(&new_id)
+                        {
+                            *t.write().unwrap() = CacheValue::Ready(v)
                         }
-                        Err(v) => {
-                            println!("{:?}", v)
-                        }
-                    };
+                    }
+                    Err(v) => {
+                        println!("{:?}", v)
+                    }
+                };
             }
             std::mem::transmute(&lock.values[&id])
         };
-        Cache {
-            data: val,
-            id,
-        }
+        Cache { data: val, id }
     }
     pub fn add_default(asset: T) {
         T::get_server().lock().unwrap().default = Some(asset);
@@ -118,12 +112,9 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
         let binding = T::get_server();
         let val = unsafe {
             let lock = binding.lock().unwrap();
-                std::mem::transmute(&lock.values.get(&id)?)
+            std::mem::transmute(&lock.values.get(&id)?)
         };
-        Some(Cache {
-            data: val,
-            id,
-        })
+        Some(Cache { data: val, id })
     }
 }
 impl<T: Send + Sync + CacheObject + CacheFile> CacheServer<T> {
@@ -138,7 +129,7 @@ impl<T: Send + Sync + CacheObject + CacheFile> CacheServer<T> {
                         env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
                         new.as_str()
                     )
-                        .as_str(),
+                    .as_str(),
                 );
             }
             #[cfg(not(debug_assertions))]
@@ -157,7 +148,7 @@ impl<T: Send + Sync + CacheObject + CacheFile> CacheServer<T> {
                         env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
                         file_path
                     )
-                        .as_str(),
+                    .as_str(),
                 );
             }
             #[cfg(not(debug_assertions))]
@@ -175,7 +166,7 @@ impl<T: Send + Sync + CacheObject + CacheFile> CacheServer<T> {
                     env::var("CORROSIVE_APP_ROOT").unwrap_or(".".to_string()),
                     file_path
                 )
-                    .as_str(),
+                .as_str(),
             ) {
                 Ok(v) => CacheServer::add_default(v),
                 Err(e) => {

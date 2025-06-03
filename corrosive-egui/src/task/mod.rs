@@ -12,7 +12,7 @@ use egui::{Context, Pos2};
 use egui_wgpu::{Renderer as EguiRenderer, ScreenDescriptor};
 use egui_winit::winit::event::WindowEvent;
 use egui_winit::State as EguiState;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 static INPUT: LazyLock<Mutex<Vec<WindowEvent>>> = LazyLock::new(|| Default::default());
 
@@ -190,20 +190,23 @@ pub fn start_egui(
             false,
         ));
     }
-    window_options.f_write().func.push(|_, _, _, window_event| {
-        let mut input = window_event.clone();
-        if let WindowEvent::CursorMoved {
-            device_id: _,
-            position,
-        } = &mut input
-        {
-            let (x, y) = get_window_resolution();
-            let (ax, ay) = get_absolute_window_resolution();
-            position.x = position.x - (ax - x) as f64 / 2.0;
-            position.y = position.y - (ay - y) as f64 / 2.0;
-        }
-        INPUT.lock().unwrap().push(input);
-    });
+    window_options
+        .f_write()
+        .func
+        .push(Arc::new(|_, _, _, window_event: &WindowEvent| {
+            let mut input = window_event.clone();
+            if let WindowEvent::CursorMoved {
+                device_id: _,
+                position,
+            } = &mut input
+            {
+                let (x, y) = get_window_resolution();
+                let (ax, ay) = get_absolute_window_resolution();
+                position.x = position.x - (ax - x) as f64 / 2.0;
+                position.y = position.y - (ay - y) as f64 / 2.0;
+            }
+            INPUT.lock().unwrap().push(input);
+        }));
 
     graph.f_write().add_node(Box::new(EguiNode {
         window_options: window_options.clone(),

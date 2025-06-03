@@ -39,9 +39,9 @@ pub fn pixil_test(
     let mut r2: RArch<(LockedRef<PixilCamera>, Member<PositionPixil>)> = RArch::default();
 
     let a = h.new_entry(PositionPixil::new(
-        Vec3::new(0.0, -0.0, 1.0),
+        Vec3::new(0.0, -1.0, -1.0),
         Quat::IDENTITY,
-        Vec3::new(1.0, 1.0, 1.0),
+        Vec3::new(0.1, 0.1, 0.1),
     ));
     let b = h.new_entry(PositionPixil::new(
         Vec3::new(0.0, 0.0, 0.0),
@@ -49,7 +49,7 @@ pub fn pixil_test(
         Vec3::new(1.0, 1.0, 1.0),
     ));
     let c = LockedRef::new(PixilCamera {
-        fov: 90.0_f32.to_radians(),
+        fov: 120.0_f32.to_radians(),
         near: 0.01,
         far: 100.0,
     });

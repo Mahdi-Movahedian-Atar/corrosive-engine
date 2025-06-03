@@ -7,11 +7,11 @@ use std::error::Error;
 use std::fs::File;
 use wgpu::{RenderPipeline, TexelCopyTextureInfo, Texture};
 
-#[derive(PartialEq, Asset , Cache)]
+#[derive(PartialEq, Asset, Cache)]
 pub struct PipelineAsset {
     pub layout: RenderPipeline,
 }
-#[derive(PartialEq, Asset , Cache)]
+#[derive(PartialEq, Asset, Cache)]
 pub struct BindGroupLayoutAsset {
     pub layout: wgpu::BindGroupLayout,
 }

@@ -1,7 +1,7 @@
 #[cfg(feature = "core")]
 pub mod asset_server;
-mod save_server;
 pub mod cache_server;
+mod save_server;
 
 #[cfg(feature = "core")]
 pub fn dynamic_hasher(val: &str) -> u64 {

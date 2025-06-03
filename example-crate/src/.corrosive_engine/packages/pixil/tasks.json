@@ -19,6 +19,30 @@
                 "graph",
                 "RenderGraph"
               ]
+            },
+            {
+              "Resources": [
+                "window",
+                "WindowOptions"
+              ]
+            }
+          ],
+          "outputs": []
+        },
+        {
+          "name": "update_camera",
+          "inputs": [
+            {
+              "Resources": [
+                "active_camera",
+                "ActivePixilCamera"
+              ]
+            },
+            {
+              "Resources": [
+                "renderer_settings",
+                "PixilRenderSettings"
+              ]
             }
           ],
           "outputs": []

@@ -12,7 +12,7 @@ use corrosive_ecs_renderer_backend::winit::keyboard::{
 };
 use corrosive_ecs_renderer_backend::winit::window::WindowId;
 use std::collections::HashSet;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 #[derive(Default)]
 struct InputStorage {
@@ -34,7 +34,7 @@ pub fn start_events(window_options: Res<WindowOptions>) {
     window_options
         .f_write()
         .func
-        .push(|app, event_loop, window_id, event| match event {
+        .push(Arc::new(|app, event_loop, window_id, event| match event {
             WindowEvent::KeyboardInput {
                 device_id,
                 event,
@@ -70,8 +70,8 @@ pub fn start_events(window_options: Res<WindowOptions>) {
                 phase,
             } => {
                 let scroll_amount = match delta {
-                    MouseScrollDelta::LineDelta(_, y) => *y,
-                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+                    MouseScrollDelta::LineDelta(_, y) => y,
+                    MouseScrollDelta::PixelDelta(pos) => &(pos.y as f32),
                 };
                 INPUT_STORAGE.lock().unwrap().mouse_wheel += scroll_amount;
             }
@@ -93,7 +93,7 @@ pub fn start_events(window_options: Res<WindowOptions>) {
                 }
             }
             _ => {}
-        })
+        }))
 }
 
 #[task]

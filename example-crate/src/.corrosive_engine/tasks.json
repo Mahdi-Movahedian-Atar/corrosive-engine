@@ -49,12 +49,24 @@
             "h",
             "PositionPixil"
           ]
+        },
+        {
+          "Resources": [
+            "ac",
+            "ActivePixilCamera"
+          ]
         }
       ],
       "outputs": [
         {
           "Arch": [
             "PixilDynamicObject",
+            "Member<PositionPixil>"
+          ]
+        },
+        {
+          "Arch": [
+            "LockedRef<PixilCamera>",
             "Member<PositionPixil>"
           ]
         }

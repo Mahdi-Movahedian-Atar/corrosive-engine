@@ -3,8 +3,18 @@ use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_asset_manager::cache_server::{Cache, CacheServer};
 use corrosive_asset_manager_macro::{Asset, static_hasher};
 use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
-use corrosive_ecs_renderer_backend::public_functions::{create_bind_group_layout, create_pipeline, create_pipeline_layout, get_device, get_surface_format, read_shader};
-use corrosive_ecs_renderer_backend::wgpu::{BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, BufferAddress, BufferBindingType, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderBundleEncoder, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
+use corrosive_ecs_renderer_backend::public_functions::{
+    create_bind_group_layout, create_pipeline, create_pipeline_layout, get_device,
+    get_surface_format, read_shader,
+};
+use corrosive_ecs_renderer_backend::wgpu::{
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
+    BlendOperation, BlendState, BufferAddress, BufferBindingType, ColorTargetState, ColorWrites,
+    Face, FragmentState, FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderBundleEncoder, RenderPipeline, RenderPipelineDescriptor,
+    ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute, VertexBufferLayout,
+    VertexFormat, VertexState, VertexStepMode,
+};
 
 pub trait PixilMaterial {
     fn encode_to_bundle(&self, encoder: &mut RenderBundleEncoder);
@@ -34,7 +44,7 @@ impl PixilMaterial for PixilDefaultMaterial {
 
     fn new() -> Self {
         PixilDefaultMaterial {
-            layout: AssetServer::add(static_hasher!("test"), || {
+            layout: AssetServer::add(static_hasher!("PixilDefaultMaterial"), || {
                 let view_layout: Cache<BindGroupLayoutAsset> =
                     CacheServer::add(static_hasher!("ViewBindGroupLayout"), || {
                         Ok(BindGroupLayoutAsset {
@@ -61,18 +71,18 @@ impl PixilMaterial for PixilDefaultMaterial {
                                         },
                                         count: None,
                                     },
-                                ],
-                            }),
-                        })
-                    });
-                let transfom_layout: Cache<BindGroupLayoutAsset> =
-                    CacheServer::add(static_hasher!("PixilTransformBindGroupLayout"), || {
-                        Ok(BindGroupLayoutAsset {
-                            layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
-                                label: "PixilTransformBindGroupLayoutDescriptor".into(),
-                                entries: &[
                                     BindGroupLayoutEntry {
-                                        binding: 0,
+                                        binding: 2,
+                                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                                        ty: BindingType::Buffer {
+                                            ty: BufferBindingType::Uniform,
+                                            has_dynamic_offset: false,
+                                            min_binding_size: None,
+                                        },
+                                        count: None,
+                                    },
+                                    BindGroupLayoutEntry {
+                                        binding: 3,
                                         visibility: ShaderStages::VERTEX_FRAGMENT,
                                         ty: BindingType::Buffer {
                                             ty: BufferBindingType::Uniform,
@@ -82,6 +92,24 @@ impl PixilMaterial for PixilDefaultMaterial {
                                         count: None,
                                     },
                                 ],
+                            }),
+                        })
+                    });
+                let transfom_layout: Cache<BindGroupLayoutAsset> =
+                    CacheServer::add(static_hasher!("PixilTransformBindGroupLayout"), || {
+                        Ok(BindGroupLayoutAsset {
+                            layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
+                                label: "PixilTransformBindGroupLayoutDescriptor".into(),
+                                entries: &[BindGroupLayoutEntry {
+                                    binding: 0,
+                                    visibility: ShaderStages::VERTEX_FRAGMENT,
+                                    ty: BindingType::Buffer {
+                                        ty: BufferBindingType::Uniform,
+                                        has_dynamic_offset: false,
+                                        min_binding_size: None,
+                                    },
+                                    count: None,
+                                }],
                             }),
                         })
                     });
@@ -100,7 +128,10 @@ impl PixilMaterial for PixilDefaultMaterial {
                         label: "pixil default pipeline asset".into(),
                         layout: Some(&create_pipeline_layout(&PipelineLayoutDescriptor {
                             label: "pixil temp".into(),
-                            bind_group_layouts: &[&view_layout.get().layout, &transfom_layout.get().layout],
+                            bind_group_layouts: &[
+                                &view_layout.get().layout,
+                                &transfom_layout.get().layout,
+                            ],
                             push_constant_ranges: &[],
                         })),
                         vertex: VertexState {
