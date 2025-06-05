@@ -2,33 +2,24 @@ use crate::comp::camera::ActivePixilCamera;
 use crate::comp::light::LightData;
 use crate::comp::render::PixilRenderSettings;
 use crate::render_set::RenderSet;
-use crate::view_data::VIEW_DATA;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
-use corrosive_ecs_renderer_backend::public_functions::{
-    create_buffer_init, get_device, get_surface_format, get_window_ratio, read_shader,
-    write_to_buffer,
-};
+use corrosive_ecs_renderer_backend::public_functions::{create_bind_group, create_bind_group_layout, create_buffer_init, get_device, get_surface_format, get_window_ratio, read_shader, write_to_buffer};
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu;
-use corrosive_ecs_renderer_backend::wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType,
-    BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor,
-    ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, LoadOp, Operations,
-    PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle, RenderBundleEncoder,
-    RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor,
-    SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, StoreOp, Texture,
-    TextureDescriptor, TextureDimension, TextureSampleType, TextureUsages, TextureView,
-    TextureViewDimension, VertexState,
-};
+use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, IndexFormat, LoadOp, Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle, RenderBundleEncoder, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureSampleType, TextureUsages, TextureView, TextureViewDimension, VertexState};
 use corrosive_ecs_renderer_backend::winit::event::WindowEvent;
 use glam::Vec4;
 use std::cell::{LazyCell, UnsafeCell};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Instant;
+use corrosive_asset_manager::cache_server::{Cache, CacheServer};
+use corrosive_asset_manager_macro::static_hasher;
+use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
+use corrosive_ecs_renderer_backend::wgpu::util::RenderEncoder;
+use crate::comp::dynamic::PixilDynamicObjectData;
 use crate::ordered_set::{OrderedSet, ReserveStrategy};
 
 #[repr(align(16))]
@@ -38,22 +29,22 @@ struct Cluster {
     count: u32,
     light_indices: [u32; 100],
 }
-
-pub static DYNAMIC_OBJECTS: RenderSet<RenderBundle> = RenderSet::new();
+pub static DYNAMIC_OBJECTS: RenderSet<(PixilDynamicObjectData)> = RenderSet::new();
 pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet<LightData>> = LazyLock::new(||{
     OrderedSet::new(ReserveStrategy::Align(16))
 });
 
 struct RenderPixilNode {
+    view_bind_group: BindGroup,
     render_bind_group: BindGroup,
     render_bind_group_layout: BindGroupLayout,
     render_pipeline: RenderPipeline,
     cluster_buffer: Buffer,
     cluster_bind_group: BindGroup,
     cluster_pipeline: ComputePipeline,
+    light_bind_group: BindGroup,
     lights_pipeline: ComputePipeline,
     render_settings: Res<PixilRenderSettings>,
-    light_bind_group: BindGroup,
 }
 impl RenderNode for RenderPixilNode {
     fn name(&self) -> &str {
@@ -98,7 +89,14 @@ impl RenderNode for RenderPixilNode {
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            render_pass.execute_bundles(DYNAMIC_OBJECTS.data.lock().unwrap().enabled.iter());
+            for i in DYNAMIC_OBJECTS.data.lock().unwrap().enabled.iter() {
+                render_pass.set_pipeline(i.pipeline);
+                render_pass.set_bind_group(0,&self.view_bind_group, &[]);
+                render_pass.set_bind_group(1,&i.transform_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, i.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(i.index_buffer.slice(..), IndexFormat::Uint32);
+                render_pass.draw_indexed(0..*i.count, 0, 0..1);
+            }
         }
 
         {
@@ -127,6 +125,7 @@ impl RenderNode for RenderPixilNode {
 #[task]
 pub fn start_pixil_renderer(
     render_setting: Res<PixilRenderSettings>,
+    active_pixil_camera:  Res<ActivePixilCamera>,
     graph: Res<RenderGraph>,
     window: Res<WindowOptions>,
 ) {
@@ -139,12 +138,6 @@ pub fn start_pixil_renderer(
             {
                 setting_clone.f_write().update_texture();
             }
-            let s = setting_clone.f_read().render_size;
-            write_to_buffer(
-                &VIEW_DATA.resolution_buffer,
-                0,
-                bytemuck::cast_slice(&[(s as f32 * get_window_ratio()) as u32, s]),
-            )
         }
     }));
 
@@ -236,24 +229,27 @@ pub fn start_pixil_renderer(
         ],
     });
 
-    let bind_group = device.create_bind_group(&BindGroupDescriptor {
-        label: Some("pixil renderer bind group"),
-        layout: &bind_group_layout,
-        entries: &[
-            BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(render_setting.f_write().get_view()),
-            },
-            BindGroupEntry {
-                binding: 1,
-                resource: wgpu::BindingResource::Sampler(&sampler),
-            },
-            BindGroupEntry {
-                binding: 2,
-                resource: VIEW_DATA.resolution_buffer.as_entire_binding(),
-            },
-        ],
-    });
+    let bind_group = {
+        render_setting.f_write().set_view();
+        device.create_bind_group(&BindGroupDescriptor {
+            label: Some("pixil renderer bind group"),
+            layout: &bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(render_setting.f_read().get_view()),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: render_setting.f_read().size_buffer.as_entire_binding(),
+                },
+            ],
+        })
+    };
 
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("pixil renderer pipeline layout"),
@@ -359,27 +355,27 @@ pub fn start_pixil_renderer(
     });
 
     let cluster_bind_group = {
-        let mut settings = render_setting.write().unwrap();
-        let data = settings.get_buffers();
+        let mut settings = render_setting.f_read();
+        let mut camera = active_pixil_camera.f_read();
         device.create_bind_group(&BindGroupDescriptor {
             label: Some("ClusterBindGroup"),
             layout: &cluster_bind_group_layout,
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: data.0.as_entire_binding(),
+                    resource: camera.z_params_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: VIEW_DATA.view_buffer.as_entire_binding(),
+                    resource: camera.view_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 2,
-                    resource: data.1.as_entire_binding(),
+                    resource: settings.grid_size_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 3,
-                    resource: VIEW_DATA.resolution_buffer.as_entire_binding(),
+                    resource: settings.size_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 4,
@@ -443,7 +439,7 @@ pub fn start_pixil_renderer(
         entries: &[
             BindGroupEntry {
                 binding: 0,
-                resource: VIEW_DATA.view_buffer.as_entire_binding(),
+                resource: active_pixil_camera.f_read().view_buffer.as_entire_binding(),
             },
             BindGroupEntry {
                 binding: 1,
@@ -481,7 +477,84 @@ pub fn start_pixil_renderer(
         intensity: 10.0,
     });
 
+    //view
+
+    let view_layout: Cache<BindGroupLayoutAsset> =
+        CacheServer::add(static_hasher!("ViewBindGroupLayout"), || {
+            Ok(BindGroupLayoutAsset {
+                layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
+                    label: "PixilViewBindGroupLayout".into(),
+                    entries: &[
+                        BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: ShaderStages::FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: ShaderStages::VERTEX_FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: ShaderStages::VERTEX_FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                        BindGroupLayoutEntry {
+                            binding: 3,
+                            visibility: ShaderStages::VERTEX_FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
+                    ],
+                }),
+            })
+        });
+
+    let render_setting_clone = render_setting.clone();
+
     graph.f_write().add_node(Box::new(RenderPixilNode {
+        view_bind_group: create_bind_group(
+            "PixilViewBindGroup",
+            &view_layout.get().layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: render_setting_clone.f_read().size_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: active_pixil_camera.f_read().view_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: active_pixil_camera.f_read().position_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: active_pixil_camera.f_read().z_params_buffer.as_entire_binding(),
+                },
+            ],
+        ),
         render_bind_group: bind_group,
         render_bind_group_layout: bind_group_layout,
         render_pipeline: pipeline,
@@ -502,8 +575,4 @@ pub fn update_camera(
 ) {
     let active_camera = active_camera.f_read();
     active_camera.update_view_matrix();
-    let z_params = active_camera.get_z_params();
-    renderer_settings
-        .f_write()
-        .update_z_params(z_params.0, z_params.1);
 }

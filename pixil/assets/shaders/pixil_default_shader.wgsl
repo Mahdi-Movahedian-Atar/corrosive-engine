@@ -27,6 +27,13 @@ struct Cluster {
 
 @group(1) @binding(0) var<uniform> transform_matrix : mat4x4<f32>;
 
+/*
+@group(2) @binding(0) var<storage, read> clusters: array<Cluster>;
+
+@group(3) @binding(0) var<storage, read> lights: array<PointLight>;
+@group(3) @binding(1) var<uniform> light_num: u32;
+*/
+
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;

@@ -53,7 +53,7 @@ pub fn pixil_test(
         near: 0.01,
         far: 100.0,
     });
-    *ac.f_write() = ActivePixilCamera::new(&b, &c);
+    ac.f_write().new(&b, &c);
 
     r.add((
         PixilDynamicObject::new(

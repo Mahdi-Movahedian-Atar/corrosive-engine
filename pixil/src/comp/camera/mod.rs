@@ -1,5 +1,5 @@
+use std::cell::LazyCell;
 use crate::comp::position_pixil::PositionPixil;
-use crate::view_data::VIEW_DATA;
 use corrosive_ecs_core::ecs_core::{LockedRef, Member};
 use corrosive_ecs_core_macro::{Component, Resource};
 use corrosive_ecs_renderer_backend::public_functions::{
@@ -8,6 +8,8 @@ use corrosive_ecs_renderer_backend::public_functions::{
 use corrosive_ecs_renderer_backend::wgpu::{Buffer, BufferUsages};
 use glam::Mat4;
 use std::sync::LazyLock;
+use bytemuck::cast_slice;
+use crate::comp::render::PixilRenderSettings;
 
 #[derive(Component)]
 pub struct PixilCamera {
@@ -24,9 +26,41 @@ pub struct ActivePixilCameraData {
     position: Member<PositionPixil>,
     camera: LockedRef<PixilCamera>,
 }
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct ActivePixilCamera {
     data: Option<ActivePixilCameraData>,
+    pub(crate)view_buffer: LazyCell<Buffer>,
+    pub(crate)position_buffer: LazyCell<Buffer>,
+    pub(crate) z_params_buffer: LazyCell<Buffer>
+}
+impl Default for ActivePixilCamera{
+    fn default() -> Self {
+        Self{
+            data: None,
+            view_buffer: LazyCell::new(||{
+                create_buffer_init(
+                    "PixilViewBuffer",
+                    cast_slice(&Mat4::IDENTITY.to_cols_array()),
+                    BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                )
+            }),
+            position_buffer: LazyCell::new(||{
+                create_buffer_init(
+                    "PixilViewBuffer",
+                    cast_slice(&[0.0,0.0,0.0]),
+                    BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                )
+            }),
+            z_params_buffer: LazyCell::new(||{
+                create_buffer_init(
+                    "PixilViewBuffer",
+                    cast_slice(&[0.0,1.0]),
+                    BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                )
+            }),
+        }
+
+    }
 }
 impl ActivePixilCamera {
     pub(crate) fn update_view_matrix(&self) {
@@ -42,12 +76,12 @@ impl ActivePixilCamera {
             };
             let view = { t.position.f_read().unwrap().view() };
             write_to_buffer(
-                &VIEW_DATA.view_buffer,
+                &self.view_buffer,
                 0,
                 bytemuck::cast_slice(&(projection * view).to_cols_array()),
             );
             write_to_buffer(
-                &VIEW_DATA.position_buffer,
+                &self.position_buffer,
                 0,
                 bytemuck::bytes_of(&{
                     let (_,_,p) = t.position.f_read().unwrap().global.to_scale_rotation_translation();
@@ -55,21 +89,18 @@ impl ActivePixilCamera {
                 }),
             );
             write_to_buffer(
-                &VIEW_DATA.near_far_buffer,
+                &self.z_params_buffer,
                 0,
                 bytemuck::cast_slice(&near_far),
             );
         }
     }
-    pub fn new(position: &Member<PositionPixil>, camera: &LockedRef<PixilCamera>) -> Self {
-        let data = ActivePixilCamera {
-            data: Some(ActivePixilCameraData {
-                position: position.clone(),
-                camera: camera.clone(),
-            }),
-        };
-        data.update_view_matrix();
-        data
+    pub fn new(&mut self, position: &Member<PositionPixil>, camera: &LockedRef<PixilCamera>) {
+        self.data = Some(ActivePixilCameraData {
+            position: position.clone(),
+            camera: camera.clone(),
+        });
+        self.update_view_matrix();
     }
     pub fn get_z_params(&self) -> (f32, f32) {
         self.data
@@ -81,3 +112,6 @@ impl ActivePixilCamera {
             .unwrap_or((0.1, 1.0))
     }
 }
+
+unsafe impl Send for ActivePixilCamera {}
+unsafe impl Sync for ActivePixilCamera {}

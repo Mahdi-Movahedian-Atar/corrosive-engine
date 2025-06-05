@@ -16,6 +16,12 @@
             },
             {
               "Resources": [
+                "active_pixil_camera",
+                "ActivePixilCamera"
+              ]
+            },
+            {
+              "Resources": [
                 "graph",
                 "RenderGraph"
               ]

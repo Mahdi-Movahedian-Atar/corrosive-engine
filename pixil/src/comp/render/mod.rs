@@ -1,3 +1,4 @@
+use std::cell::LazyCell;
 use corrosive_ecs_core_macro::Resource;
 use corrosive_ecs_renderer_backend::public_functions::{
     create_buffer_init, get_device, get_surface_format, get_window_ratio, write_to_buffer,
@@ -7,11 +8,14 @@ use corrosive_ecs_renderer_backend::wgpu::{
     TextureUsages, TextureView,
 };
 
+
+
 #[derive(Resource)]
 pub struct PixilRenderSettings {
     pub(crate) render_size: u32,
     pub(crate) texture: Option<(Texture, TextureView)>,
-    pub(crate) buffers: Option<(Buffer, Buffer)>,
+    pub(crate) size_buffer: LazyCell<Buffer>,
+    pub(crate) grid_size_buffer: LazyCell<Buffer>,
     pub(crate) grid_size: [u32; 3],
 }
 impl Default for PixilRenderSettings {
@@ -19,7 +23,20 @@ impl Default for PixilRenderSettings {
         Self {
             render_size: 320,
             texture: None,
-            buffers: None,
+            size_buffer: LazyCell::new(||{
+                    create_buffer_init(
+                        "SizeBuffer",
+                        bytemuck::cast_slice(&[(360.0 / get_window_ratio()) as u32 , 360u32]),
+                        BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                    )
+            }),
+            grid_size_buffer: LazyCell::new(||{
+                create_buffer_init(
+                    "GridParams",
+                    bytemuck::cast_slice(&[12u32, 12u32, 24u32]),
+                    BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                )
+            }),
             grid_size: [12u32, 12u32, 24u32],
         }
     }
@@ -27,9 +44,10 @@ impl Default for PixilRenderSettings {
 impl PixilRenderSettings {
     pub fn set_new_render_size(&mut self, render_size: u32) {
         self.render_size = render_size;
+            write_to_buffer(&self.size_buffer, 0, bytemuck::cast_slice(&[(self.render_size as f32 / get_window_ratio()) as u32 , self.render_size]));
         self.texture = None;
     }
-    pub fn get_view(&mut self) -> &TextureView {
+    pub fn set_view(&mut self) {
         if self.texture.is_none() {
             let texture = get_device().create_texture(&TextureDescriptor {
                 label: Some("Proxy Render Texture"),
@@ -48,28 +66,9 @@ impl PixilRenderSettings {
             let view = texture.create_view(&Default::default());
             self.texture = Some((texture, view));
         }
-        &self.texture.as_ref().unwrap().1
     }
-    pub fn get_buffers(&mut self) -> &(Buffer, Buffer) {
-        if self.buffers.is_none() {
-            self.buffers = Some((
-                create_buffer_init(
-                    "ZParam",
-                    bytemuck::cast_slice(&[0.1, 1.0]),
-                    BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                ),
-                create_buffer_init(
-                    "ZParam",
-                    bytemuck::cast_slice(&[
-                        self.grid_size[0],
-                        self.grid_size[1],
-                        self.grid_size[2],
-                    ]),
-                    BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                ),
-            ));
-        }
-        &self.buffers.as_ref().unwrap()
+    pub fn get_view(&self) -> &TextureView {
+        &self.texture.as_ref().unwrap().1
     }
     pub fn update_texture(&mut self) {
         if let Some((texture, _)) = &mut self.texture {
@@ -94,16 +93,9 @@ impl PixilRenderSettings {
             });
         }
     }
-    pub fn update_z_params(&self, near: f32, far: f32) {
-        if let Some(b) = &self.buffers {
-            write_to_buffer(&b.0, 0, bytemuck::cast_slice(&[near, far]))
-        }
-    }
     pub fn update_grid_size(&mut self, x: u32, y: u32, z: u32) {
         self.grid_size = [x, y, z];
-        if let Some(b) = &self.buffers {
-            write_to_buffer(&b.1, 0, bytemuck::cast_slice(&[x, y, z]))
-        }
+            write_to_buffer(&self.grid_size_buffer, 0, bytemuck::cast_slice(&[x, y, z]))
     }
 }
 unsafe impl Send for PixilRenderSettings {}
