@@ -1,26 +1,39 @@
 use crate::comp::camera::ActivePixilCamera;
+use crate::comp::dynamic::PixilDynamicObjectData;
 use crate::comp::light::LightData;
 use crate::comp::render::PixilRenderSettings;
+use crate::ordered_set::{OrderedSet, ReserveStrategy};
 use crate::render_set::RenderSet;
+use corrosive_asset_manager::cache_server::{Cache, CacheServer};
+use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_core::ecs_core::Res;
 use corrosive_ecs_core_macro::task;
+use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
-use corrosive_ecs_renderer_backend::public_functions::{create_bind_group, create_bind_group_layout, create_buffer_init, get_device, get_surface_format, get_window_ratio, read_shader, write_to_buffer};
+use corrosive_ecs_renderer_backend::public_functions::{
+    create_bind_group, create_bind_group_layout, create_buffer_init, get_device,
+    get_surface_format, get_window_ratio, read_shader, write_to_buffer,
+};
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu;
-use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, IndexFormat, LoadOp, Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle, RenderBundleEncoder, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureSampleType, TextureUsages, TextureView, TextureViewDimension, VertexState};
+use corrosive_ecs_renderer_backend::wgpu::util::RenderEncoder;
+use corrosive_ecs_renderer_backend::wgpu::{
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType,
+    BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor,
+    ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, IndexFormat, LoadOp,
+    Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle,
+    RenderBundleEncoder, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource,
+    ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureSampleType,
+    TextureUsages, TextureView, TextureViewDimension, VertexState,
+};
 use corrosive_ecs_renderer_backend::winit::event::WindowEvent;
 use glam::Vec4;
 use std::cell::{LazyCell, UnsafeCell};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Instant;
-use corrosive_asset_manager::cache_server::{Cache, CacheServer};
-use corrosive_asset_manager_macro::static_hasher;
-use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
-use corrosive_ecs_renderer_backend::wgpu::util::RenderEncoder;
-use crate::comp::dynamic::PixilDynamicObjectData;
-use crate::ordered_set::{OrderedSet, ReserveStrategy};
 
 #[repr(align(16))]
 struct Cluster {
@@ -30,12 +43,11 @@ struct Cluster {
     light_indices: [u32; 100],
 }
 pub static DYNAMIC_OBJECTS: RenderSet<(PixilDynamicObjectData)> = RenderSet::new();
-pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet<LightData>> = LazyLock::new(||{
-    OrderedSet::new(ReserveStrategy::Align(16))
-});
+pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet<LightData>> =
+    LazyLock::new(|| OrderedSet::new(ReserveStrategy::Align(16)));
 
 struct RenderPixilNode {
-    view_bind_group: BindGroup,
+    object_view_bind_group: BindGroup,
     render_bind_group: BindGroup,
     render_bind_group_layout: BindGroupLayout,
     render_pipeline: RenderPipeline,
@@ -70,9 +82,9 @@ impl RenderNode for RenderPixilNode {
             compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
 
             compute_pass.set_pipeline(&self.lights_pipeline);
-            compute_pass.set_bind_group(0,&self.light_bind_group, &[]);
-            compute_pass.set_bind_group(1,&DYNAMIC_LIGHTS.data.lock().unwrap().bind_group, &[]);
-            compute_pass.dispatch_workgroups(27, 1, 1);
+            compute_pass.set_bind_group(0, &self.light_bind_group, &[]);
+            compute_pass.set_bind_group(1, &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_compute, &[]);
+            compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
         }
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -91,8 +103,9 @@ impl RenderNode for RenderPixilNode {
             });
             for i in DYNAMIC_OBJECTS.data.lock().unwrap().enabled.iter() {
                 render_pass.set_pipeline(i.pipeline);
-                render_pass.set_bind_group(0,&self.view_bind_group, &[]);
-                render_pass.set_bind_group(1,&i.transform_bind_group, &[]);
+                render_pass.set_bind_group(0, &self.object_view_bind_group, &[]);
+                render_pass.set_bind_group(1, &i.transform_bind_group, &[]);
+                render_pass.set_bind_group(2, &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_fragment, &[]);
                 render_pass.set_vertex_buffer(0, i.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(i.index_buffer.slice(..), IndexFormat::Uint32);
                 render_pass.draw_indexed(0..*i.count, 0, 0..1);
@@ -125,7 +138,7 @@ impl RenderNode for RenderPixilNode {
 #[task]
 pub fn start_pixil_renderer(
     render_setting: Res<PixilRenderSettings>,
-    active_pixil_camera:  Res<ActivePixilCamera>,
+    active_pixil_camera: Res<ActivePixilCamera>,
     graph: Res<RenderGraph>,
     window: Res<WindowOptions>,
 ) {
@@ -237,7 +250,9 @@ pub fn start_pixil_renderer(
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(render_setting.f_read().get_view()),
+                    resource: wgpu::BindingResource::TextureView(
+                        render_setting.f_read().get_view(),
+                    ),
                 },
                 BindGroupEntry {
                     binding: 1,
@@ -367,7 +382,7 @@ pub fn start_pixil_renderer(
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: camera.view_buffer.as_entire_binding(),
+                    resource: camera.inverse_projection_buffer.as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 2,
@@ -424,6 +439,16 @@ pub fn start_pixil_renderer(
                 binding: 1,
                 visibility: ShaderStages::COMPUTE,
                 ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            BindGroupLayoutEntry {
+                binding: 2,
+                visibility: ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
                     ty: BufferBindingType::Storage { read_only: false },
                     has_dynamic_offset: false,
                     min_binding_size: None,
@@ -443,6 +468,10 @@ pub fn start_pixil_renderer(
             },
             BindGroupEntry {
                 binding: 1,
+                resource: render_setting.f_read().grid_size_buffer.as_entire_binding(),
+            },
+            BindGroupEntry {
+                binding: 2,
                 resource: cluster_buffer.as_entire_binding(),
             },
         ],
@@ -452,7 +481,10 @@ pub fn start_pixil_renderer(
         label: "Light pipeline".into(),
         layout: Some(&device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: "Light pipeline layout".into(),
-            bind_group_layouts: &[&light_bind_group_layout,&DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_layout],
+            bind_group_layouts: &[
+                &light_bind_group_layout,
+                &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_compute_layout,
+            ],
             push_constant_ranges: &[],
         })),
         module: &(device.create_shader_module(ShaderModuleDescriptor {
@@ -471,13 +503,28 @@ pub fn start_pixil_renderer(
     //test
 
     DYNAMIC_LIGHTS.add(LightData {
-        position: [0.0,0.0,0.0,1.0,],
-        color: [1.0,1.0,1.0,1.0],
-        radius: 100.0,
-        intensity: 10.0,
+        position: [-1.0, 0.0, 0.0, 1.0],
+        color: [1.0, 0.0, 0.0, 1.0],
+        radius: 2.0,
+        intensity: 1.0,
+        _pad: [0.0,0.0],
+    });
+    DYNAMIC_LIGHTS.add(LightData {
+        position: [1.0, 0.0, 0.0, 1.0],
+        color: [0.0, 1.0, 0.0, 1.0],
+        radius: 2.0,
+        intensity: 1.0,
+        _pad: [0.0,0.0],
+    });
+    DYNAMIC_LIGHTS.add(LightData {
+        position: [0.0, 0.0, 2.0, 1.0],
+        color: [0.0, 0.0, 1.0, 1.0],
+        radius: 2.0,
+        intensity: 1.0,
+        _pad: [0.0,0.0],
     });
 
-    //view
+    //object
 
     let view_layout: Cache<BindGroupLayoutAsset> =
         CacheServer::add(static_hasher!("ViewBindGroupLayout"), || {
@@ -525,6 +572,16 @@ pub fn start_pixil_renderer(
                             },
                             count: None,
                         },
+                        BindGroupLayoutEntry {
+                            binding: 4,
+                            visibility: ShaderStages::VERTEX_FRAGMENT,
+                            ty: BindingType::Buffer {
+                                ty: BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: None,
+                            },
+                            count: None,
+                        },
                     ],
                 }),
             })
@@ -533,13 +590,16 @@ pub fn start_pixil_renderer(
     let render_setting_clone = render_setting.clone();
 
     graph.f_write().add_node(Box::new(RenderPixilNode {
-        view_bind_group: create_bind_group(
+        object_view_bind_group: create_bind_group(
             "PixilViewBindGroup",
             &view_layout.get().layout,
             &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: render_setting_clone.f_read().size_buffer.as_entire_binding(),
+                    resource: render_setting_clone
+                        .f_read()
+                        .size_buffer
+                        .as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 1,
@@ -547,11 +607,23 @@ pub fn start_pixil_renderer(
                 },
                 BindGroupEntry {
                     binding: 2,
-                    resource: active_pixil_camera.f_read().position_buffer.as_entire_binding(),
+                    resource: active_pixil_camera
+                        .f_read()
+                        .projection_buffer
+                        .as_entire_binding(),
                 },
                 BindGroupEntry {
                     binding: 3,
-                    resource: active_pixil_camera.f_read().z_params_buffer.as_entire_binding(),
+                    resource: render_setting_clone
+                        .f_read()
+                        .grid_size_buffer
+                        .as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource:
+                        cluster_buffer
+                        .as_entire_binding(),
                 },
             ],
         ),
@@ -563,7 +635,7 @@ pub fn start_pixil_renderer(
         cluster_bind_group,
         cluster_buffer,
         lights_pipeline,
-        light_bind_group
+        light_bind_group,
     }));
     graph.f_write().prepare();
 }

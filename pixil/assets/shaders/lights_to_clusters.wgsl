@@ -1,8 +1,8 @@
 struct PointLight {
     position: vec4<f32>,
     color: vec4<f32>,
-    intensity: f32,
     radius: f32,
+    intensity: f32,
 };
 
 struct Cluster {
@@ -15,6 +15,8 @@ struct Cluster {
 @group(0) @binding(0)
 var<uniform> viewMatrix: mat4x4<f32>;
 @group(0) @binding(1)
+var<uniform> cluster_size: vec3<u32>;
+@group(0) @binding(2)
 var<storage, read_write> clusters: array<Cluster>;
 
 @group(1) @binding(0)
@@ -36,12 +38,9 @@ fn testSphereAABB(i: u32, cluster: Cluster) -> bool {
     return sphereAABBIntersection(center, radius, aabbMin, aabbMax);
 }
 
-@compute @workgroup_size(128, 1, 1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let index = global_id.x;
-    if (index >= len || pointLight[index].position.w == 0.0) {
-        return;
-    }
+@compute @workgroup_size(1, 1, 1)
+fn main(@builtin(global_invocation_id) workGroupID: vec3<u32>) {
+    let index = workGroupID.x + (workGroupID.y * cluster_size.x) + (workGroupID.z * cluster_size.x * cluster_size.y);
 
     var cluster = clusters[index];
     cluster.count = 0u;

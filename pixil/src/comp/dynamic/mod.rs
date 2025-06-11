@@ -1,4 +1,3 @@
-use std::sync::LazyLock;
 use crate::comp::position_pixil::PositionPixil;
 use crate::material::{PixilMaterial, PixilMaterialWrapper};
 use crate::mesh::{Mesh, Vertex};
@@ -14,8 +13,17 @@ use corrosive_ecs_renderer_backend::public_functions::{
     create_pipeline_layout, create_shader_module, get_device, get_surface_format,
 };
 use corrosive_ecs_renderer_backend::wgpu;
-use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress, BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, IndexFormat, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderBundleDescriptor, RenderBundleEncoderDescriptor, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
+use corrosive_ecs_renderer_backend::wgpu::{
+    BindGroup, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
+    BlendComponent, BlendFactor, BlendOperation, BlendState, Buffer, BufferAddress,
+    BufferBindingType, BufferUsages, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace,
+    IndexFormat, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
+    RenderBundleDescriptor, RenderBundleEncoderDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute,
+    VertexBufferLayout, VertexFormat, VertexState, VertexStepMode,
+};
 use glam::Mat4;
+use std::sync::LazyLock;
 
 const VERTICES: &[Vertex] = &[
     Vertex {
@@ -32,7 +40,6 @@ const VERTICES: &[Vertex] = &[
     },
 ];
 
-
 pub struct PixilDynamicObjectData {
     pub vertex_buffer: &'static Buffer,
     pub index_buffer: &'static Buffer,
@@ -45,7 +52,7 @@ pub struct PixilDynamicObjectData {
 pub struct PixilDynamicObject {
     pub mesh: Asset<Mesh>,
     pub(crate) material: Box<dyn PixilMaterialWrapper + Send + Sync>,
-    pub(crate) transform_data: Buffer
+    pub(crate) transform_data: Buffer,
 }
 impl PixilDynamicObject {
     pub fn new(
@@ -140,4 +147,3 @@ impl PixilDynamicObject {
         }
     }
 }
-

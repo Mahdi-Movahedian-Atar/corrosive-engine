@@ -15,6 +15,7 @@ use corrosive_ecs_renderer_backend::wgpu::{
     ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute, VertexBufferLayout,
     VertexFormat, VertexState, VertexStepMode,
 };
+use crate::task::renderer::DYNAMIC_LIGHTS;
 
 pub trait PixilMaterial {
     fn encode_to_bundle(&self, encoder: &mut RenderBundleEncoder);
@@ -91,10 +92,21 @@ impl PixilMaterial for PixilDefaultMaterial {
                                         },
                                         count: None,
                                     },
+                                    BindGroupLayoutEntry {
+                                        binding: 4,
+                                        visibility: ShaderStages::VERTEX_FRAGMENT,
+                                        ty: BindingType::Buffer {
+                                            ty: BufferBindingType::Storage { read_only: true },
+                                            has_dynamic_offset: false,
+                                            min_binding_size: None,
+                                        },
+                                        count: None,
+                                    },
                                 ],
                             }),
                         })
                     });
+
                 let transfom_layout: Cache<BindGroupLayoutAsset> =
                     CacheServer::add(static_hasher!("PixilTransformBindGroupLayout"), || {
                         Ok(BindGroupLayoutAsset {
@@ -131,6 +143,7 @@ impl PixilMaterial for PixilDefaultMaterial {
                             bind_group_layouts: &[
                                 &view_layout.get().layout,
                                 &transfom_layout.get().layout,
+                                &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_fragment_layout
                             ],
                             push_constant_ranges: &[],
                         })),

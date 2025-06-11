@@ -1,4 +1,3 @@
-use std::cell::LazyCell;
 use corrosive_ecs_core_macro::Resource;
 use corrosive_ecs_renderer_backend::public_functions::{
     create_buffer_init, get_device, get_surface_format, get_window_ratio, write_to_buffer,
@@ -7,8 +6,7 @@ use corrosive_ecs_renderer_backend::wgpu::{
     Buffer, BufferUsages, Extent3d, RenderPipeline, Texture, TextureDescriptor, TextureDimension,
     TextureUsages, TextureView,
 };
-
-
+use std::cell::LazyCell;
 
 #[derive(Resource)]
 pub struct PixilRenderSettings {
@@ -23,14 +21,14 @@ impl Default for PixilRenderSettings {
         Self {
             render_size: 320,
             texture: None,
-            size_buffer: LazyCell::new(||{
-                    create_buffer_init(
-                        "SizeBuffer",
-                        bytemuck::cast_slice(&[(360.0 / get_window_ratio()) as u32 , 360u32]),
-                        BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                    )
+            size_buffer: LazyCell::new(|| {
+                create_buffer_init(
+                    "SizeBuffer",
+                    bytemuck::cast_slice(&[(360.0 / get_window_ratio()) as u32, 360u32]),
+                    BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                )
             }),
-            grid_size_buffer: LazyCell::new(||{
+            grid_size_buffer: LazyCell::new(|| {
                 create_buffer_init(
                     "GridParams",
                     bytemuck::cast_slice(&[12u32, 12u32, 24u32]),
@@ -44,7 +42,14 @@ impl Default for PixilRenderSettings {
 impl PixilRenderSettings {
     pub fn set_new_render_size(&mut self, render_size: u32) {
         self.render_size = render_size;
-            write_to_buffer(&self.size_buffer, 0, bytemuck::cast_slice(&[(self.render_size as f32 / get_window_ratio()) as u32 , self.render_size]));
+        write_to_buffer(
+            &self.size_buffer,
+            0,
+            bytemuck::cast_slice(&[
+                (self.render_size as f32 / get_window_ratio()) as u32,
+                self.render_size,
+            ]),
+        );
         self.texture = None;
     }
     pub fn set_view(&mut self) {
@@ -95,7 +100,7 @@ impl PixilRenderSettings {
     }
     pub fn update_grid_size(&mut self, x: u32, y: u32, z: u32) {
         self.grid_size = [x, y, z];
-            write_to_buffer(&self.grid_size_buffer, 0, bytemuck::cast_slice(&[x, y, z]))
+        write_to_buffer(&self.grid_size_buffer, 0, bytemuck::cast_slice(&[x, y, z]))
     }
 }
 unsafe impl Send for PixilRenderSettings {}

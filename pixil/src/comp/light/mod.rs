@@ -1,5 +1,5 @@
-use corrosive_ecs_renderer_backend::color::Color;
 use crate::ordered_set::OrderedSetTrait;
+use corrosive_ecs_renderer_backend::color::Color;
 
 pub struct PointLight {
     pub(crate) color: Color,
@@ -24,6 +24,7 @@ pub struct LightData {
     pub color: [f32; 4],
     pub radius: f32,
     pub intensity: f32,
+    pub _pad: [f32; 2],
 }
 impl OrderedSetTrait for LightData {
     const NAME: &'static str = "LightData";
