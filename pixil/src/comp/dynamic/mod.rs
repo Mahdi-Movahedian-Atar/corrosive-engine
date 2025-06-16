@@ -44,6 +44,7 @@ pub struct PixilDynamicObjectData {
     pub vertex_buffer: &'static Buffer,
     pub index_buffer: &'static Buffer,
     pub transform_bind_group: BindGroup,
+    pub material_bind_group: &'static BindGroup,
     pub count: &'static u32,
     pub pipeline: &'static RenderPipeline,
 }
@@ -136,6 +137,7 @@ impl PixilDynamicObject {
             vertex_buffer: &mesh.get().vertex_buffer,
             index_buffer: &mesh.get().index_buffer,
             transform_bind_group,
+            material_bind_group: material.get().get_layout_bind_group(),
             count: &mesh.get().index_count,
             pipeline: &material.get().get_layout(),
         });

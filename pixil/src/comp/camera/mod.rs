@@ -60,7 +60,7 @@ impl Default for ActivePixilCamera {
                     BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 )
             }),
-            projection_buffer:  LazyCell::new(|| {
+            projection_buffer: LazyCell::new(|| {
                 create_buffer_init(
                     "PixilProjectionBuffer",
                     cast_slice(&Mat4::IDENTITY.to_cols_array()),
@@ -91,13 +91,12 @@ impl ActivePixilCamera {
                     ),
                     [c.unwrap().near, c.unwrap().far],
                 )
-
             };
             let view = { t.position.f_read().unwrap().view() };
             write_to_buffer(
                 &self.view_buffer,
                 0,
-                bytemuck::cast_slice(&view .to_cols_array()),
+                bytemuck::cast_slice(&view.to_cols_array()),
             );
             write_to_buffer(
                 &self.position_buffer,

@@ -14,6 +14,7 @@ struct PointLight {
     color: vec4<f32>,
     radius: f32,
     intensity: f32,
+    index:u32
 }
 
 struct Cluster {
@@ -32,6 +33,10 @@ struct Cluster {
 @group(1) @binding(0) var<uniform> transform_matrix: mat4x4<f32>;
 @group(2) @binding(1) var<storage, read> lights: array<PointLight>;
 @group(2) @binding(0) var<uniform> light_num: u32;
+@group(3) @binding(0)
+var gradient_texture: texture_2d<f32>;
+@group(3) @binding(1)
+var gradient_sampler: sampler;
 
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
@@ -67,7 +72,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let V = normalize(-input.view_position); // View direction
 
     // Initialize lighting
-    var total_light = vec3<f32>(0.05); // Ambient
+    var total_light = vec3<f32>(0.0); // Ambient
     var cluster_found = true;
     var cluster_index = u32((input.view_position.x + 1)  * f32(cluster_size.x/2)) + u32((input.view_position.y + 1)  *  f32(cluster_size.y/2)) * 12 + u32((input.view_position.z + 1)  *  f32(cluster_size.z/2)) * 144;
 
@@ -91,14 +96,16 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 
         // Diffuse contribution
         let NdotL = max(dot(N, L_dir), 0.0);
-        let diffuse = light.color.rgb * NdotL * attenuation;
+        //let diffuse = light.color.rgb * NdotL * attenuation;
+
+        let diffuse =  textureSample(gradient_texture, gradient_sampler,vec2<f32>(NdotL * attenuation,f32(light.index)/255.0) ).xyz;
 
         // Specular (Blinn-Phong)
         let H = normalize(L_dir + V);
         let NdotH = max(dot(N, H), 0.0);
-        let specular = light.color.rgb * pow(NdotH, 32.0) * attenuation;
+        //let specular = diffuse * pow(NdotH, 32.0) * attenuation;
 
-        total_light += diffuse + specular;
+        total_light += diffuse /*+ specular*/;
     }
 
     return vec4<f32>(total_light.xyz , 1.0);

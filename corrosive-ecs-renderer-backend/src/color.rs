@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 #[derive(Debug, Clone, Copy)]
 pub enum Color {
     RGBA(f32, f32, f32, f32),
@@ -141,6 +143,59 @@ impl Color {
                 bytes.to_vec()
             }
             _ => self.to_rgba().to_bytes(),
+        }
+    }
+
+    pub fn to_array(&self) -> [f32; 4] {
+        match self {
+            Color::RGBA(r, g, b, a) => [*r, *g, *b, *a],
+            _ => self.to_rgba().to_array(),
+        }
+    }
+    pub fn to_array_u8(&self) -> [u8; 4] {
+        match self {
+            Color::RGBA(r, g, b, a) => [
+                (r.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (g.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (b.clamp(0.0, 1.0) * 255.0).round() as u8,
+                (a.clamp(0.0, 1.0) * 255.0).round() as u8,
+            ],
+            _ => self.to_rgba().to_array_u8(),
+        }
+    }
+    pub fn mix(&self, other: &Color, amount: f32) -> Color {
+        match self {
+            Color::RGBA(r1, g1, b1, a1) => {
+                match other {
+                    Color::RGBA(r2, g2, b2, a2) => {
+                        Color::RGBA(r1 * (amount-1.0) + r2 * amount,g1 * (amount-1.0) + g2 * amount,b1 * (amount-1.0) + b2 * amount,a1 * (amount-1.0) + a2 * amount)
+
+                    }
+                    _=> {
+                        self.mix(&other.to_rgba(), amount)
+                    }
+                }
+            }
+            /*Color::RGB(r1, g1, b1) => {
+                match other {
+                    Color::RGB(r2, g2, b2) => {
+                        Color::RGB(r1 * (amount-1.0) + r2 * amount,g1 * (amount-1.0) + g2 * amount,b1 * (amount-1.0) + b2 * amount)
+
+                    }
+                    _=> {
+                        self.mix(&other.to_rgb(), amount)
+                    }
+                }
+            }
+            Color::HSVA(r1, g1, b1, a1) => {
+                todo!()
+            }
+            Color::HSV(_, _, _) => {todo!()}
+            Color::GRAY(_) => {todo!()}
+            Color::OklabA(_, _, _, _) => {Color::default()}
+            Color::Oklab(_, _, _) => {Color::default()}
+            Color::Hex(_) => {Color::default()}*/
+            _=>{ self.to_rgba().mix(&other, amount)},
         }
     }
 }

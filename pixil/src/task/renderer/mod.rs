@@ -34,6 +34,7 @@ use std::cell::{LazyCell, UnsafeCell};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Instant;
+use crate::color_palette::ColorPallet;
 
 #[repr(align(16))]
 struct Cluster {
@@ -45,6 +46,8 @@ struct Cluster {
 pub static DYNAMIC_OBJECTS: RenderSet<(PixilDynamicObjectData)> = RenderSet::new();
 pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet<LightData>> =
     LazyLock::new(|| OrderedSet::new(ReserveStrategy::Align(16)));
+
+pub static COLOR_PALLET: LazyLock<ColorPallet> = LazyLock::new(||{ColorPallet::new()});
 
 struct RenderPixilNode {
     object_view_bind_group: BindGroup,
@@ -83,7 +86,11 @@ impl RenderNode for RenderPixilNode {
 
             compute_pass.set_pipeline(&self.lights_pipeline);
             compute_pass.set_bind_group(0, &self.light_bind_group, &[]);
-            compute_pass.set_bind_group(1, &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_compute, &[]);
+            compute_pass.set_bind_group(
+                1,
+                &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_compute,
+                &[],
+            );
             compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
         }
         {
@@ -105,7 +112,16 @@ impl RenderNode for RenderPixilNode {
                 render_pass.set_pipeline(i.pipeline);
                 render_pass.set_bind_group(0, &self.object_view_bind_group, &[]);
                 render_pass.set_bind_group(1, &i.transform_bind_group, &[]);
-                render_pass.set_bind_group(2, &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_fragment, &[]);
+                render_pass.set_bind_group(
+                    2,
+                    &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_fragment,
+                    &[],
+                );
+                render_pass.set_bind_group(
+                    3,
+                    i.material_bind_group,
+                    &[],
+                );
                 render_pass.set_vertex_buffer(0, i.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(i.index_buffer.slice(..), IndexFormat::Uint32);
                 render_pass.draw_indexed(0..*i.count, 0, 0..1);
@@ -479,14 +495,20 @@ pub fn start_pixil_renderer(
 
     let lights_pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
         label: "Light pipeline".into(),
-        layout: Some(&device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: "Light pipeline layout".into(),
-            bind_group_layouts: &[
-                &light_bind_group_layout,
-                &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_compute_layout,
-            ],
-            push_constant_ranges: &[],
-        })),
+        layout: Some(
+            &device.create_pipeline_layout(&PipelineLayoutDescriptor {
+                label: "Light pipeline layout".into(),
+                bind_group_layouts: &[
+                    &light_bind_group_layout,
+                    &DYNAMIC_LIGHTS
+                        .data
+                        .lock()
+                        .unwrap()
+                        .bind_group_compute_layout,
+                ],
+                push_constant_ranges: &[],
+            }),
+        ),
         module: &(device.create_shader_module(ShaderModuleDescriptor {
             label: Some("pixil lights_to_clusters shader"),
             source: ShaderSource::Wgsl(
@@ -507,21 +529,24 @@ pub fn start_pixil_renderer(
         color: [1.0, 0.0, 0.0, 1.0],
         radius: 2.0,
         intensity: 1.0,
-        _pad: [0.0,0.0],
+        color_index: 0,
+        _pad: 0.0,
     });
     DYNAMIC_LIGHTS.add(LightData {
         position: [1.0, 0.0, 0.0, 1.0],
         color: [0.0, 1.0, 0.0, 1.0],
         radius: 2.0,
         intensity: 1.0,
-        _pad: [0.0,0.0],
+        color_index: 1,
+        _pad: 0.0,
     });
     DYNAMIC_LIGHTS.add(LightData {
         position: [0.0, 0.0, 2.0, 1.0],
         color: [0.0, 0.0, 1.0, 1.0],
         radius: 2.0,
         intensity: 1.0,
-        _pad: [0.0,0.0],
+        color_index: 2,
+        _pad: 0.0,
     });
 
     //object
@@ -621,9 +646,7 @@ pub fn start_pixil_renderer(
                 },
                 BindGroupEntry {
                     binding: 4,
-                    resource:
-                        cluster_buffer
-                        .as_entire_binding(),
+                    resource: cluster_buffer.as_entire_binding(),
                 },
             ],
         ),

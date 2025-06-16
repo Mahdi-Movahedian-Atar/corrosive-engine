@@ -12,6 +12,7 @@ pub mod task;
 
 pub use wgpu;
 pub use winit;
+pub use image;
 
 pub(crate) static mut STATE: Option<State> = None;
 

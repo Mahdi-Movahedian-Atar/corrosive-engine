@@ -1,5 +1,6 @@
 use corrosive_ecs_core_macro::corrosive_engine_builder;
 
+pub mod color_palette;
 pub mod comp;
 pub mod material;
 pub mod mesh;

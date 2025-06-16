@@ -1,25 +1,17 @@
 use crate::mesh::Vertex;
+use crate::task::renderer::{COLOR_PALLET, DYNAMIC_LIGHTS};
 use corrosive_asset_manager::asset_server::{Asset, AssetServer};
 use corrosive_asset_manager::cache_server::{Cache, CacheServer};
 use corrosive_asset_manager_macro::{Asset, static_hasher};
 use corrosive_ecs_renderer_backend::assets::{BindGroupLayoutAsset, PipelineAsset};
-use corrosive_ecs_renderer_backend::public_functions::{
-    create_bind_group_layout, create_pipeline, create_pipeline_layout, get_device,
-    get_surface_format, read_shader,
-};
-use corrosive_ecs_renderer_backend::wgpu::{
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendComponent, BlendFactor,
-    BlendOperation, BlendState, BufferAddress, BufferBindingType, ColorTargetState, ColorWrites,
-    Face, FragmentState, FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-    PrimitiveTopology, RenderBundleEncoder, RenderPipeline, RenderPipelineDescriptor,
-    ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute, VertexBufferLayout,
-    VertexFormat, VertexState, VertexStepMode,
-};
-use crate::task::renderer::DYNAMIC_LIGHTS;
+use corrosive_ecs_renderer_backend::public_functions::{create_bind_group, create_bind_group_layout, create_pipeline, create_pipeline_layout, get_device, get_surface_format, read_shader};
+use corrosive_ecs_renderer_backend::wgpu;
+use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, BufferAddress, BufferBindingType, ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderBundleEncoder, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
 
 pub trait PixilMaterial {
     fn encode_to_bundle(&self, encoder: &mut RenderBundleEncoder);
     fn get_layout(&self) -> &RenderPipeline;
+    fn get_layout_bind_group(&self) -> &wgpu::BindGroup;
     fn new() -> Self
     where
         Self: Sized;
@@ -32,9 +24,10 @@ pub trait PixilMaterialWrapper {}
 #[derive(Asset)]
 pub struct PixilDefaultMaterial {
     layout: Asset<PipelineAsset>,
+    bind_group: wgpu::BindGroup
 }
 pub struct PixilDefaultMaterialWrapper {
-    material: Asset<PixilDefaultMaterial>,
+    material: Asset<PixilDefaultMaterial>
 }
 impl PixilMaterial for PixilDefaultMaterial {
     fn encode_to_bundle(&self, encoder: &mut RenderBundleEncoder) {}
@@ -43,9 +36,42 @@ impl PixilMaterial for PixilDefaultMaterial {
         &self.layout.get().layout
     }
 
+    fn get_layout_bind_group(&self) -> &BindGroup {
+        &self.bind_group
+    }
+
     fn new() -> Self {
+        let material_bind_group_layout = create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: "PixilDefaultMaterialBindGroupLayoutDescriptor".into(),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Texture {
+                    multisampled: false,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                },
+                count: None,
+            },
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },],
+        });
+
+        let bind_group = create_bind_group("PixilDefaultMaterialBindGroup",&material_bind_group_layout,&[wgpu::BindGroupEntry{
+            binding: 0,
+            resource: BindingResource::TextureView(&COLOR_PALLET.texture_view),
+        },
+            wgpu::BindGroupEntry{
+                binding: 1,
+                resource: BindingResource::Sampler(&COLOR_PALLET.texture_sampler),
+            }]);
+
         PixilDefaultMaterial {
-            layout: AssetServer::add(static_hasher!("PixilDefaultMaterial"), || {
+            layout: AssetServer::add(static_hasher!("PixilDefaultMaterial"), move || {
                 let view_layout: Cache<BindGroupLayoutAsset> =
                     CacheServer::add(static_hasher!("ViewBindGroupLayout"), || {
                         Ok(BindGroupLayoutAsset {
@@ -143,7 +169,12 @@ impl PixilMaterial for PixilDefaultMaterial {
                             bind_group_layouts: &[
                                 &view_layout.get().layout,
                                 &transfom_layout.get().layout,
-                                &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_fragment_layout
+                                &DYNAMIC_LIGHTS
+                                    .data
+                                    .lock()
+                                    .unwrap()
+                                    .bind_group_fragment_layout,
+                                &material_bind_group_layout
                             ],
                             push_constant_ranges: &[],
                         })),
@@ -208,6 +239,7 @@ impl PixilMaterial for PixilDefaultMaterial {
                     }),
                 })
             }),
+            bind_group
         }
     }
 

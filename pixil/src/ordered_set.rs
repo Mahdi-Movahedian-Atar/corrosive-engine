@@ -80,7 +80,7 @@ impl<T: bytemuck::Pod + OrderedSetTrait> OrderedData<T> {
                 },
             ],
         );
-        self. bind_group_fragment = create_bind_group(
+        self.bind_group_fragment = create_bind_group(
             "OrderedSetFragmentBindGroup",
             &self.bind_group_fragment_layout,
             &[
@@ -97,7 +97,7 @@ impl<T: bytemuck::Pod + OrderedSetTrait> OrderedData<T> {
     }
     pub fn add(&mut self, data: T) -> u32 {
         if let Some(id) = self.available_ids.pop() {
-            println!("{}",size_of::<T>());
+            println!("{}", size_of::<T>());
             write_to_buffer(
                 &self.data,
                 (id * (size_of::<T>() as u32)) as BufferAddress,
@@ -138,56 +138,58 @@ impl<T: bytemuck::Pod + OrderedSetTrait> OrderedData<T> {
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let bind_group_compute_layout = get_device().create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: "OrderedSetComputeBindGroupLayout".into(),
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::COMPUTE ,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+        let bind_group_compute_layout =
+            get_device().create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: "OrderedSetComputeBindGroupLayout".into(),
+                entries: &[
+                    BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: ShaderStages::COMPUTE,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::COMPUTE ,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: ShaderStages::COMPUTE,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
-        let bind_group_fragment_layout = get_device().create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: "OrderedSetFragmentBindGroupLayout".into(),
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT ,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                ],
+            });
+        let bind_group_fragment_layout =
+            get_device().create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: "OrderedSetFragmentBindGroupLayout".into(),
+                entries: &[
+                    BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT ,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
+                ],
+            });
         let len_buffer = create_buffer_init(
             "OrderedSetLen",
             bytemuck::bytes_of(&size),

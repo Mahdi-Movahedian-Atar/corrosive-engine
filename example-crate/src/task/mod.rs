@@ -15,13 +15,16 @@ use corrosive_ecs_core::ecs_core::{
     Signal, State,
 };
 use corrosive_ecs_core_macro::task;
+use corrosive_ecs_renderer_backend::color::Color;
 use corrosive_ecs_renderer_backend::winit::keyboard::KeyCode;
 use corrosive_events::comp::Inputs;
+use pixil::color_palette::ColorRange;
 use pixil::comp::camera::{ActivePixilCamera, PixilCamera};
 use pixil::comp::dynamic::PixilDynamicObject;
 use pixil::comp::position_pixil::PositionPixil;
 use pixil::glam::{Quat, Vec3};
 use pixil::material::{PixilDefaultMaterial, PixilMaterial};
+use pixil::task::renderer::COLOR_PALLET;
 use rand::Rng;
 use std::iter::Map;
 use std::process::id;
@@ -37,6 +40,67 @@ pub fn pixil_test(
 ) {
     let mut r: RArch<(PixilDynamicObject, Member<PositionPixil>)> = RArch::default();
     let mut r2: RArch<(LockedRef<PixilCamera>, Member<PositionPixil>)> = RArch::default();
+
+    COLOR_PALLET.set_palette(
+        0,
+        vec![
+            ColorRange {
+                size: 64,
+                color: Color::RGB(1.0, 0.0, 0.0),
+                transition_type: Default::default(),
+            },
+            ColorRange {
+                size: 128,
+                color: Color::RGB(0.6, 0.0, 0.0),
+                transition_type: Default::default(),
+            },
+            ColorRange {
+                size: 64,
+                color: Color::RGB(0.1, 0.0, 0.0),
+                transition_type: Default::default(),
+            },
+        ],
+    );
+    COLOR_PALLET.set_palette(
+        1,
+        vec![
+            ColorRange {
+                size: 64,
+                color: Color::RGB(0.0, 1.0, 0.0),
+                transition_type: Default::default(),
+            },
+            ColorRange {
+                size: 128,
+                color: Color::RGB(0.0, 0.5, 0.0),
+                transition_type: Default::default(),
+            },
+            ColorRange {
+                size: 64,
+                color: Color::RGB(0.0, 0.1, 0.0),
+                transition_type: Default::default(),
+            },
+        ],
+    );
+    COLOR_PALLET.set_palette(
+        2,
+        vec![
+            ColorRange {
+                size: 64,
+                color: Color::RGB(0.0, 0.0, 1.0),
+                transition_type: Default::default(),
+            },
+            ColorRange {
+                size: 128,
+                color: Color::RGB(0.0, 0.0, 0.5),
+                transition_type: Default::default(),
+            },
+            ColorRange {
+                size: 64,
+                color: Color::RGB(0.0, 0.0, 0.1),
+                transition_type: Default::default(),
+            },
+        ],
+    );
 
     let a = h.new_entry(PositionPixil::new(
         Vec3::new(0.0, -1.0, -1.0),
