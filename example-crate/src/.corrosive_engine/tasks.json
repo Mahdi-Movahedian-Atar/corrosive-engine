@@ -55,6 +55,12 @@
             "ac",
             "ActivePixilCamera"
           ]
+        },
+        {
+          "Resources": [
+            "window_option",
+            "WindowOptions"
+          ]
         }
       ],
       "outputs": [

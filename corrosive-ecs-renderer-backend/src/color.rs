@@ -18,6 +18,27 @@ impl Default for Color {
 }
 
 impl Color {
+    pub fn from_hex(color: &str) -> Self{
+        let mut hex_str = color;
+        if hex_str.starts_with('#'){
+            hex_str = &hex_str[1..];
+        }
+        let len = hex_str.len();
+        match len {
+            6=>{
+                Color::RGB(u8::from_str_radix(&hex_str[0..2],16).unwrap_or(0) as f32 / 255.0,
+                           u8::from_str_radix(&hex_str[2..4],16).unwrap_or(0) as f32 / 255.0,
+                           u8::from_str_radix(&hex_str[4..6],16).unwrap_or(0) as f32 / 255.0,)
+            }
+            8=>{
+                Color::RGBA(u8::from_str_radix(&hex_str[0..2],16).unwrap_or(0) as f32 / 255.0,
+                           u8::from_str_radix(&hex_str[2..4],16).unwrap_or(0) as f32 / 255.0,
+                           u8::from_str_radix(&hex_str[4..6],16).unwrap_or(0) as f32 / 255.0,
+                           u8::from_str_radix(&hex_str[6..8],16).unwrap_or(0) as f32 / 255.0,)
+            }
+            _=>Color::RGB(0.0,0.0,0.0)
+        }
+    }
     pub fn to_rgba(&self) -> Self {
         match self {
             Color::RGBA(r, g, b, a) => Color::RGBA(*r, *g, *b, *a),
@@ -165,17 +186,15 @@ impl Color {
     }
     pub fn mix(&self, other: &Color, amount: f32) -> Color {
         match self {
-            Color::RGBA(r1, g1, b1, a1) => {
-                match other {
-                    Color::RGBA(r2, g2, b2, a2) => {
-                        Color::RGBA(r1 * (amount-1.0) + r2 * amount,g1 * (amount-1.0) + g2 * amount,b1 * (amount-1.0) + b2 * amount,a1 * (amount-1.0) + a2 * amount)
-
-                    }
-                    _=> {
-                        self.mix(&other.to_rgba(), amount)
-                    }
-                }
-            }
+            Color::RGBA(r1, g1, b1, a1) => match other {
+                Color::RGBA(r2, g2, b2, a2) => Color::RGBA(
+                    r1 * (amount - 1.0) + r2 * amount,
+                    g1 * (amount - 1.0) + g2 * amount,
+                    b1 * (amount - 1.0) + b2 * amount,
+                    a1 * (amount - 1.0) + a2 * amount,
+                ),
+                _ => self.mix(&other.to_rgba(), amount),
+            },
             /*Color::RGB(r1, g1, b1) => {
                 match other {
                     Color::RGB(r2, g2, b2) => {
@@ -195,7 +214,7 @@ impl Color {
             Color::OklabA(_, _, _, _) => {Color::default()}
             Color::Oklab(_, _, _) => {Color::default()}
             Color::Hex(_) => {Color::default()}*/
-            _=>{ self.to_rgba().mix(&other, amount)},
+            _ => self.to_rgba().mix(&other, amount),
         }
     }
 }

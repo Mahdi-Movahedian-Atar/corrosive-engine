@@ -37,6 +37,10 @@ struct Cluster {
 var gradient_texture: texture_2d<f32>;
 @group(3) @binding(1)
 var gradient_sampler: sampler;
+@group(3) @binding(2)
+var dither_view: texture_2d<f32>;
+@group(3) @binding(3)
+var dither_sampler: sampler;
 
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
@@ -80,6 +84,17 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let cluster = clusters[cluster_index];
     let count = min(cluster.count, 100u);
 
+    let ndc = input.view_position.xyz ;
+    let screen_space = ndc.xy * 0.5 + 0.5;
+
+    let pixel_coords = vec2<u32>(screen_space * vec2<f32>(f32(resolution.x), f32(resolution.y)));
+    let textureDimensions = textureDimensions(dither_view).xy;
+
+    let x = pixel_coords.x % textureDimensions.x;
+    let y = pixel_coords.y % textureDimensions.y ;
+
+    let dither = (textureLoad(dither_view, vec2<u32>(x,y), 0).x - 0.5) * 1.0;
+
     for (var i: u32 = 0; i < count; i++) {
         let light_idx = cluster.lightIndices[i];
         let light = lights[light_idx];
@@ -98,7 +113,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         let NdotL = max(dot(N, L_dir), 0.0);
         //let diffuse = light.color.rgb * NdotL * attenuation;
 
-        let diffuse =  textureSample(gradient_texture, gradient_sampler,vec2<f32>(NdotL * attenuation,f32(light.index)/255.0) ).xyz;
+        let diffuse =  textureSample(gradient_texture, gradient_sampler,vec2<f32>(NdotL * attenuation + dither,f32(light.index)/255.0) ).xyz;
 
         // Specular (Blinn-Phong)
         let H = normalize(L_dir + V);
@@ -108,7 +123,9 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
         total_light += diffuse /*+ specular*/;
     }
 
-    return vec4<f32>(total_light.xyz , 1.0);
+    //return vec4<f32>(total_light.xyz , 1.0);
+    return vec4<f32>(vec3(total_light) , 1.0);
+    //return vec4<f32>(vec3<f32>(f32(screen_space.x) / 9,f32(screen_space.y) / 9,1.0) , 1.0);
     //return vec4<f32>(f32(u32((input.view_position.x + 1)  * 6.0)) / 12 ,f32(u32((input.view_position.y + 1) * 6.0)) / 12,f32(u32((input.view_position.z + 1) * 12.0)) / 24 , 1.0);
     //return vec4<f32>(f32(cluster_index) / f32(arrayLength(&clusters)), f32(cluster_index ) / f32( arrayLength(&clusters)), f32(cluster_index ) / f32( arrayLength(&clusters)), 1.0);
 }

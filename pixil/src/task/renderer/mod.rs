@@ -1,3 +1,4 @@
+use crate::color_palette::ColorPallet;
 use crate::comp::camera::ActivePixilCamera;
 use crate::comp::dynamic::PixilDynamicObjectData;
 use crate::comp::light::LightData;
@@ -34,7 +35,6 @@ use std::cell::{LazyCell, UnsafeCell};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Instant;
-use crate::color_palette::ColorPallet;
 
 #[repr(align(16))]
 struct Cluster {
@@ -47,7 +47,7 @@ pub static DYNAMIC_OBJECTS: RenderSet<(PixilDynamicObjectData)> = RenderSet::new
 pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet<LightData>> =
     LazyLock::new(|| OrderedSet::new(ReserveStrategy::Align(16)));
 
-pub static COLOR_PALLET: LazyLock<ColorPallet> = LazyLock::new(||{ColorPallet::new()});
+pub static COLOR_PALLET: LazyLock<ColorPallet> = LazyLock::new(|| ColorPallet::new());
 
 struct RenderPixilNode {
     object_view_bind_group: BindGroup,
@@ -117,11 +117,7 @@ impl RenderNode for RenderPixilNode {
                     &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_fragment,
                     &[],
                 );
-                render_pass.set_bind_group(
-                    3,
-                    i.material_bind_group,
-                    &[],
-                );
+                render_pass.set_bind_group(3, i.material_bind_group, &[]);
                 render_pass.set_vertex_buffer(0, i.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(i.index_buffer.slice(..), IndexFormat::Uint32);
                 render_pass.draw_indexed(0..*i.count, 0, 0..1);

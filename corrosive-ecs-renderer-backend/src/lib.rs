@@ -10,9 +10,9 @@ pub mod render_graph;
 mod slang;
 pub mod task;
 
+pub use image;
 pub use wgpu;
 pub use winit;
-pub use image;
 
 pub(crate) static mut STATE: Option<State> = None;
 

@@ -19,12 +19,12 @@ pub struct PixilRenderSettings {
 impl Default for PixilRenderSettings {
     fn default() -> Self {
         Self {
-            render_size: 320,
+            render_size: 160,
             texture: None,
             size_buffer: LazyCell::new(|| {
                 create_buffer_init(
                     "SizeBuffer",
-                    bytemuck::cast_slice(&[(360.0 / get_window_ratio()) as u32, 360u32]),
+                    bytemuck::cast_slice(&[(160.0 * get_window_ratio()) as u32, 160u32]),
                     BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 )
             }),
@@ -46,7 +46,7 @@ impl PixilRenderSettings {
             &self.size_buffer,
             0,
             bytemuck::cast_slice(&[
-                (self.render_size as f32 / get_window_ratio()) as u32,
+                (self.render_size as f32 * get_window_ratio()) as u32,
                 self.render_size,
             ]),
         );
@@ -57,7 +57,7 @@ impl PixilRenderSettings {
             let texture = get_device().create_texture(&TextureDescriptor {
                 label: Some("Proxy Render Texture"),
                 size: Extent3d {
-                    width: (self.render_size as f32 / get_window_ratio()) as u32,
+                    width: (self.render_size as f32 * get_window_ratio()) as u32,
                     height: self.render_size,
                     depth_or_array_layers: 1,
                 },

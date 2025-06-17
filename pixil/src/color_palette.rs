@@ -1,10 +1,13 @@
-use std::sync::Mutex;
 use corrosive_asset_manager_macro::{Asset, Cache};
 use corrosive_ecs_renderer_backend::color::Color;
-use corrosive_ecs_renderer_backend::public_functions::{create_sampler, create_texture, get_surface_format, write_texture};
+use corrosive_ecs_renderer_backend::public_functions::{
+    create_sampler, create_texture, get_surface_format, write_texture,
+};
 use corrosive_ecs_renderer_backend::wgpu;
-use corrosive_ecs_renderer_backend::wgpu::{Sampler, SamplerDescriptor, Texture, TextureView, TextureViewDescriptor};
-
+use corrosive_ecs_renderer_backend::wgpu::{
+    Sampler, SamplerDescriptor, Texture, TextureView, TextureViewDescriptor,
+};
+use std::sync::Mutex;
 
 #[derive(Default)]
 pub enum ColorTransition {
@@ -19,11 +22,12 @@ pub struct ColorRange {
     pub transition_type: ColorTransition,
 }
 #[derive(Asset, Cache)]
-pub struct ColorPallet {/*
+pub struct ColorPallet {
+    /*
     pub name: Option<&'static str>,
     pub colors: Vec<ColorRange>,
     pub len: usize,*/
-    data: Mutex<[u8;256 * 256 * 4]>,
+    data: Mutex<[u8; 256 * 256 * 4]>,
     pub(crate) texture: Texture,
     pub(crate) texture_view: TextureView,
     pub(crate) texture_sampler: Sampler,
@@ -31,7 +35,7 @@ pub struct ColorPallet {/*
 
 impl ColorPallet {
     pub fn new() -> Self {
-        let data = [0u8;256 * 256 * 4];
+        let data = [0u8; 256 * 256 * 4];
         let texture = create_texture(&wgpu::TextureDescriptor {
             label: Some("PalletTexture"),
             size: wgpu::Extent3d {
@@ -62,7 +66,7 @@ impl ColorPallet {
             },
         );
 
-        let texture_view = texture.create_view(&TextureViewDescriptor{
+        let texture_view = texture.create_view(&TextureViewDescriptor {
             label: Some("PalletTextureView"),
             ..Default::default()
         });
@@ -86,7 +90,7 @@ impl ColorPallet {
             data: Mutex::new(data),
             texture,
             texture_view,
-            texture_sampler:sampler
+            texture_sampler: sampler,
         }
     }
     pub fn set_palette(&self, row: u8, colors: Vec<ColorRange>) {
@@ -106,13 +110,13 @@ impl ColorPallet {
                         ColorTransition::CutOff => 1.0,
                         ColorTransition::Curve(v) => {
                             let u = 1.0 - t;
-                             u * u * u * v[0]
+                            u * u * u * v[0]
                                 + 3.0 * u * u * t * v[1]
                                 + 3.0 * u * t * t * v[2]
                                 + t * t * t * v[3]
                         }
                     };
-                    prev.mix(&seg.color,weight)
+                    prev.mix(&seg.color, weight)
                 };
                 let px = (seg_start + i) as usize;
                 write_px(&mut *data, px, row as usize, col);
@@ -134,10 +138,9 @@ impl ColorPallet {
             },
         );
     }
-
 }
 
-fn write_px(data: &mut[u8], x: usize, y: usize, c: Color) {
+fn write_px(data: &mut [u8], x: usize, y: usize, c: Color) {
     let idx = (y * 256 + x) * 4;
     let c = c.to_array_u8();
     data[idx + 0] = c[0];
