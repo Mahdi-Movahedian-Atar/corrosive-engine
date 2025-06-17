@@ -29,13 +29,13 @@ pub fn run_engine() {
     let o1: RwLock<Vec<(LockedRef<PixilCamera>, Member<PositionPixil>)>> = RwLock::new(Vec::new());
     let or1: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let la1: AtomicU8 = AtomicU8::new(0);
+    let r_Inputs: Res<Inputs> = Res::new(Default::default());
     let r_Renderer: Res<Renderer> = Res::new(Default::default());
+    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
     let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
+    let r_PixilRenderSettings: Res<PixilRenderSettings> = Res::new(Default::default());
     let r_EguiObject: Res<EguiObject> = Res::new(Default::default());
     let r_ActivePixilCamera: Res<ActivePixilCamera> = Res::new(Default::default());
-    let r_PixilRenderSettings: Res<PixilRenderSettings> = Res::new(Default::default());
-    let r_Inputs: Res<Inputs> = Res::new(Default::default());
-    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
     let h_PositionPixil: Hierarchy<PositionPixil> = Hierarchy::default();
     let mut loop_trigger = Trigger::new();
     let mut bus_update_camera = Trigger::new();
@@ -49,24 +49,20 @@ pub fn run_engine() {
         });
         if reset.load(SeqCst) {
             let mut bus_start_pixil_renderer = Trigger::new();
-            let mut bus_start_egui = Trigger::new();
             let mut bus_pixil_test = Trigger::new();
             let mut bus_run_renderer = Trigger::new();
             let mut bus_start_events = Trigger::new();
+            let mut bus_start_egui = Trigger::new();
             let mut start_pixil_renderer_end = bus_start_pixil_renderer.add_trigger();
             let mut start_pixil_renderer_run_renderer = bus_run_renderer.add_trigger();
-            let mut start_egui_end = bus_start_egui.add_trigger();
-            let mut start_egui_run_renderer = bus_run_renderer.add_trigger();
             let mut pixil_test_end = bus_pixil_test.add_trigger();
             let mut pixil_test_run_renderer = bus_run_renderer.add_trigger();
             let mut run_renderer_end = bus_run_renderer.add_trigger();
             let mut start_events_end = bus_start_events.add_trigger();
+            let mut start_egui_end = bus_start_egui.add_trigger();
+            let mut start_egui_run_renderer = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
-                let handle_start_events = s.spawn(|| {
-                    let o = start_events(r_WindowOptions.clone());
-                    bus_start_events.trigger();
-                });
                 let handle_start_pixil_renderer = s.spawn(|| {
                     start_pixil_renderer_run_renderer.read("failed");
                     let o = start_pixil_renderer(
@@ -84,6 +80,10 @@ pub fn run_engine() {
                         r_RenderGraph.clone(),
                     );
                     bus_run_renderer.trigger();
+                });
+                let handle_start_events = s.spawn(|| {
+                    let o = start_events(r_WindowOptions.clone());
+                    bus_start_events.trigger();
                 });
                 let handle_start_egui = s.spawn(|| {
                     start_egui_run_renderer.read("failed");
@@ -111,11 +111,11 @@ pub fn run_engine() {
                         .extend(o.1.vec.into_iter().map(|(m0, m1)| (m0, m1)));
                     bus_pixil_test.trigger();
                 });
-                handle_start_events.join().expect("TODO: panic message");
                 handle_start_pixil_renderer
                     .join()
                     .expect("TODO: panic message");
                 handle_run_renderer.join().expect("TODO: panic message");
+                handle_start_events.join().expect("TODO: panic message");
                 handle_start_egui.join().expect("TODO: panic message");
                 handle_pixil_test.join().expect("TODO: panic message");
             });

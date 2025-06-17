@@ -93,7 +93,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let x = pixel_coords.x % textureDimensions.x;
     let y = pixel_coords.y % textureDimensions.y ;
 
-    let dither = (textureLoad(dither_view, vec2<u32>(x,y), 0).x - 0.5) * 1.0;
+    let dither = (textureLoad(dither_view, vec2<u32>(x,y), 0).x - 0.5) * 0.3;
 
     for (var i: u32 = 0; i < count; i++) {
         let light_idx = cluster.lightIndices[i];

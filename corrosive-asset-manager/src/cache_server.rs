@@ -1,4 +1,4 @@
-use crate::asset_server::AssetValue;
+use crate::asset_server::{Asset, AssetServer, AssetValue};
 use crate::dynamic_hasher;
 use std::collections::HashMap;
 use std::env;
@@ -115,6 +115,18 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
             std::mem::transmute(&lock.values.get(&id)?)
         };
         Some(Cache { data: val, id })
+    }
+    pub fn get_or_add(
+        id: u64,
+        asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
+    ) -> Cache<T> {
+        CacheServer::get(id).unwrap_or(CacheServer::add(id, asset))
+    }
+    pub fn get_or_add_sync(
+        id: u64,
+        asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
+    ) -> Cache<T> {
+        CacheServer::get(id).unwrap_or(CacheServer::add_sync(id, asset))
     }
 }
 impl<T: Send + Sync + CacheObject + CacheFile> CacheServer<T> {

@@ -1,4 +1,5 @@
 use crate::comp::position_pixil::PositionPixil;
+use crate::helper_functions::transform_bind_group_layout;
 use crate::material::{PixilMaterial, PixilMaterialWrapper};
 use crate::mesh::{Mesh, Vertex};
 use crate::task::renderer::DYNAMIC_OBJECTS;
@@ -51,6 +52,7 @@ pub struct PixilDynamicObjectData {
 
 #[derive(Component)]
 pub struct PixilDynamicObject {
+    pub(crate) id: usize,
     pub mesh: Asset<Mesh>,
     pub(crate) material: Box<dyn PixilMaterialWrapper + Send + Sync>,
     pub(crate) transform_data: Buffer,
@@ -62,40 +64,9 @@ impl PixilDynamicObject {
         position_pixil: &Member<PositionPixil>,
         name: &str,
     ) -> Self {
-        /*let mesh = Mesh{
-            vertex_buffer: create_buffer_init(
-                    "Vertex Buffer",
-                    bytemuck::cast_slice(VERTICES),
-                    BufferUsages::VERTEX,
-            ),
-            index_buffer: create_buffer_init(
-                "Index Buffer",
-                bytemuck::cast_slice(&[0,1,2,0]),
-                BufferUsages::INDEX,
-            ),
-            index_count: 4,
-        };*/
-
         let material_ref = material.get();
 
-        let bind_group_layout: Cache<BindGroupLayoutAsset> =
-            CacheServer::add(static_hasher!("PixilTransformBindGroupLayout"), || {
-                Ok(BindGroupLayoutAsset {
-                    layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
-                        label: "PixilTransformBindGroupLayoutDescriptor".into(),
-                        entries: &[BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: ShaderStages::VERTEX_FRAGMENT,
-                            ty: BindingType::Buffer {
-                                ty: BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        }],
-                    }),
-                })
-            });
+        let bind_group_layout: Cache<BindGroupLayoutAsset> = transform_bind_group_layout();
 
         let transform_buffer = create_buffer_init(
             "PixilTransformBuffer",
@@ -116,24 +87,7 @@ impl PixilDynamicObject {
             }],
         );
 
-        /*let mut bundle =
-            get_device().create_render_bundle_encoder(&RenderBundleEncoderDescriptor {
-                label: name.into(),
-                color_formats: &[Option::from(get_surface_format())],
-                depth_stencil: None,
-                sample_count: 1,
-                multiview: None,
-            });
-        bundle.set_pipeline(material_ref.get_layout());
-        bundle.set_bind_group(0, &VIEW_DATA.bind_group, &[]);
-        bundle.set_bind_group(1, &transform_bind_group, &[]);
-        bundle.set_bind_group(2, &transform_bind_group, &[]);
-        bundle.set_vertex_buffer(0, mesh.get().vertex_buffer.slice(..));
-        bundle.set_index_buffer(mesh.get().index_buffer.slice(..), IndexFormat::Uint32);
-        bundle.draw_indexed(0..mesh.get().index_count, 0, 0..1);*/
-        //bundle.finish(&RenderBundleDescriptor { label: name.into() };
-
-        DYNAMIC_OBJECTS.add_enabled(PixilDynamicObjectData {
+        let id = DYNAMIC_OBJECTS.add_enabled(PixilDynamicObjectData {
             vertex_buffer: &mesh.get().vertex_buffer,
             index_buffer: &mesh.get().index_buffer,
             transform_bind_group,
@@ -143,9 +97,16 @@ impl PixilDynamicObject {
         });
 
         Self {
+            id,
             mesh,
             material: material_ref.generate_wrapper(material.clone()),
             transform_data: (transform_buffer),
         }
+    }
+}
+
+impl Drop for PixilDynamicObject {
+    fn drop(&mut self) {
+        DYNAMIC_OBJECTS.remove(self.id)
     }
 }

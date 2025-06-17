@@ -18,25 +18,25 @@ impl Default for Color {
 }
 
 impl Color {
-    pub fn from_hex(color: &str) -> Self{
+    pub fn from_hex(color: &str) -> Self {
         let mut hex_str = color;
-        if hex_str.starts_with('#'){
+        if hex_str.starts_with('#') {
             hex_str = &hex_str[1..];
         }
         let len = hex_str.len();
         match len {
-            6=>{
-                Color::RGB(u8::from_str_radix(&hex_str[0..2],16).unwrap_or(0) as f32 / 255.0,
-                           u8::from_str_radix(&hex_str[2..4],16).unwrap_or(0) as f32 / 255.0,
-                           u8::from_str_radix(&hex_str[4..6],16).unwrap_or(0) as f32 / 255.0,)
-            }
-            8=>{
-                Color::RGBA(u8::from_str_radix(&hex_str[0..2],16).unwrap_or(0) as f32 / 255.0,
-                           u8::from_str_radix(&hex_str[2..4],16).unwrap_or(0) as f32 / 255.0,
-                           u8::from_str_radix(&hex_str[4..6],16).unwrap_or(0) as f32 / 255.0,
-                           u8::from_str_radix(&hex_str[6..8],16).unwrap_or(0) as f32 / 255.0,)
-            }
-            _=>Color::RGB(0.0,0.0,0.0)
+            6 => Color::RGB(
+                u8::from_str_radix(&hex_str[0..2], 16).unwrap_or(0) as f32 / 255.0,
+                u8::from_str_radix(&hex_str[2..4], 16).unwrap_or(0) as f32 / 255.0,
+                u8::from_str_radix(&hex_str[4..6], 16).unwrap_or(0) as f32 / 255.0,
+            ),
+            8 => Color::RGBA(
+                u8::from_str_radix(&hex_str[0..2], 16).unwrap_or(0) as f32 / 255.0,
+                u8::from_str_radix(&hex_str[2..4], 16).unwrap_or(0) as f32 / 255.0,
+                u8::from_str_radix(&hex_str[4..6], 16).unwrap_or(0) as f32 / 255.0,
+                u8::from_str_radix(&hex_str[6..8], 16).unwrap_or(0) as f32 / 255.0,
+            ),
+            _ => Color::RGB(0.0, 0.0, 0.0),
         }
     }
     pub fn to_rgba(&self) -> Self {

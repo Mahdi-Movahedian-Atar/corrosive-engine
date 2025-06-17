@@ -19,12 +19,12 @@ pub struct PixilRenderSettings {
 impl Default for PixilRenderSettings {
     fn default() -> Self {
         Self {
-            render_size: 160,
+            render_size: 320,
             texture: None,
             size_buffer: LazyCell::new(|| {
                 create_buffer_init(
                     "SizeBuffer",
-                    bytemuck::cast_slice(&[(160.0 * get_window_ratio()) as u32, 160u32]),
+                    bytemuck::cast_slice(&[(320.0 * get_window_ratio()) as u32, 320u32]),
                     BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 )
             }),

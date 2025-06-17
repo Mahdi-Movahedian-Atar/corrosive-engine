@@ -2,6 +2,7 @@ use corrosive_ecs_core_macro::corrosive_engine_builder;
 
 pub mod color_palette;
 pub mod comp;
+mod helper_functions;
 pub mod material;
 pub mod mesh;
 pub mod ordered_set;

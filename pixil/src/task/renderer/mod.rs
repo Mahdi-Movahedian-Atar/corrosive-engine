@@ -3,6 +3,7 @@ use crate::comp::camera::ActivePixilCamera;
 use crate::comp::dynamic::PixilDynamicObjectData;
 use crate::comp::light::LightData;
 use crate::comp::render::PixilRenderSettings;
+use crate::helper_functions::view_bind_group_layout;
 use crate::ordered_set::{OrderedSet, ReserveStrategy};
 use crate::render_set::RenderSet;
 use corrosive_asset_manager::cache_server::{Cache, CacheServer};
@@ -547,66 +548,7 @@ pub fn start_pixil_renderer(
 
     //object
 
-    let view_layout: Cache<BindGroupLayoutAsset> =
-        CacheServer::add(static_hasher!("ViewBindGroupLayout"), || {
-            Ok(BindGroupLayoutAsset {
-                layout: create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: "PixilViewBindGroupLayout".into(),
-                    entries: &[
-                        BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: ShaderStages::FRAGMENT,
-                            ty: BindingType::Buffer {
-                                ty: BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: ShaderStages::VERTEX_FRAGMENT,
-                            ty: BindingType::Buffer {
-                                ty: BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 2,
-                            visibility: ShaderStages::VERTEX_FRAGMENT,
-                            ty: BindingType::Buffer {
-                                ty: BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 3,
-                            visibility: ShaderStages::VERTEX_FRAGMENT,
-                            ty: BindingType::Buffer {
-                                ty: BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 4,
-                            visibility: ShaderStages::VERTEX_FRAGMENT,
-                            ty: BindingType::Buffer {
-                                ty: BufferBindingType::Storage { read_only: true },
-                                has_dynamic_offset: false,
-                                min_binding_size: None,
-                            },
-                            count: None,
-                        },
-                    ],
-                }),
-            })
-        });
+    let view_layout: Cache<BindGroupLayoutAsset> = view_bind_group_layout();
 
     let render_setting_clone = render_setting.clone();
 

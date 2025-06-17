@@ -143,6 +143,18 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
             id,
         })
     }
+    pub fn get_or_add(
+        id: u64,
+        asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
+    ) -> Asset<T> {
+        AssetServer::get(id).unwrap_or(AssetServer::add(id, asset))
+    }
+    pub fn get_or_add_sync(
+        id: u64,
+        asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
+    ) -> Asset<T> {
+        AssetServer::get(id).unwrap_or(AssetServer::add_sync(id, asset))
+    }
 }
 impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {
     pub fn load(file_path: &str) -> Asset<T> {
