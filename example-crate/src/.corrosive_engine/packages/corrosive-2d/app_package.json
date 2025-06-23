@@ -3,17 +3,17 @@
   "path": "./src",
   "setup_dependency": {
     "dependents": {
-      "Task(run_renderer)": [
-        "Task(start_2d_renderer)"
-      ],
       "Task(init_camera)": [
         "Task(run_renderer)"
+      ],
+      "Task(run_renderer)": [
+        "Task(start_2d_renderer)"
       ],
       "Task(start_2d_renderer)": []
     },
     "in_degrees": {
-      "Task(init_camera)": 0,
       "Task(run_renderer)": 1,
+      "Task(init_camera)": 0,
       "Task(start_2d_renderer)": 1
     }
   },
@@ -23,8 +23,8 @@
       "Task(render_2d)": []
     },
     "in_degrees": {
-      "Task(render_2d)": 0,
-      "Task(update_position)": 0
+      "Task(update_position)": 0,
+      "Task(render_2d)": 0
     }
   },
   "sync_dependency": {
@@ -32,10 +32,6 @@
     "in_degrees": {}
   },
   "tasks": {
-    "update_position": [
-      "Update",
-      null
-    ],
     "render_2d": [
       "Update",
       null
@@ -46,6 +42,10 @@
     ],
     "init_camera": [
       "Setup",
+      null
+    ],
+    "update_position": [
+      "Update",
       null
     ]
   },

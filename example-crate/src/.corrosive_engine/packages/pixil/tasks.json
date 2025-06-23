@@ -52,6 +52,25 @@
             }
           ],
           "outputs": []
+        },
+        {
+          "name": "update_pixil_position",
+          "inputs": [
+            {
+              "Arch": [
+                "pixil_dynamic_object",
+                [
+                  {
+                    "Normal": "PixilDynamicObject"
+                  },
+                  {
+                    "Normal": "Member<PositionPixil>"
+                  }
+                ]
+              ]
+            }
+          ],
+          "outputs": []
         }
       ]
     }

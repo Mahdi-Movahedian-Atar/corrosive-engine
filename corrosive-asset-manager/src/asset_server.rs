@@ -132,7 +132,7 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
         let (val, ref_count) = unsafe {
             let lock = binding.lock().unwrap();
             (
-                std::mem::transmute(&lock.values.get(&id)?),
+                std::mem::transmute(&*lock.values.get(&id)?),
                 std::mem::transmute(&lock.references[&id]),
             )
         };
@@ -147,13 +147,15 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Asset<T> {
-        AssetServer::get(id).unwrap_or(AssetServer::add(id, asset))
+        if let Some(t) = AssetServer::get(id){return t};
+        AssetServer::add(id, asset)
     }
     pub fn get_or_add_sync(
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Asset<T> {
-        AssetServer::get(id).unwrap_or(AssetServer::add_sync(id, asset))
+        if let Some(t) = AssetServer::get(id){return t};
+        AssetServer::add_sync(id, asset)
     }
 }
 impl<T: Send + Sync + AssetObject + AssetFile> AssetServer<T> {

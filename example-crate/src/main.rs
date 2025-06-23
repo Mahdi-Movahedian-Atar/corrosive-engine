@@ -38,6 +38,7 @@ corrosive_engine_builder!(
     setup "pixil_test" after "run_renderer",
     //setup "test2_0" after "run_renderer",
     //update "move_camera"
+    update "rotate_model"
 );
 
 fn main() {

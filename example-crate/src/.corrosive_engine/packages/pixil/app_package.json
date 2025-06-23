@@ -9,15 +9,17 @@
       ]
     },
     "in_degrees": {
-      "Task(run_renderer)": 1,
-      "Task(start_pixil_renderer)": 0
+      "Task(start_pixil_renderer)": 0,
+      "Task(run_renderer)": 1
     }
   },
   "runtime_dependency": {
     "dependents": {
+      "Task(update_pixil_position)": [],
       "Task(update_camera)": []
     },
     "in_degrees": {
+      "Task(update_pixil_position)": 0,
       "Task(update_camera)": 0
     }
   },
@@ -26,12 +28,16 @@
     "in_degrees": {}
   },
   "tasks": {
-    "start_pixil_renderer": [
-      "Setup",
-      null
-    ],
     "update_camera": [
       "Update",
+      null
+    ],
+    "update_pixil_position": [
+      "Update",
+      null
+    ],
+    "start_pixil_renderer": [
+      "Setup",
       null
     ]
   },

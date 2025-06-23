@@ -1,14 +1,14 @@
 use crate::color_palette::ColorPallet;
 use crate::comp::camera::ActivePixilCamera;
-use crate::comp::dynamic::PixilDynamicObjectData;
-use crate::comp::light::LightData;
+use crate::comp::dynamic::{PixilDynamicObject, PixilDynamicObjectData};
+use crate::comp::light::point_light::PointLightData;
 use crate::comp::render::PixilRenderSettings;
 use crate::helper_functions::view_bind_group_layout;
-use crate::ordered_set::{OrderedSet, ReserveStrategy};
+use crate::light_set::OrderedSet;
 use crate::render_set::RenderSet;
 use corrosive_asset_manager::cache_server::{Cache, CacheServer};
 use corrosive_asset_manager_macro::static_hasher;
-use corrosive_ecs_core::ecs_core::Res;
+use corrosive_ecs_core::ecs_core::{Arch, Member, Reference, Res};
 use corrosive_ecs_core_macro::task;
 use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
 use corrosive_ecs_renderer_backend::comp::{RenderGraph, WindowOptions};
@@ -36,6 +36,7 @@ use std::cell::{LazyCell, UnsafeCell};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Instant;
+use crate::comp::position_pixil::PositionPixil;
 
 #[repr(align(16))]
 struct Cluster {
@@ -45,8 +46,8 @@ struct Cluster {
     light_indices: [u32; 100],
 }
 pub static DYNAMIC_OBJECTS: RenderSet<(PixilDynamicObjectData)> = RenderSet::new();
-pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet<LightData>> =
-    LazyLock::new(|| OrderedSet::new(ReserveStrategy::Align(16)));
+pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet> =
+    LazyLock::new(|| OrderedSet::new());
 
 pub static COLOR_PALLET: LazyLock<ColorPallet> = LazyLock::new(|| ColorPallet::new());
 
@@ -521,29 +522,29 @@ pub fn start_pixil_renderer(
 
     //test
 
-    DYNAMIC_LIGHTS.add(LightData {
+    DYNAMIC_LIGHTS.add_point_light(PointLightData {
         position: [-1.0, 0.0, 0.0, 1.0],
-        color: [1.0, 0.0, 0.0, 1.0],
         radius: 2.0,
         intensity: 1.0,
         color_index: 0,
-        _pad: 0.0,
+        shade_mask: 0,
+        cast_shadow_mask: 0,
     });
-    DYNAMIC_LIGHTS.add(LightData {
+    DYNAMIC_LIGHTS.add_point_light(PointLightData {
         position: [1.0, 0.0, 0.0, 1.0],
-        color: [0.0, 1.0, 0.0, 1.0],
         radius: 2.0,
         intensity: 1.0,
         color_index: 1,
-        _pad: 0.0,
+        shade_mask: 0,
+        cast_shadow_mask: 0,
     });
-    DYNAMIC_LIGHTS.add(LightData {
+    DYNAMIC_LIGHTS.add_point_light(PointLightData {
         position: [0.0, 0.0, 2.0, 1.0],
-        color: [0.0, 0.0, 1.0, 1.0],
         radius: 2.0,
         intensity: 1.0,
         color_index: 2,
-        _pad: 0.0,
+        shade_mask: 0,
+        cast_shadow_mask: 0,
     });
 
     //object
@@ -608,4 +609,16 @@ pub fn update_camera(
 ) {
     let active_camera = active_camera.f_read();
     active_camera.update_view_matrix();
+}
+#[task]
+pub fn update_pixil_position(pixil_dynamic_object: Arch<(&PixilDynamicObject, &Member<PositionPixil>)>){
+    for (k,(i,j)) in pixil_dynamic_object.iter().enumerate() {
+        let mut lock = j.dry_f_write();
+        if let Reference::Some(t) = &mut *lock{
+            if t.dirty{
+                write_to_buffer(&i.transform_data,0,bytemuck::bytes_of(&t.uniform()));
+                t.dirty = false;
+            }
+        }else { pixil_dynamic_object.remove(k) }
+    }
 }

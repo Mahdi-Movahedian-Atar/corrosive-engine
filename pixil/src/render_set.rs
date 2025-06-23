@@ -114,16 +114,16 @@ impl<T> RenderSet<T> {
         }
     }
     pub(crate) fn add_enabled(&self, data: T) -> usize {
-        let data = &mut *self.data.lock().unwrap();
-        data.latest += 1;
-        data.enabled.insert(data.latest, data);
-        data.latest
+        let d = &mut *self.data.lock().unwrap();
+        d.latest += 1;
+        d.enabled.insert(d.latest, data);
+        d.latest
     }
     pub(crate) fn add_disabled(&self, data: T) -> usize {
-        let data = &mut *self.data.lock().unwrap();
-        data.latest += 1;
-        data.disabled.insert(data.latest, data);
-        data.latest
+        let d = &mut *self.data.lock().unwrap();
+        d.latest += 1;
+        d.disabled.insert(d.latest, data);
+        d.latest
     }
     pub(crate) fn remove(&self, id: usize) {
         let mut data = self.data.lock().unwrap();

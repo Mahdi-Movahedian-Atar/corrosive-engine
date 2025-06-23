@@ -5,7 +5,7 @@ pub mod comp;
 mod helper_functions;
 pub mod material;
 pub mod mesh;
-pub mod ordered_set;
+pub mod light_set;
 pub mod position_operations;
 pub mod render_set;
 pub mod task;
@@ -16,4 +16,5 @@ pub use glam;
 corrosive_engine_builder! {
     setup "start_pixil_renderer" after "run_renderer",
     update "update_camera",
+    update "update_pixil_position"
 }

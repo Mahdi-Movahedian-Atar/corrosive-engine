@@ -79,6 +79,28 @@
       ]
     },
     {
+      "name": "rotate_model",
+      "inputs": [
+        {
+          "Arch": [
+            "r",
+            [
+              {
+                "Normal": "PixilDynamicObject"
+              },
+              {
+                "Normal": "Member<PositionPixil>"
+              }
+            ]
+          ]
+        },
+        {
+          "DeltaTime": "delta_time"
+        }
+      ],
+      "outputs": []
+    },
+    {
       "name": "test2_0",
       "inputs": [
         {

@@ -112,7 +112,7 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
         let binding = T::get_server();
         let val = unsafe {
             let lock = binding.lock().unwrap();
-            std::mem::transmute(&lock.values.get(&id)?)
+            std::mem::transmute(&*lock.values.get(&id)?)
         };
         Some(Cache { data: val, id })
     }
@@ -120,13 +120,15 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Cache<T> {
-        CacheServer::get(id).unwrap_or(CacheServer::add(id, asset))
+        if let Some(t) = CacheServer::get(id) {return t}
+        CacheServer::add(id, asset)
     }
     pub fn get_or_add_sync(
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Cache<T> {
-        CacheServer::get(id).unwrap_or(CacheServer::add_sync(id, asset))
+        if let Some(t) = CacheServer::get(id) {return t}
+        CacheServer::add_sync(id, asset)
     }
 }
 impl<T: Send + Sync + CacheObject + CacheFile> CacheServer<T> {

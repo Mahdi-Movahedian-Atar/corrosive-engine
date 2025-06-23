@@ -1,6 +1,6 @@
 use crate::comp::position_pixil::PositionPixil;
 use corrosive_ecs_core::ecs_core::{Member, Reference};
-use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
+use glam::{quat, Mat4, Quat, Vec2, Vec3, Vec4};
 use std::ops::Add;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
@@ -520,11 +520,11 @@ enum Step {
 impl<'a> MovePixil<'a> {
     pub fn start(member: &'a Member<PositionPixil>) -> Self {
         let mut lock = member.dry_f_write();
-        if lock.is_expired() {
+        if !lock.is_expired() {
             Self {
                 member,
                 step: Step::Local,
-                lock: Lock::Lock(member.dry_f_write()),
+                lock: Lock::Lock(lock),
             }
         } else {
             Self {
@@ -565,8 +565,9 @@ impl<'a> MovePixil<'a> {
     }
     pub fn set_rotation_global(mut self, angles: Quat) -> Self {
         match self.step {
-            Step::Global((_, mut r, _)) => {
+            Step::Global((s, mut r, p)) => {
                 r = angles;
+                self.step = Step::Global((s,r,p));
                 self
             }
             Step::Local => {
@@ -579,8 +580,8 @@ impl<'a> MovePixil<'a> {
     pub fn rotate_around_local(mut self, angle: f32, axis: Vec3) -> Self {
         match self.step {
             Step::Local => {
-                let mut r = &self.lock.unwrap().rotation;
-                r = &r.add(Quat::from_axis_angle(axis, angle));
+                let mut r = self.lock.unwrap().rotation;
+                self.lock.unwrap().rotation = r * Quat::from_axis_angle(axis, angle);
                 self
             }
             Step::Global(..) => {
@@ -592,8 +593,9 @@ impl<'a> MovePixil<'a> {
     }
     pub fn rotate_around_global(mut self, angle: f32, axis: Vec3) -> Self {
         match self.step {
-            Step::Global((_, mut r, _)) => {
-                r = r.add(Quat::from_axis_angle(axis, angle));
+            Step::Global((s, mut r, p)) => {
+                r = r * Quat::from_axis_angle(axis, angle);
+                self.step = Step::Global((s,r,p));
                 self
             }
             Step::Local => {
@@ -644,8 +646,9 @@ impl<'a> MovePixil<'a> {
     }
     pub fn set_transition_global(mut self, position: Vec3) -> Self {
         match self.step {
-            Step::Global((_, _, mut p)) => {
+            Step::Global((s, r, mut p)) => {
                 p = position;
+                self.step = Step::Global((s,r,p));
                 self
             }
             Step::Local => {
@@ -670,8 +673,9 @@ impl<'a> MovePixil<'a> {
     }
     pub fn transition_global(mut self, position: Vec3) -> Self {
         match self.step {
-            Step::Global((_, _, mut p)) => {
+            Step::Global((s, r, mut p)) => {
                 p += position;
+                self.step = Step::Global((s,r,p));
                 self
             }
             Step::Local => {
@@ -697,8 +701,9 @@ impl<'a> MovePixil<'a> {
     }
     pub fn set_scale_global(mut self, scale: Vec3) -> Self {
         match self.step {
-            Step::Global((mut s, _, _)) => {
+            Step::Global((mut s, r, p)) => {
                 s = scale;
+                self.step = Step::Global((s,r,p));
                 self
             }
             Step::Local => {
@@ -723,8 +728,9 @@ impl<'a> MovePixil<'a> {
     }
     pub fn scale_global(mut self, scale: Vec3) -> Self {
         match self.step {
-            Step::Global((mut s, _, _)) => {
+            Step::Global((mut s, r, p)) => {
                 s += scale;
+                self.step = Step::Global((s,r,p));
                 self
             }
             Step::Local => {
@@ -743,7 +749,8 @@ impl<'a> MovePixil<'a> {
                 let s = self.lock.unwrap();
                 let parents_transform = match self.member.get_parent() {
                     None => {
-                        self.step = Step::Global(s.global.to_scale_rotation_translation());
+                        s.global = Mat4::from_scale_rotation_translation(s.scale, s.rotation, s.position);
+                        self.step = Step::Global((s.scale, s.rotation, s.position));
                         return;
                     }
                     Some(v) => match &*v.f_read() {
@@ -754,7 +761,9 @@ impl<'a> MovePixil<'a> {
                         }
                     },
                 };
-                Step::Global(
+                s.global = parents_transform
+                    * Mat4::from_scale_rotation_translation(s.scale, s.rotation, s.position);
+                self.step = Step::Global(
                     (parents_transform
                         * Mat4::from_scale_rotation_translation(s.scale, s.rotation, s.position))
                     .to_scale_rotation_translation(),

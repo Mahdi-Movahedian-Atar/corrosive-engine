@@ -25,6 +25,7 @@ use pixil::comp::dynamic::PixilDynamicObject;
 use pixil::comp::position_pixil::PositionPixil;
 use pixil::glam::{Quat, Vec3};
 use pixil::material::{PixilDefaultMaterial, PixilMaterial};
+use pixil::position_operations::MovePixil;
 use pixil::task::renderer::COLOR_PALLET;
 use rand::Rng;
 use std::iter::Map;
@@ -99,8 +100,8 @@ pub fn pixil_test(
                 transition_type: Default::default(),
             },
         ],
-    );*/
-    /*COLOR_PALLET.set_palette(
+    );
+    COLOR_PALLET.set_palette(
         2,
         vec![
             ColorRange {
@@ -150,6 +151,14 @@ pub fn pixil_test(
     r2.add((c, b));
 
     (r, r2)
+}
+#[task]
+pub fn rotate_model(r: Arch<(&PixilDynamicObject, &Member<PositionPixil>)>, delta_time: DeltaTime) {
+    for i in r.iter() {
+        MovePixil::start(i.1)
+            .rotate_around_global((1.0 * delta_time) as f32, Vec3::Y)
+            .finish();
+    }
 }
 #[task]
 pub fn test2_0(

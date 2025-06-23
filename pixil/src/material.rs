@@ -57,7 +57,7 @@ impl PixilMaterial for PixilDefaultMaterial {
             AssetServer::load("assets/packages/pixil/default_dither_pattern.png");
         let material_bind_group_layout =
             CacheServer::get_or_add(static_hasher!("DefaultMaterialBindGroupLayout"), || {
-                Ok(create_bind_group_layout(&BindGroupLayoutDescriptor {
+                Ok(BindGroupLayoutAsset{ layout: ( create_bind_group_layout(&BindGroupLayoutDescriptor {
                     label: "PixilDefaultMaterialBindGroupLayoutDescriptor".into(),
                     entries: &[
                         BindGroupLayoutEntry {
@@ -93,7 +93,7 @@ impl PixilMaterial for PixilDefaultMaterial {
                             count: None,
                         },
                     ],
-                }))
+                }))})
             });
 
         let dither_view = pattern_asset
@@ -120,7 +120,7 @@ impl PixilMaterial for PixilDefaultMaterial {
 
         let bind_group = create_bind_group(
             "PixilDefaultMaterialBindGroup",
-            &material_bind_group_layout.get(),
+            &material_bind_group_layout.get().layout,
             &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -169,7 +169,7 @@ impl PixilMaterial for PixilDefaultMaterial {
                                     .lock()
                                     .unwrap()
                                     .bind_group_fragment_layout,
-                                &material_bind_group_layout.get(),
+                                &material_bind_group_layout.get().layout,
                             ],
                             push_constant_ranges: &[],
                         })),
