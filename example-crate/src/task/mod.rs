@@ -81,7 +81,7 @@ pub fn pixil_test(
             },*/
         ],
     );
-    /*COLOR_PALLET.set_palette(
+    COLOR_PALLET.set_palette(
         1,
         vec![
             ColorRange {
@@ -120,7 +120,7 @@ pub fn pixil_test(
                 transition_type: Default::default(),
             },
         ],
-    );*/
+    );
 
     let a = h.new_entry(PositionPixil::new(
         Vec3::new(0.0, -1.0, -1.0),
@@ -132,11 +132,7 @@ pub fn pixil_test(
         Quat::IDENTITY,
         Vec3::new(1.0, 1.0, 1.0),
     ));
-    let c = LockedRef::new(PixilCamera {
-        fov: 120.0_f32.to_radians(),
-        near: 0.01,
-        far: 100.0,
-    });
+    let c = LockedRef::new(PixilCamera::new(120.0_f32.to_radians(), 0.1, 100.0));
     ac.f_write().new(&b, &c);
 
     r.add((

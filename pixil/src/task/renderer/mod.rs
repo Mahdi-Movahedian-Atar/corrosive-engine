@@ -35,7 +35,9 @@ use glam::Vec4;
 use std::cell::{LazyCell, UnsafeCell};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::atomic::Ordering;
 use std::time::Instant;
+use crate::comp::light::spot_light::SpotLightData;
 use crate::comp::position_pixil::PositionPixil;
 
 #[repr(align(16))]
@@ -62,6 +64,7 @@ struct RenderPixilNode {
     light_bind_group: BindGroup,
     lights_pipeline: ComputePipeline,
     render_settings: Res<PixilRenderSettings>,
+    acrive_camera: Res<ActivePixilCamera>,
 }
 impl RenderNode for RenderPixilNode {
     fn name(&self) -> &str {
@@ -77,14 +80,22 @@ impl RenderNode for RenderPixilNode {
         depth_view: &TextureView,
     ) {
         {
+
+            let size = self.render_settings.f_write().grid_size;
+
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("Pixil Compute Pass"),
                 timestamp_writes: None,
             });
-            compute_pass.set_pipeline(&self.cluster_pipeline);
-            compute_pass.set_bind_group(0, &self.cluster_bind_group, &[]);
-            let size = self.render_settings.f_write().grid_size;
-            compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
+            {
+                let lock = self.acrive_camera.f_read();
+                if lock.has_updated.load(Ordering::Relaxed) {
+                    lock.update_camera_data();
+                    compute_pass.set_pipeline(&self.cluster_pipeline);
+                    compute_pass.set_bind_group(0, &self.cluster_bind_group, &[]);
+                    compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
+                }
+            }
 
             compute_pass.set_pipeline(&self.lights_pipeline);
             compute_pass.set_bind_group(0, &self.light_bind_group, &[]);
@@ -538,14 +549,24 @@ pub fn start_pixil_renderer(
         shade_mask: 0,
         cast_shadow_mask: 0,
     });
-    DYNAMIC_LIGHTS.add_point_light(PointLightData {
-        position: [0.0, 0.0, 2.0, 1.0],
-        radius: 2.0,
-        intensity: 1.0,
-        color_index: 2,
-        shade_mask: 0,
-        cast_shadow_mask: 0,
+    DYNAMIC_LIGHTS.add_spot_light(SpotLightData {
+        position: [0.0, 0.0, 1.0,1.0],               // Origin
+        direction: [0.0, 0.0, -1.0,0.0],              // Pointing in +Z direction
+        radius: 2.0,                               // Light intensity
+        color_index: 2,                          // Index in color palette
+        inner_angle: std::f32::consts::FRAC_PI_6, // 30 degrees
+        outer_angle: std::f32::consts::FRAC_PI_4, // 45 degrees
+        attenuation: [1.0, 0.5, 0.1,5.0],         // Required for 16-byte alignment
     });
+    /*DYNAMIC_LIGHTS.add_spot_light(SpotLightData{
+        position: [0.0,0.0,0.0,1.0],
+        direction: [0.0,0.0,1.0,0.0],
+        radius: 1.0,                              // Light intensity
+        color_index: 2,                          // Index in color palette
+        inner_angle: std::f32::consts::FRAC_PI_6, // 30 degrees
+        outer_angle: std::f32::consts::FRAC_PI_2,
+        attenuation: [1.0, 0.0, 0.1,1.0],
+    });*/
 
     //object
 
@@ -585,6 +606,13 @@ pub fn start_pixil_renderer(
                 },
                 BindGroupEntry {
                     binding: 4,
+                    resource: active_pixil_camera
+                        .f_read()
+                        .z_params_buffer
+                        .as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 5,
                     resource: cluster_buffer.as_entire_binding(),
                 },
             ],
@@ -598,6 +626,7 @@ pub fn start_pixil_renderer(
         cluster_buffer,
         lights_pipeline,
         light_bind_group,
+        acrive_camera: active_pixil_camera.clone(),
     }));
     graph.f_write().prepare();
 }
@@ -608,7 +637,15 @@ pub fn update_camera(
     renderer_settings: Res<PixilRenderSettings>,
 ) {
     let active_camera = active_camera.f_read();
-    active_camera.update_view_matrix();
+    if let Some(t)= &active_camera.data {
+        if let Reference::Some(t) = &mut *t.camera.f_write(){
+            if t.has_updated{
+                t.has_updated = false;
+                active_camera.has_updated.store(true,Ordering::Relaxed);
+            }
+        }
+    }
+    active_camera.update_view_matrix()
 }
 #[task]
 pub fn update_pixil_position(pixil_dynamic_object: Arch<(&PixilDynamicObject, &Member<PositionPixil>)>){

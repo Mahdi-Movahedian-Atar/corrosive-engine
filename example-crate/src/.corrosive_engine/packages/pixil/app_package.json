@@ -3,10 +3,10 @@
   "path": "./src",
   "setup_dependency": {
     "dependents": {
-      "Task(run_renderer)": [],
       "Task(start_pixil_renderer)": [
         "Task(run_renderer)"
-      ]
+      ],
+      "Task(run_renderer)": []
     },
     "in_degrees": {
       "Task(start_pixil_renderer)": 0,
@@ -19,8 +19,8 @@
       "Task(update_camera)": []
     },
     "in_degrees": {
-      "Task(update_pixil_position)": 0,
-      "Task(update_camera)": 0
+      "Task(update_camera)": 0,
+      "Task(update_pixil_position)": 0
     }
   },
   "sync_dependency": {
@@ -28,16 +28,16 @@
     "in_degrees": {}
   },
   "tasks": {
-    "update_camera": [
-      "Update",
-      null
-    ],
     "update_pixil_position": [
       "Update",
       null
     ],
     "start_pixil_renderer": [
       "Setup",
+      null
+    ],
+    "update_camera": [
+      "Update",
       null
     ]
   },
