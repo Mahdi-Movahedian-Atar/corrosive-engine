@@ -29,33 +29,39 @@ pub fn run_engine() {
     let o1: RwLock<Vec<(LockedRef<PixilCamera>, Member<PositionPixil>)>> = RwLock::new(Vec::new());
     let or1: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
     let la1: AtomicU8 = AtomicU8::new(0);
-    let r_PixilRenderSettings: Res<PixilRenderSettings> = Res::new(Default::default());
-    let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
+    let a2: RwLock<Vec<(Locked<DirectionalLight>, Member<PositionPixil>)>> =
+        RwLock::new(Vec::new());
+    let o2: RwLock<Vec<(Locked<DirectionalLight>, Member<PositionPixil>)>> =
+        RwLock::new(Vec::new());
+    let or2: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
+    let la2: AtomicU8 = AtomicU8::new(0);
+    let a3: RwLock<Vec<(Locked<PointLight>, Member<PositionPixil>)>> = RwLock::new(Vec::new());
+    let o3: RwLock<Vec<(Locked<PointLight>, Member<PositionPixil>)>> = RwLock::new(Vec::new());
+    let or3: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
+    let la3: AtomicU8 = AtomicU8::new(0);
+    let a4: RwLock<Vec<(Locked<SpotLight>, Member<PositionPixil>)>> = RwLock::new(Vec::new());
+    let o4: RwLock<Vec<(Locked<SpotLight>, Member<PositionPixil>)>> = RwLock::new(Vec::new());
+    let or4: RwLock<HashSet<usize>> = RwLock::new(HashSet::new());
+    let la4: AtomicU8 = AtomicU8::new(0);
     let r_Inputs: Res<Inputs> = Res::new(Default::default());
-    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
+    let r_WindowOptions: Res<WindowOptions> = Res::new(Default::default());
     let r_Renderer: Res<Renderer> = Res::new(Default::default());
-    let r_ActivePixilCamera: Res<ActivePixilCamera> = Res::new(Default::default());
+    let r_RenderGraph: Res<RenderGraph> = Res::new(Default::default());
     let r_EguiObject: Res<EguiObject> = Res::new(Default::default());
+    let r_ActivePixilCamera: Res<ActivePixilCamera> = Res::new(Default::default());
+    let r_PixilRenderSettings: Res<PixilRenderSettings> = Res::new(Default::default());
     let h_PositionPixil: Hierarchy<PositionPixil> = Hierarchy::default();
     let mut loop_trigger = Trigger::new();
-    let mut bus_rotate_model = Trigger::new();
     let mut bus_update_camera = Trigger::new();
+    let mut bus_rotate_model = Trigger::new();
     let mut bus_update_pixil_position = Trigger::new();
-    let mut rotate_model_end = bus_rotate_model.add_trigger();
     let mut update_camera_end = bus_update_camera.add_trigger();
+    let mut rotate_model_end = bus_rotate_model.add_trigger();
     let mut update_pixil_position_end = bus_update_pixil_position.add_trigger();
-    let mut ut_update_pixil_position = loop_trigger.add_trigger();
     let mut ut_update_camera = loop_trigger.add_trigger();
     let mut ut_rotate_model = loop_trigger.add_trigger();
+    let mut ut_update_pixil_position = loop_trigger.add_trigger();
     thread::scope(|s: &Scope| {
-        s.spawn(|| loop {
-            ut_update_pixil_position.read("failed");
-            let o = update_pixil_position(Arch::new(&mut update_pixil_position0::new(
-                &*a0.read().unwrap(),
-                &or0,
-            )));
-            bus_update_pixil_position.trigger();
-        });
         s.spawn(|| loop {
             ut_update_camera.read("failed");
             let o = update_camera(r_ActivePixilCamera.clone(), r_PixilRenderSettings.clone());
@@ -69,34 +75,30 @@ pub fn run_engine() {
             );
             bus_rotate_model.trigger();
         });
+        s.spawn(|| loop {
+            ut_update_pixil_position.read("failed");
+            let o = update_pixil_position(Arch::new(&mut update_pixil_position0::new(
+                &*a0.read().unwrap(),
+                &or0,
+            )));
+            bus_update_pixil_position.trigger();
+        });
         if reset.load(SeqCst) {
             let mut bus_pixil_test = Trigger::new();
-            let mut bus_start_egui = Trigger::new();
-            let mut bus_run_renderer = Trigger::new();
             let mut bus_start_events = Trigger::new();
             let mut bus_start_pixil_renderer = Trigger::new();
+            let mut bus_run_renderer = Trigger::new();
+            let mut bus_start_egui = Trigger::new();
             let mut pixil_test_end = bus_pixil_test.add_trigger();
             let mut pixil_test_run_renderer = bus_run_renderer.add_trigger();
-            let mut start_egui_end = bus_start_egui.add_trigger();
-            let mut start_egui_run_renderer = bus_run_renderer.add_trigger();
-            let mut run_renderer_end = bus_run_renderer.add_trigger();
             let mut start_events_end = bus_start_events.add_trigger();
             let mut start_pixil_renderer_end = bus_start_pixil_renderer.add_trigger();
             let mut start_pixil_renderer_run_renderer = bus_run_renderer.add_trigger();
+            let mut run_renderer_end = bus_run_renderer.add_trigger();
+            let mut start_egui_end = bus_start_egui.add_trigger();
+            let mut start_egui_run_renderer = bus_run_renderer.add_trigger();
             thread::scope(|s: &Scope| {
                 reset.store(false, Ordering::SeqCst);
-                let handle_run_renderer = s.spawn(|| {
-                    let o = run_renderer(
-                        r_Renderer.clone(),
-                        r_WindowOptions.clone(),
-                        r_RenderGraph.clone(),
-                    );
-                    bus_run_renderer.trigger();
-                });
-                let handle_start_events = s.spawn(|| {
-                    let o = start_events(r_WindowOptions.clone());
-                    bus_start_events.trigger();
-                });
                 let handle_pixil_test = s.spawn(|| {
                     pixil_test_run_renderer.read("failed");
                     let o = pixil_test(
@@ -112,7 +114,27 @@ pub fn run_engine() {
                         .write()
                         .unwrap()
                         .extend(o.1.vec.into_iter().map(|(m0, m1)| (m0, m1)));
+                    (&o2)
+                        .write()
+                        .unwrap()
+                        .extend(o.2.vec.into_iter().map(|(m0, m1)| (m0, m1)));
+                    (&o3)
+                        .write()
+                        .unwrap()
+                        .extend(o.3.vec.into_iter().map(|(m0, m1)| (m0, m1)));
+                    (&o4)
+                        .write()
+                        .unwrap()
+                        .extend(o.4.vec.into_iter().map(|(m0, m1)| (m0, m1)));
                     bus_pixil_test.trigger();
+                });
+                let handle_run_renderer = s.spawn(|| {
+                    let o = run_renderer(
+                        r_Renderer.clone(),
+                        r_WindowOptions.clone(),
+                        r_RenderGraph.clone(),
+                    );
+                    bus_run_renderer.trigger();
                 });
                 let handle_start_egui = s.spawn(|| {
                     start_egui_run_renderer.read("failed");
@@ -133,13 +155,17 @@ pub fn run_engine() {
                     );
                     bus_start_pixil_renderer.trigger();
                 });
-                handle_run_renderer.join().expect("TODO: panic message");
-                handle_start_events.join().expect("TODO: panic message");
+                let handle_start_events = s.spawn(|| {
+                    let o = start_events(r_WindowOptions.clone());
+                    bus_start_events.trigger();
+                });
                 handle_pixil_test.join().expect("TODO: panic message");
+                handle_run_renderer.join().expect("TODO: panic message");
                 handle_start_egui.join().expect("TODO: panic message");
                 handle_start_pixil_renderer
                     .join()
                     .expect("TODO: panic message");
+                handle_start_events.join().expect("TODO: panic message");
             });
         }
         loop {
@@ -184,6 +210,66 @@ pub fn run_engine() {
                 }
                 write.extend(o1.write().unwrap().drain(..));
             });
+            let m_2 = s.spawn(|| {
+                if la2.load(Ordering::SeqCst) > 0 {
+                    return;
+                }
+                let mut write = a2.write().unwrap();
+                let vlen = write.len();
+                if vlen > 0 {
+                    let indices_to_remove = take(&mut *or2.write().unwrap());
+                    let mut new = Vec::with_capacity(vlen);
+                    for (i, mut item) in write.drain(..).enumerate() {
+                        if !indices_to_remove.contains(&i) {
+                            new.push(item);
+                            continue;
+                        }
+                        item.1.expire();
+                    }
+                    *write = new;
+                }
+                write.extend(o2.write().unwrap().drain(..));
+            });
+            let m_3 = s.spawn(|| {
+                if la3.load(Ordering::SeqCst) > 0 {
+                    return;
+                }
+                let mut write = a3.write().unwrap();
+                let vlen = write.len();
+                if vlen > 0 {
+                    let indices_to_remove = take(&mut *or3.write().unwrap());
+                    let mut new = Vec::with_capacity(vlen);
+                    for (i, mut item) in write.drain(..).enumerate() {
+                        if !indices_to_remove.contains(&i) {
+                            new.push(item);
+                            continue;
+                        }
+                        item.1.expire();
+                    }
+                    *write = new;
+                }
+                write.extend(o3.write().unwrap().drain(..));
+            });
+            let m_4 = s.spawn(|| {
+                if la4.load(Ordering::SeqCst) > 0 {
+                    return;
+                }
+                let mut write = a4.write().unwrap();
+                let vlen = write.len();
+                if vlen > 0 {
+                    let indices_to_remove = take(&mut *or4.write().unwrap());
+                    let mut new = Vec::with_capacity(vlen);
+                    for (i, mut item) in write.drain(..).enumerate() {
+                        if !indices_to_remove.contains(&i) {
+                            new.push(item);
+                            continue;
+                        }
+                        item.1.expire();
+                    }
+                    *write = new;
+                }
+                write.extend(o4.write().unwrap().drain(..));
+            });
             signals
                 .write()
                 .unwrap()
@@ -191,6 +277,9 @@ pub fn run_engine() {
             *o_signals.write().unwrap() = HashSet::new();
             m_0 . join () . expect ("Failed to update archetype of type -> [\"Member<PositionPixil>\", \"PixilDynamicObject\"]") ;
             m_1 . join () . expect ("Failed to update archetype of type -> [\"LockedRef<PixilCamera>\", \"Member<PositionPixil>\"]") ;
+            m_2 . join () . expect ("Failed to update archetype of type -> [\"Locked<DirectionalLight>\", \"Member<PositionPixil>\"]") ;
+            m_3 . join () . expect ("Failed to update archetype of type -> [\"Locked<PointLight>\", \"Member<PositionPixil>\"]") ;
+            m_4 . join () . expect ("Failed to update archetype of type -> [\"Locked<SpotLight>\", \"Member<PositionPixil>\"]") ;
             current_time = Instant::now();
             let new_current_time = current_time
                 .duration_since(last_time)
@@ -207,9 +296,9 @@ pub fn run_engine() {
             }
             let o = update_events(r_Inputs.clone());
             loop_trigger.trigger();
-            update_pixil_position_end.read("failed");
             update_camera_end.read("failed");
             rotate_model_end.read("failed");
+            update_pixil_position_end.read("failed");
         }
     });
 }

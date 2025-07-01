@@ -12,7 +12,7 @@ use std::cell::LazyCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
 
-#[derive(Component)]
+#[derive(Component,Debug)]
 pub struct PixilCamera {
     pub(crate) fov: f32,
     pub(crate) near: f32,

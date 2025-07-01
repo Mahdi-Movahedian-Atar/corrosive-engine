@@ -103,6 +103,12 @@ impl PixilDynamicObject {
             transform_data: (transform_buffer),
         }
     }
+    pub fn enable(&self){
+         DYNAMIC_OBJECTS.enable(self.id)
+    }
+    pub fn disable(&self){
+        DYNAMIC_OBJECTS.disable(self.id)
+    }
 }
 
 impl Drop for PixilDynamicObject {

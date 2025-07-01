@@ -37,6 +37,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::sync::atomic::Ordering;
 use std::time::Instant;
+use crate::comp::light::directional_light::DirectionalLightData;
 use crate::comp::light::spot_light::SpotLightData;
 use crate::comp::position_pixil::PositionPixil;
 
@@ -533,31 +534,29 @@ pub fn start_pixil_renderer(
 
     //test
 
-    DYNAMIC_LIGHTS.add_point_light(PointLightData {
+    /*DYNAMIC_LIGHTS.add_point_light(&PointLightData {
         position: [-1.0, 0.0, 0.0, 1.0],
-        radius: 2.0,
-        intensity: 1.0,
+        radius: 5.0,
+        attenuation: [1.0, 0.7, 4.0,2.0],
         color_index: 0,
         shade_mask: 0,
         cast_shadow_mask: 0,
-    });
-    DYNAMIC_LIGHTS.add_point_light(PointLightData {
-        position: [1.0, 0.0, 0.0, 1.0],
-        radius: 2.0,
-        intensity: 1.0,
+    });*/
+    /*DYNAMIC_LIGHTS.add_directional_light(&DirectionalLightData {
+        direction: [1.0, 0.0, 0.0, 1.0],
+        intensity:0.1,
         color_index: 1,
-        shade_mask: 0,
-        cast_shadow_mask: 0,
-    });
-    DYNAMIC_LIGHTS.add_spot_light(SpotLightData {
+        _padding: [0.0,0.0]
+    });*/
+    /*DYNAMIC_LIGHTS.add_spot_light(&SpotLightData {
         position: [0.0, 0.0, 1.0,1.0],               // Origin
         direction: [0.0, 0.0, -1.0,0.0],              // Pointing in +Z direction
-        radius: 2.0,                               // Light intensity
+        radius: 3.0,                               // Light intensity
         color_index: 2,                          // Index in color palette
         inner_angle: std::f32::consts::FRAC_PI_6, // 30 degrees
         outer_angle: std::f32::consts::FRAC_PI_4, // 45 degrees
-        attenuation: [1.0, 0.5, 0.1,5.0],         // Required for 16-byte alignment
-    });
+        attenuation: [0.1, 0.5, 1.0,5.0],         // Required for 16-byte alignment
+    });*/
     /*DYNAMIC_LIGHTS.add_spot_light(SpotLightData{
         position: [0.0,0.0,0.0,1.0],
         direction: [0.0,0.0,1.0,0.0],
@@ -640,6 +639,7 @@ pub fn update_camera(
     if let Some(t)= &active_camera.data {
         if let Reference::Some(t) = &mut *t.camera.f_write(){
             if t.has_updated{
+                println!("{:?}",t);
                 t.has_updated = false;
                 active_camera.has_updated.store(true,Ordering::Relaxed);
             }

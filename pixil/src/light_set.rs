@@ -10,13 +10,14 @@ use corrosive_ecs_renderer_backend::wgpu::{
 };
 use std::cmp::max;
 use std::sync::Mutex;
+use crate::comp::light::directional_light::DirectionalLightData;
 use crate::comp::light::point_light::PointLightData;
 use crate::comp::light::spot_light::SpotLightData;
 
 const POINT_LIGHT_SIZE: u32 = 8u32;
 const SPOT_LIGHT_SIZE: u32 = 8u32;
-const ARIAL_LIGHT_SIZE: u32 = 4u32;
 const DIRECTIONAL_LIGHT_SIZE: u32 = 2u32;
+const AMBIENT_LIGHT_SIZE: u32 = 2u32;
 
 pub(crate) struct DynamicLightSet {
     point_light_available_ids: Vec<u32>,
@@ -27,6 +28,10 @@ pub(crate) struct DynamicLightSet {
     spot_light_len: u32,
     spot_light_data: Buffer,
     spot_light_len_buffer: Buffer,
+    directional_light_available_ids: Vec<u32>,
+    directional_light_len: u32,
+    directional_light_data: Buffer,
+    directional_light_len_buffer: Buffer,
     pub(crate) bind_group_compute: BindGroup,
     pub(crate) bind_group_fragment: BindGroup,
     pub(crate) bind_group_compute_layout: BindGroupLayout,
@@ -52,12 +57,12 @@ impl DynamicLightSet {
         self.point_light_data = new_buffer;
         self.recreate_bind_groups();
     }
-    pub fn add_point_light(&mut self, data: PointLightData) -> u32 {
+    pub fn add_point_light(&mut self, data: &PointLightData) -> u32 {
         if let Some(id) = self.point_light_available_ids.pop() {
             write_to_buffer(
                 &self.point_light_data,
                 (id * (size_of::<PointLightData>() as u32)) as BufferAddress,
-                bytemuck::bytes_of(&data),
+                bytemuck::bytes_of(data),
             );
             if self.point_light_len <= id {
                 self.point_light_len = id + 1;
@@ -68,6 +73,13 @@ impl DynamicLightSet {
             self.allocate_point_light(self.point_light_len + 1);
             self.add_point_light(data)
         }
+    }
+    pub fn update_point_light(&mut self, data: &PointLightData, id:u32)  {
+            write_to_buffer(
+                &self.point_light_data,
+                (id * (size_of::<PointLightData>() as u32)) as BufferAddress,
+                bytemuck::bytes_of(data),
+            );
     }
     pub fn remove_point_light(&mut self, id: u32) {
         write_to_buffer(
@@ -100,12 +112,12 @@ impl DynamicLightSet {
         self.spot_light_data = new_buffer;
         self.recreate_bind_groups();
     }
-    pub fn add_spot_light(&mut self, data: SpotLightData) -> u32 {
+    pub fn add_spot_light(&mut self, data: &SpotLightData) -> u32 {
         if let Some(id) = self.spot_light_available_ids.pop() {
             write_to_buffer(
                 &self.spot_light_data,
                 (id * (size_of::<SpotLightData>() as u32)) as BufferAddress,
-                bytemuck::bytes_of(&data),
+                bytemuck::bytes_of(data),
             );
             if self.spot_light_len <= id {
                 self.spot_light_len = id + 1;
@@ -116,6 +128,13 @@ impl DynamicLightSet {
             self.allocate_point_light(self.spot_light_len + 1);
             self.add_spot_light(data)
         }
+    }
+    pub fn update_spot_light(&mut self, data: &SpotLightData, id: u32) {
+            write_to_buffer(
+                &self.spot_light_data,
+                (id * (size_of::<SpotLightData>() as u32)) as BufferAddress,
+                bytemuck::bytes_of(data),
+            );
     }
     pub fn remove_spot_light(&mut self, id: u32) {
         write_to_buffer(
@@ -128,6 +147,61 @@ impl DynamicLightSet {
             write_to_buffer(&self.spot_light_len_buffer, 0, bytemuck::bytes_of(&self.spot_light_len));
         }
         self.spot_light_available_ids.push(id);
+    }
+    pub fn allocate_directional_light(&mut self, size: u32) {
+        let mut size = max((size / DIRECTIONAL_LIGHT_SIZE + 1) *DIRECTIONAL_LIGHT_SIZE, 1);
+        for i in (self.directional_light_len..size).rev() {
+            self.directional_light_available_ids.push(i);
+        }
+        let new_buffer = get_device().create_buffer(&BufferDescriptor {
+            label: "DirectionalLightBuffer".into(),
+            size: (size * size_of::<DirectionalLightData>() as u32) as BufferAddress,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        write_to_buffer(
+            &new_buffer,
+            0,
+            self.directional_light_data.slice(..).get_mapped_range().to_vec().as_slice(),
+        );
+        self.directional_light_data = new_buffer;
+        self.recreate_bind_groups();
+    }
+    pub fn add_directional_light(&mut self, data: &DirectionalLightData) -> u32 {
+        if let Some(id) = self.directional_light_available_ids.pop() {
+            write_to_buffer(
+                &self.directional_light_data,
+                (id * (size_of::<DirectionalLightData>() as u32)) as BufferAddress,
+                bytemuck::bytes_of(data),
+            );
+            if self.directional_light_len <= id {
+                self.directional_light_len = id + 1;
+                write_to_buffer(&self.directional_light_len_buffer, 0, bytemuck::bytes_of(&self.directional_light_len));
+            }
+            id
+        } else {
+            self.allocate_directional_light(self.directional_light_len + 1);
+            self.add_directional_light(data)
+        }
+    }
+    pub fn update_directional_light(&mut self, data: &DirectionalLightData,id: u32) {
+            write_to_buffer(
+                &self.directional_light_data,
+                (id * (size_of::<DirectionalLightData>() as u32)) as BufferAddress,
+                bytemuck::bytes_of(data),
+            );
+    }
+    pub fn remove_directional_light(&mut self, id: u32) {
+        write_to_buffer(
+            &self.directional_light_data,
+            (id * size_of::<DirectionalLightData>() as u32) as BufferAddress,
+            vec![0u8; size_of::<DirectionalLightData>()].as_slice(),
+        );
+        if self.directional_light_len - 1 == id {
+            self.directional_light_len = id;
+            write_to_buffer(&self.directional_light_len_buffer, 0, bytemuck::bytes_of(&self.directional_light_len));
+        }
+        self.directional_light_available_ids.push(id);
     }
     pub fn new() -> Self {
         //point_light
@@ -154,6 +228,19 @@ impl DynamicLightSet {
         let spot_light_len_buffer = create_buffer_init(
             "SpotLightLen",
             bytemuck::bytes_of(&SPOT_LIGHT_SIZE),
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        );
+        //directional_light
+        let directional_light_vec: Vec<u32> = (0..DIRECTIONAL_LIGHT_SIZE).rev().collect();
+        let directional_light_buffer = get_device().create_buffer(&BufferDescriptor {
+            label: "DirectionalLightBuffer".into(),
+            size: (DIRECTIONAL_LIGHT_SIZE * size_of::<DirectionalLightData>() as u32) as BufferAddress,
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let directional_light_len_buffer = create_buffer_init(
+            "DirectionalLightLen",
+            bytemuck::bytes_of(&DIRECTIONAL_LIGHT_SIZE),
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
         //bind_groups
@@ -247,6 +334,26 @@ impl DynamicLightSet {
                         },
                         count: None,
                     },
+                    BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: ShaderStages::FRAGMENT,
+                        ty: BindingType::Buffer {
+                            ty: BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
         let bind_group_compute = create_bind_group(
@@ -291,6 +398,14 @@ impl DynamicLightSet {
                     binding: 3,
                     resource: spot_light_buffer.as_entire_binding(),
                 },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: directional_light_len_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 5,
+                    resource: directional_light_buffer.as_entire_binding(),
+                },
             ],
         );
         Self {
@@ -302,6 +417,10 @@ impl DynamicLightSet {
             spot_light_len: 0,
             spot_light_data: spot_light_buffer,
             spot_light_len_buffer,
+            directional_light_available_ids: directional_light_vec,
+            directional_light_len: 0,
+            directional_light_data: directional_light_buffer,
+            directional_light_len_buffer,
             bind_group_compute,
             bind_group_compute_layout,
             bind_group_fragment,
@@ -351,6 +470,14 @@ impl DynamicLightSet {
                     binding: 3,
                     resource: self.spot_light_data.as_entire_binding(),
                 },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: self.directional_light_len_buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: self.directional_light_data.as_entire_binding(),
+                },
             ],
         );
     }
@@ -368,19 +495,37 @@ impl OrderedSet {
     pub fn point_allocate(&self, size: u32) {
         self.data.lock().unwrap().allocate_point_light(size);
     }
-    pub fn add_point_light(&self, data: PointLightData) -> u32 {
+    pub fn add_point_light(&self, data: &PointLightData) -> u32 {
         self.data.lock().unwrap().add_point_light(data)
     }
     pub fn remove_point_light(&self, id: u32) {
         self.data.lock().unwrap().remove_point_light(id)
     }
+    pub fn update_point_light(&self, data: &PointLightData,id: u32) {
+        self.update_point_light(data,id);
+    }
     pub fn spot_allocate(&self, size: u32) {
         self.data.lock().unwrap().allocate_spot_light(size);
     }
-    pub fn add_spot_light(&self, data: SpotLightData) -> u32 {
+    pub fn add_spot_light(&self, data: &SpotLightData) -> u32 {
         self.data.lock().unwrap().add_spot_light(data)
     }
     pub fn remove_spot_light(&self, id: u32) {
         self.data.lock().unwrap().remove_spot_light(id)
+    }
+    pub fn update_spot_light(&self, data: &SpotLightData,id: u32) {
+        self.update_spot_light(data,id);
+    }
+    pub fn directional_allocate(&self, size: u32) {
+        self.data.lock().unwrap().allocate_directional_light(size);
+    }
+    pub fn add_directional_light(&self, data: &DirectionalLightData) -> u32 {
+        self.data.lock().unwrap().add_directional_light(data)
+    }
+    pub fn update_directional_light(&self, data: &DirectionalLightData,id: u32) {
+        self.update_directional_light(data,id);
+    }
+    pub fn remove_directional_light(&self, id: u32) {
+        self.data.lock().unwrap().remove_directional_light(id)
     }
 }

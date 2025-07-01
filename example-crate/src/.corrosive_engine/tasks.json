@@ -75,6 +75,24 @@
             "LockedRef<PixilCamera>",
             "Member<PositionPixil>"
           ]
+        },
+        {
+          "Arch": [
+            "Locked<DirectionalLight>",
+            "Member<PositionPixil>"
+          ]
+        },
+        {
+          "Arch": [
+            "Locked<PointLight>",
+            "Member<PositionPixil>"
+          ]
+        },
+        {
+          "Arch": [
+            "Locked<SpotLight>",
+            "Member<PositionPixil>"
+          ]
         }
       ]
     },

@@ -22,6 +22,10 @@ use corrosive_events::comp::Inputs;
 use pixil::color_palette::ColorRange;
 use pixil::comp::camera::{ActivePixilCamera, PixilCamera};
 use pixil::comp::dynamic::PixilDynamicObject;
+use pixil::comp::light::directional_light;
+use pixil::comp::light::directional_light::DirectionalLight;
+use pixil::comp::light::point_light::PointLight;
+use pixil::comp::light::spot_light::SpotLight;
 use pixil::comp::position_pixil::PositionPixil;
 use pixil::glam::{Quat, Vec3};
 use pixil::material::{PixilDefaultMaterial, PixilMaterial};
@@ -40,6 +44,9 @@ pub fn pixil_test(
 ) -> (
     RArch<(PixilDynamicObject, Member<PositionPixil>)>,
     RArch<(LockedRef<PixilCamera>, Member<PositionPixil>)>,
+    RArch<(Locked<DirectionalLight>, Member<PositionPixil>)>,
+    RArch<(Locked<PointLight>, Member<PositionPixil>)>,
+    RArch<(Locked<SpotLight>, Member<PositionPixil>)>,
 ) {
     let mut r: RArch<(PixilDynamicObject, Member<PositionPixil>)> = RArch::default();
     let mut r2: RArch<(LockedRef<PixilCamera>, Member<PositionPixil>)> = RArch::default();
@@ -51,12 +58,7 @@ pub fn pixil_test(
         vec![
             ColorRange {
                 size: 64,
-                color: Color::from_hex("e8b494"),
-                transition_type: Default::default(),
-            },
-            ColorRange {
-                size: 64,
-                color: Color::from_hex("f83800"),
+                color: Color::from_hex("000000"),
                 transition_type: Default::default(),
             },
             ColorRange {
@@ -66,19 +68,14 @@ pub fn pixil_test(
             },
             ColorRange {
                 size: 64,
-                color: Color::from_hex("000000"),
+                color: Color::from_hex("f83800"),
                 transition_type: Default::default(),
             },
-            /*ColorRange {
-                size: 128,
-                color: Color::RGB(0.6, 0.0, 0.0),
+            ColorRange {
+                size: 64,
+                color: Color::from_hex("e8b494"),
                 transition_type: Default::default(),
-            },*/
-            /*ColorRange {
-                size: 128,
-                color: Color::RGB(0.0, 0.0, 0.0),
-                transition_type: Default::default(),
-            },*/
+            },
         ],
     );
     COLOR_PALLET.set_palette(
@@ -86,7 +83,7 @@ pub fn pixil_test(
         vec![
             ColorRange {
                 size: 64,
-                color: Color::RGB(0.0, 1.0, 0.0),
+                color: Color::RGB(0.0, 0.0, 0.0),
                 transition_type: Default::default(),
             },
             ColorRange {
@@ -96,7 +93,7 @@ pub fn pixil_test(
             },
             ColorRange {
                 size: 64,
-                color: Color::RGB(0.0, 0.0, 0.0),
+                color: Color::RGB(0.0, 1.0, 0.0),
                 transition_type: Default::default(),
             },
         ],
@@ -106,7 +103,7 @@ pub fn pixil_test(
         vec![
             ColorRange {
                 size: 64,
-                color: Color::RGB(0.0, 0.0, 1.0),
+                color: Color::RGB(0.0, 0.0, 0.1),
                 transition_type: Default::default(),
             },
             ColorRange {
@@ -116,11 +113,13 @@ pub fn pixil_test(
             },
             ColorRange {
                 size: 64,
-                color: Color::RGB(0.0, 0.0, 0.1),
+                color: Color::RGB(0.0, 0.0, 1.0),
                 transition_type: Default::default(),
             },
         ],
     );
+
+    //camera and object
 
     let a = h.new_entry(PositionPixil::new(
         Vec3::new(0.0, -1.0, -1.0),
@@ -146,7 +145,44 @@ pub fn pixil_test(
     ));
     r2.add((c, b));
 
-    (r, r2)
+    //lights
+    let dp = h.new_entry(PositionPixil::new(
+        Vec3::ZERO,
+        Quat::from_rotation_y(0.0_f32.to_radians()),
+        Vec3::ONE,
+    ));
+    let directional_light = Locked::new(DirectionalLight::new(&dp, 0.5, 2, true));
+    let mut r3: RArch<(Locked<DirectionalLight>, Member<PositionPixil>)> = RArch::default();
+    r3.add((directional_light, dp));
+
+    let dp = h.new_entry(PositionPixil::new(
+        Vec3::new(1.0, 0.0, 0.0),
+        Quat::IDENTITY,
+        Vec3::ONE,
+    ));
+    let point_light = Locked::new(PointLight::new(&dp, 2.0, 2.0, [1.0, 0.7, 4.0], 0, true));
+    let mut r4: RArch<(Locked<PointLight>, Member<PositionPixil>)> = RArch::default();
+    r4.add((point_light, dp));
+
+    let dp = h.new_entry(PositionPixil::new(
+        Vec3::new(0.0, 0.0, 0.0),
+        Quat::from_rotation_y(0.0_f32.to_radians()),
+        Vec3::ONE,
+    ));
+    let spot_light = Locked::new(SpotLight::new(
+        &dp,
+        25.0_f32.to_radians(),
+        60.0_f32.to_radians(),
+        2.0,
+        2.0,
+        [1.0, 0.7, 4.0],
+        1,
+        true,
+    ));
+    let mut r5: RArch<(Locked<SpotLight>, Member<PositionPixil>)> = RArch::default();
+    r5.add((spot_light, dp));
+
+    (r, r2, r3, r4, r5)
 }
 #[task]
 pub fn rotate_model(r: Arch<(&PixilDynamicObject, &Member<PositionPixil>)>, delta_time: DeltaTime) {

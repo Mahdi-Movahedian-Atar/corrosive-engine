@@ -26,14 +26,31 @@
       "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\light",
       "sub_maps": [
         {
+          "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\light\\directional_light",
+          "sub_maps": [],
+          "components": [
+            {
+              "Component": "DirectionalLight"
+            }
+          ]
+        },
+        {
           "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\light\\point_light",
           "sub_maps": [],
-          "components": []
+          "components": [
+            {
+              "Component": "PointLight"
+            }
+          ]
         },
         {
           "path": "C:\\Users\\Movahedians\\Documents\\Project\\corrosive-engine\\pixil/src/comp\\light\\spot_light",
           "sub_maps": [],
-          "components": []
+          "components": [
+            {
+              "Component": "SpotLight"
+            }
+          ]
         }
       ],
       "components": []

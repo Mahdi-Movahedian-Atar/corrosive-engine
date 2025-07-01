@@ -1,7 +1,7 @@
 struct PointLight {
     position: vec4<f32>,
+    attenuation: vec4<f32>,
     radius: f32,
-    intensity: f32,
 };
 struct SpotLight {
     position: vec4f,
@@ -58,9 +58,7 @@ fn coneAABBIntersects(
     aabb_min: vec3<f32>,
     aabb_max: vec3<f32>
 ) -> bool {
-    let cone_half_angle = cone_angle_rad * 0.5;
-    let cos_half_angle = cos(cone_half_angle);
-    let sin_half_angle = sin(cone_half_angle);
+    let cos_angle = cos(cone_angle_rad);
 
     // Early-out bounding sphere check (conservative)
     let aabb_center = 0.5 * (aabb_min + aabb_max);
@@ -78,7 +76,7 @@ fn coneAABBIntersects(
 
     // Closest approach from cone axis to box center
     let perpendicular_dist = sqrt(max(dot(to_center, to_center) - projection * projection, 0.0));
-    let cone_radius_at_proj = projection * tan(cone_half_angle);
+    let cone_radius_at_proj = projection * tan(cone_angle_rad);
 
     // Conservative sphere-cone test
     if projection < 0.0 || projection > cone_range {
@@ -92,7 +90,7 @@ fn coneAABBIntersects(
     // Angle test: check if the center lies within the cone’s sweep
     let dir_to_center = normalize(to_center);
     let angle_cos = dot(dir_to_center, cone_dir);
-    if angle_cos < cos_half_angle {
+    if angle_cos < cos_angle {
         return false;
     }
 
@@ -116,8 +114,6 @@ fn testConeAABB(i: u32, cluster: Cluster) -> bool {
 
     return coneAABBIntersects(pos_vs, dir_vs, angle, radius, aabbMin, aabbMax);
 }
-
-
 
 
 @compute @workgroup_size(1, 1, 1)
