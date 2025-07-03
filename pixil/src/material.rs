@@ -10,15 +10,7 @@ use corrosive_ecs_renderer_backend::public_functions::{
     create_sampler, get_device, get_surface_format, read_shader,
 };
 use corrosive_ecs_renderer_backend::wgpu;
-use corrosive_ecs_renderer_backend::wgpu::{
-    BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
-    BlendComponent, BlendFactor, BlendOperation, BlendState, BufferAddress, BufferBindingType,
-    ColorTargetState, ColorWrites, Face, FragmentState, FrontFace, PipelineLayoutDescriptor,
-    PolygonMode, PrimitiveState, PrimitiveTopology, RenderBundleEncoder, RenderPipeline,
-    RenderPipelineDescriptor, Sampler, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource,
-    ShaderStages, TextureView, TextureViewDescriptor, VertexAttribute, VertexBufferLayout,
-    VertexFormat, VertexState, VertexStepMode,
-};
+use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, BufferAddress, BufferBindingType, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, Face, FragmentState, FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderBundleEncoder, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, TextureFormat, TextureView, TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
 
 pub trait PixilMaterial {
     fn get_layout(&self) -> &RenderPipeline;
@@ -203,7 +195,13 @@ impl PixilMaterial for PixilDefaultMaterial {
                             polygon_mode: PolygonMode::Fill,
                             conservative: false,
                         },
-                        depth_stencil: None,
+                        depth_stencil: Option::from(DepthStencilState {
+                            format: TextureFormat::Depth32Float,
+                            depth_write_enabled: true,
+                            depth_compare: CompareFunction::Less,
+                            stencil: Default::default(),
+                            bias: Default::default(),
+                        }),
                         multisample: Default::default(),
                         fragment: FragmentState {
                             module: &shader,

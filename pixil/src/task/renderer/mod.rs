@@ -19,17 +19,7 @@ use corrosive_ecs_renderer_backend::public_functions::{
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu;
 use corrosive_ecs_renderer_backend::wgpu::util::RenderEncoder;
-use corrosive_ecs_renderer_backend::wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType,
-    BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor,
-    ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, IndexFormat, LoadOp,
-    Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle,
-    RenderBundleEncoder, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource,
-    ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureSampleType,
-    TextureUsages, TextureView, TextureViewDimension, VertexState,
-};
+use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, IndexFormat, LoadOp, Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle, RenderBundleEncoder, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureSampleType, TextureUsages, TextureView, TextureViewDimension, VertexState};
 use corrosive_ecs_renderer_backend::winit::event::WindowEvent;
 use glam::Vec4;
 use std::cell::{LazyCell, UnsafeCell};
@@ -37,6 +27,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::sync::atomic::Ordering;
 use std::time::Instant;
+use corrosive_ecs_renderer_backend::wgpu::hal::{Attachment, AttachmentOps, DepthStencilAttachment, TextureUses};
 use crate::comp::light::directional_light::DirectionalLightData;
 use crate::comp::light::spot_light::SpotLightData;
 use crate::comp::position_pixil::PositionPixil;
@@ -108,17 +99,25 @@ impl RenderNode for RenderPixilNode {
             compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
         }
         {
+            let lock = self.render_settings.f_read();
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Pixil Low Resolutions"),
                 color_attachments: &[Option::from(RenderPassColorAttachment {
-                    view: self.render_settings.f_write().get_view(),
+                    view: lock.get_render_view(),
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color::BLACK),
                         store: StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                    view: lock.get_depth_view(),
+                    depth_ops: Some(Operations {
+                    load: LoadOp::Clear(1.0),
+                    store: StoreOp::Store,
+                }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -277,7 +276,7 @@ pub fn start_pixil_renderer(
                 BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::TextureView(
-                        render_setting.f_read().get_view(),
+                        render_setting.f_read().get_render_view (),
                     ),
                 },
                 BindGroupEntry {
@@ -639,7 +638,6 @@ pub fn update_camera(
     if let Some(t)= &active_camera.data {
         if let Reference::Some(t) = &mut *t.camera.f_write(){
             if t.has_updated{
-                println!("{:?}",t);
                 t.has_updated = false;
                 active_camera.has_updated.store(true,Ordering::Relaxed);
             }

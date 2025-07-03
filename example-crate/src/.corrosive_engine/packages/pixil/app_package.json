@@ -28,16 +28,16 @@
     "in_degrees": {}
   },
   "tasks": {
-    "update_camera": [
-      "Update",
-      null
-    ],
     "update_pixil_position": [
       "Update",
       null
     ],
     "start_pixil_renderer": [
       "Setup",
+      null
+    ],
+    "update_camera": [
+      "Update",
       null
     ]
   },
