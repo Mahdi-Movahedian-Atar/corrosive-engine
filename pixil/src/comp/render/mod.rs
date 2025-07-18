@@ -2,14 +2,17 @@ use corrosive_ecs_core_macro::Resource;
 use corrosive_ecs_renderer_backend::public_functions::{
     create_buffer_init, get_device, get_surface_format, get_window_ratio, write_to_buffer,
 };
-use corrosive_ecs_renderer_backend::wgpu::{Buffer, BufferUsages, Extent3d, RenderPipeline, Texture, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView};
+use corrosive_ecs_renderer_backend::wgpu::{
+    Buffer, BufferUsages, Extent3d, RenderPipeline, Texture, TextureDescriptor, TextureDimension,
+    TextureFormat, TextureUsages, TextureView,
+};
 use std::cell::LazyCell;
 
-pub(crate) struct PixilRenderSettingsTextures{
-    pub(crate) render_texture:Texture,
-    pub(crate) depth_texture:Texture,
-    pub(crate) render_texture_view:TextureView,
-    pub(crate) depth_texture_view:TextureView,
+pub(crate) struct PixilRenderSettingsTextures {
+    pub(crate) render_texture: Texture,
+    pub(crate) depth_texture: Texture,
+    pub(crate) render_texture_view: TextureView,
+    pub(crate) depth_texture_view: TextureView,
 }
 #[derive(Resource)]
 pub struct PixilRenderSettings {
@@ -87,11 +90,11 @@ impl PixilRenderSettings {
             });
             let render_texture_view = render_texture.create_view(&Default::default());
             let depth_texture_view = depth_texture.create_view(&Default::default());
-            self.texture = Some(PixilRenderSettingsTextures{
+            self.texture = Some(PixilRenderSettingsTextures {
                 render_texture,
                 depth_texture,
-                render_texture_view
-                ,depth_texture_view
+                render_texture_view,
+                depth_texture_view,
             });
         }
     }
@@ -102,12 +105,12 @@ impl PixilRenderSettings {
         &self.texture.as_ref().unwrap().depth_texture_view
     }
     pub fn update_texture(&mut self) {
-        if let Some(PixilRenderSettingsTextures { render_texture,depth_texture, .. }) = &mut self.texture {
-            println!(
-                "{} {}",
-                (self.render_size as f32 * get_window_ratio()) as u32,
-                self.render_size
-            );
+        if let Some(PixilRenderSettingsTextures {
+            render_texture,
+            depth_texture,
+            ..
+        }) = &mut self.texture
+        {
             *render_texture = get_device().create_texture(&TextureDescriptor {
                 label: Some("Pixil Render Texture"),
                 size: Extent3d {

@@ -15,12 +15,12 @@
   },
   "runtime_dependency": {
     "dependents": {
-      "Task(update_camera)": [],
-      "Task(update_pixil_position)": []
+      "Task(update_pixil_position)": [],
+      "Task(update_camera)": []
     },
     "in_degrees": {
-      "Task(update_camera)": 0,
-      "Task(update_pixil_position)": 0
+      "Task(update_pixil_position)": 0,
+      "Task(update_camera)": 0
     }
   },
   "sync_dependency": {

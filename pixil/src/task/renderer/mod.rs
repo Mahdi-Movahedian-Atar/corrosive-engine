@@ -1,7 +1,10 @@
 use crate::color_palette::ColorPallet;
 use crate::comp::camera::ActivePixilCamera;
 use crate::comp::dynamic::{PixilDynamicObject, PixilDynamicObjectData};
+use crate::comp::light::directional_light::DirectionalLightData;
 use crate::comp::light::point_light::PointLightData;
+use crate::comp::light::spot_light::SpotLightData;
+use crate::comp::position_pixil::PositionPixil;
 use crate::comp::render::PixilRenderSettings;
 use crate::helper_functions::view_bind_group_layout;
 use crate::light_set::OrderedSet;
@@ -19,18 +22,11 @@ use corrosive_ecs_renderer_backend::public_functions::{
 use corrosive_ecs_renderer_backend::render_graph::{CommandEncoder, Device, Queue, RenderNode};
 use corrosive_ecs_renderer_backend::wgpu;
 use corrosive_ecs_renderer_backend::wgpu::util::RenderEncoder;
-use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, IndexFormat, LoadOp, Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle, RenderBundleEncoder, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureSampleType, TextureUsages, TextureView, TextureViewDimension, VertexState};
+use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferAddress, BufferBindingType, BufferDescriptor, BufferUsages, Color, ColorTargetState, ColorWrites, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Extent3d, FragmentState, IndexFormat, LoadOp, Operations, PipelineLayoutDescriptor, PrimitiveState, PrimitiveTopology, RenderBundle, RenderBundleEncoder, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, StoreOp, Texture, TextureDescriptor, TextureDimension, TextureSampleType, TextureUsages, TextureView, TextureViewDescriptor, TextureViewDimension, VertexState};
 use corrosive_ecs_renderer_backend::winit::event::WindowEvent;
 use glam::Vec4;
-use std::cell::{LazyCell, UnsafeCell};
-use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex};
 use std::sync::atomic::Ordering;
-use std::time::Instant;
-use corrosive_ecs_renderer_backend::wgpu::hal::{Attachment, AttachmentOps, DepthStencilAttachment, TextureUses};
-use crate::comp::light::directional_light::DirectionalLightData;
-use crate::comp::light::spot_light::SpotLightData;
-use crate::comp::position_pixil::PositionPixil;
+use std::sync::{Arc, LazyLock};
 
 #[repr(align(16))]
 struct Cluster {
@@ -40,8 +36,7 @@ struct Cluster {
     light_indices: [u32; 100],
 }
 pub static DYNAMIC_OBJECTS: RenderSet<(PixilDynamicObjectData)> = RenderSet::new();
-pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet> =
-    LazyLock::new(|| OrderedSet::new());
+pub static DYNAMIC_LIGHTS: LazyLock<OrderedSet> = LazyLock::new(|| OrderedSet::new(720));
 
 pub static COLOR_PALLET: LazyLock<ColorPallet> = LazyLock::new(|| ColorPallet::new());
 
@@ -56,7 +51,7 @@ struct RenderPixilNode {
     light_bind_group: BindGroup,
     lights_pipeline: ComputePipeline,
     render_settings: Res<PixilRenderSettings>,
-    acrive_camera: Res<ActivePixilCamera>,
+    active_camera: Res<ActivePixilCamera>,
 }
 impl RenderNode for RenderPixilNode {
     fn name(&self) -> &str {
@@ -72,15 +67,15 @@ impl RenderNode for RenderPixilNode {
         depth_view: &TextureView,
     ) {
         {
-
             let size = self.render_settings.f_write().grid_size;
+            let lock = DYNAMIC_LIGHTS.data.lock().unwrap();
 
             let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("Pixil Compute Pass"),
                 timestamp_writes: None,
             });
             {
-                let lock = self.acrive_camera.f_read();
+                let lock = self.active_camera.f_read();
                 if lock.has_updated.load(Ordering::Relaxed) {
                     lock.update_camera_data();
                     compute_pass.set_pipeline(&self.cluster_pipeline);
@@ -93,11 +88,42 @@ impl RenderNode for RenderPixilNode {
             compute_pass.set_bind_group(0, &self.light_bind_group, &[]);
             compute_pass.set_bind_group(
                 1,
-                &DYNAMIC_LIGHTS.data.lock().unwrap().bind_group_compute,
+                &lock.bind_group_compute,
                 &[],
             );
             compute_pass.dispatch_workgroups(size[0], size[1], size[2]);
+
         }
+        {
+            let lock = DYNAMIC_LIGHTS.data.lock().unwrap();
+            for i in lock.directional_light_shadow_map_enabled.iter().enumerate(){
+            if *i.1{
+                for j in (0..3){
+                    let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                        label: Some(&format!("Directional Light Shadow Pass Cascade {}_{}", i.0,j)),
+                        color_attachments: &[],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &lock.directional_light_shadow_map_texture_views[i.0][j],
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: None,
+                        }),
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                    });
+                    for k in DYNAMIC_OBJECTS.data.lock().unwrap().enabled.iter() {
+                        render_pass.set_pipeline(&lock.directional_light_shadow_map_pipeline_layout);
+                        render_pass.set_bind_group(0,&lock.directional_light_shadow_map_bind_groups[i.0][j],&[]);
+                        render_pass.set_bind_group(1, &k.transform_bind_group, &[]);
+                        render_pass.set_vertex_buffer(0, k.vertex_buffer.slice(..));
+                        render_pass.set_index_buffer(k.index_buffer.slice(..), IndexFormat::Uint32);
+                        render_pass.draw_indexed(0..*k.count, 0, 0..1);
+                    }
+                }
+            }
+        }}
         {
             let lock = self.render_settings.f_read();
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -113,9 +139,9 @@ impl RenderNode for RenderPixilNode {
                 depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                     view: lock.get_depth_view(),
                     depth_ops: Some(Operations {
-                    load: LoadOp::Clear(1.0),
-                    store: StoreOp::Store,
-                }),
+                        load: LoadOp::Clear(1.0),
+                        store: StoreOp::Store,
+                    }),
                     stencil_ops: None,
                 }),
                 timestamp_writes: None,
@@ -188,6 +214,7 @@ pub fn start_pixil_renderer(
                 @location(0) uv : vec2 <f32>
             };
             @group(0) @binding(0) var tex: texture_2d<f32>;
+            //@group(0) @binding(0) var tex: texture_depth_2d;
             @group(0) @binding(1) var samp: sampler;
             @group(0) @binding(2) var<uniform> resolution : vec2<u32>;
 
@@ -215,13 +242,20 @@ pub fn start_pixil_renderer(
                 let snapped_uv = (floor(coord.uv * tex_size) + vec2<f32>(0.5)) / tex_size;
 
                 return textureSample(tex, samp, coord.uv);
+                //return vec4<f32>(vec3<f32>(textureSample(tex, samp, coord.uv)),1.0);
+                /*if(textureSample(tex, samp, coord.uv) == 1.0){
+                return vec4<f32>(vec3<f32>(1.0),1.0);
+                }
+                else{
+                return vec4<f32>(vec3<f32>(0.0),1.0);
+                }*/
             }"
             .into(),
         ),
     });
 
     let sampler = device.create_sampler(&SamplerDescriptor {
-        label: Some("pixil renderer sampler"),
+        label: Some("PixilRendererSampler"),
         address_mode_u: wgpu::AddressMode::ClampToEdge,
         address_mode_v: wgpu::AddressMode::ClampToEdge,
         address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -236,7 +270,7 @@ pub fn start_pixil_renderer(
     });
 
     let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-        label: Some("pixil renderer bind group layout"),
+        label: Some("PixilRendererBindGroupLayout"),
         entries: &[
             BindGroupLayoutEntry {
                 binding: 0,
@@ -244,7 +278,8 @@ pub fn start_pixil_renderer(
                 ty: BindingType::Texture {
                     multisampled: false,
                     view_dimension: TextureViewDimension::D2,
-                    sample_type: TextureSampleType::Float { filterable: true },
+                    sample_type: TextureSampleType::Float {filterable: true},
+                    //sample_type: TextureSampleType::Depth,
                 },
                 count: None,
             },
@@ -270,13 +305,22 @@ pub fn start_pixil_renderer(
     let bind_group = {
         render_setting.f_write().set_view();
         device.create_bind_group(&BindGroupDescriptor {
-            label: Some("pixil renderer bind group"),
+            label: Some("PixilRendererBindGroup"),
             layout: &bind_group_layout,
             entries: &[
                 BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::TextureView(
-                        render_setting.f_read().get_render_view (),
+                        render_setting.f_read().get_render_view(),
+                        //render_setting.f_read().get_depth_view(),
+                        /*&DYNAMIC_LIGHTS.data.lock().unwrap().directional_light_shadow_map_textures[0].create_view(&TextureViewDescriptor{
+                            label: Some("Depth Preview View"),
+                            format: Some(wgpu::TextureFormat::Depth32Float),
+                            base_array_layer: 0,
+                            array_layer_count: Some(1),
+                            dimension: Some(wgpu::TextureViewDimension::D2),
+                            ..Default::default()
+                        })*/
                     ),
                 },
                 BindGroupEntry {
@@ -292,13 +336,13 @@ pub fn start_pixil_renderer(
     };
 
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-        label: Some("pixil renderer pipeline layout"),
+        label: Some("PixilRendererPipelineLayout"),
         bind_group_layouts: &[&bind_group_layout],
         push_constant_ranges: &[],
     });
 
     let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-        label: Some("pixil renderer pipeline"),
+        label: Some("PixilRendererPipeline"),
         layout: Some(&pipeline_layout),
         vertex: VertexState {
             module: &shader,
@@ -624,7 +668,7 @@ pub fn start_pixil_renderer(
         cluster_buffer,
         lights_pipeline,
         light_bind_group,
-        acrive_camera: active_pixil_camera.clone(),
+        active_camera: active_pixil_camera.clone(),
     }));
     graph.f_write().prepare();
 }
@@ -635,25 +679,29 @@ pub fn update_camera(
     renderer_settings: Res<PixilRenderSettings>,
 ) {
     let active_camera = active_camera.f_read();
-    if let Some(t)= &active_camera.data {
-        if let Reference::Some(t) = &mut *t.camera.f_write(){
-            if t.has_updated{
+    if let Some(t) = &active_camera.data {
+        if let Reference::Some(t) = &mut *t.camera.f_write() {
+            if t.has_updated {
                 t.has_updated = false;
-                active_camera.has_updated.store(true,Ordering::Relaxed);
+                active_camera.has_updated.store(true, Ordering::Relaxed);
             }
         }
     }
-    active_camera.update_view_matrix()
+    active_camera.update_view_matrix();
 }
 #[task]
-pub fn update_pixil_position(pixil_dynamic_object: Arch<(&PixilDynamicObject, &Member<PositionPixil>)>){
-    for (k,(i,j)) in pixil_dynamic_object.iter().enumerate() {
+pub fn update_pixil_position(
+    pixil_dynamic_object: Arch<(&PixilDynamicObject, &Member<PositionPixil>)>,
+) {
+    for (k, (i, j)) in pixil_dynamic_object.iter().enumerate() {
         let mut lock = j.dry_f_write();
-        if let Reference::Some(t) = &mut *lock{
-            if t.dirty{
-                write_to_buffer(&i.transform_data,0,bytemuck::bytes_of(&t.uniform()));
+        if let Reference::Some(t) = &mut *lock {
+            if t.dirty {
+                write_to_buffer(&i.transform_data, 0, bytemuck::bytes_of(&t.uniform()));
                 t.dirty = false;
             }
-        }else { pixil_dynamic_object.remove(k) }
+        } else {
+            pixil_dynamic_object.remove(k)
+        }
     }
 }

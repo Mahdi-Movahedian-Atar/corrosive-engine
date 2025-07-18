@@ -131,7 +131,7 @@ pub fn pixil_test(
         Quat::IDENTITY,
         Vec3::new(1.0, 1.0, 1.0),
     ));
-    let c = LockedRef::new(PixilCamera::new(120.0_f32.to_radians(), 0.1, 100.0));
+    let c = LockedRef::new(PixilCamera::new(120.0_f32.to_radians(), 0.1, 20.0));
     ac.f_write().new(&b, &c);
 
     r.add((
@@ -148,10 +148,10 @@ pub fn pixil_test(
     //lights
     let dp = h.new_entry(PositionPixil::new(
         Vec3::ZERO,
-        Quat::from_rotation_y(0.0_f32.to_radians()),
+        Quat::from_rotation_y(-90.0_f32.to_radians()),
         Vec3::ONE,
     ));
-    let directional_light = Locked::new(DirectionalLight::new(&dp, 0.5, 2, true));
+    let directional_light = Locked::new(DirectionalLight::new(&dp, 0.5, 2, true, true, 1, 1));
     let mut r3: RArch<(Locked<DirectionalLight>, Member<PositionPixil>)> = RArch::default();
     r3.add((directional_light, dp));
 
@@ -162,7 +162,7 @@ pub fn pixil_test(
     ));
     let point_light = Locked::new(PointLight::new(&dp, 2.0, 2.0, [1.0, 0.7, 4.0], 0, true));
     let mut r4: RArch<(Locked<PointLight>, Member<PositionPixil>)> = RArch::default();
-    r4.add((point_light, dp));
+    //r4.add((point_light, dp));
 
     let dp = h.new_entry(PositionPixil::new(
         Vec3::new(0.0, 0.0, 0.0),
@@ -180,7 +180,7 @@ pub fn pixil_test(
         true,
     ));
     let mut r5: RArch<(Locked<SpotLight>, Member<PositionPixil>)> = RArch::default();
-    r5.add((spot_light, dp));
+    //r5.add((spot_light, dp));
 
     (r, r2, r3, r4, r5)
 }

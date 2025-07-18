@@ -1,4 +1,4 @@
-use crate::helper_functions::{transform_bind_group_layout, view_bind_group_layout};
+use crate::helper_functions::{transform_bind_group_layout, view_bind_group_layout, VERTEX_BUFFER_LAYOUT};
 use crate::mesh::Vertex;
 use crate::task::renderer::{COLOR_PALLET, DYNAMIC_LIGHTS};
 use corrosive_asset_manager::asset_server::{Asset, AssetServer};
@@ -10,7 +10,16 @@ use corrosive_ecs_renderer_backend::public_functions::{
     create_sampler, get_device, get_surface_format, read_shader,
 };
 use corrosive_ecs_renderer_backend::wgpu;
-use corrosive_ecs_renderer_backend::wgpu::{BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, BlendComponent, BlendFactor, BlendOperation, BlendState, BufferAddress, BufferBindingType, ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, Face, FragmentState, FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology, RenderBundleEncoder, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages, TextureFormat, TextureView, TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState, VertexStepMode};
+use corrosive_ecs_renderer_backend::wgpu::{
+    BindGroup, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType,
+    BlendComponent, BlendFactor, BlendOperation, BlendState, BufferAddress, BufferBindingType,
+    ColorTargetState, ColorWrites, CompareFunction, DepthStencilState, Face, FragmentState,
+    FrontFace, PipelineLayoutDescriptor, PolygonMode, PrimitiveState, PrimitiveTopology,
+    RenderBundleEncoder, RenderPipeline, RenderPipelineDescriptor, Sampler, SamplerDescriptor,
+    ShaderModuleDescriptor, ShaderSource, ShaderStages, TextureFormat, TextureView,
+    TextureViewDescriptor, VertexAttribute, VertexBufferLayout, VertexFormat, VertexState,
+    VertexStepMode,
+};
 
 pub trait PixilMaterial {
     fn get_layout(&self) -> &RenderPipeline;
@@ -49,43 +58,49 @@ impl PixilMaterial for PixilDefaultMaterial {
             AssetServer::load("assets/packages/pixil/default_dither_pattern.png");
         let material_bind_group_layout =
             CacheServer::get_or_add(static_hasher!("DefaultMaterialBindGroupLayout"), || {
-                Ok(BindGroupLayoutAsset{ layout: ( create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: "PixilDefaultMaterialBindGroupLayoutDescriptor".into(),
-                    entries: &[
-                        BindGroupLayoutEntry {
-                            binding: 0,
-                            visibility: ShaderStages::FRAGMENT,
-                            ty: BindingType::Texture {
-                                multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                Ok(BindGroupLayoutAsset {
+                    layout: (create_bind_group_layout(&BindGroupLayoutDescriptor {
+                        label: "PixilDefaultMaterialBindGroupLayoutDescriptor".into(),
+                        entries: &[
+                            BindGroupLayoutEntry {
+                                binding: 0,
+                                visibility: ShaderStages::FRAGMENT,
+                                ty: BindingType::Texture {
+                                    multisampled: false,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                },
+                                count: None,
                             },
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: ShaderStages::FRAGMENT,
-                            ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 2,
-                            visibility: ShaderStages::FRAGMENT,
-                            ty: BindingType::Texture {
-                                multisampled: false,
-                                view_dimension: wgpu::TextureViewDimension::D2,
-                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            BindGroupLayoutEntry {
+                                binding: 1,
+                                visibility: ShaderStages::FRAGMENT,
+                                ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
                             },
-                            count: None,
-                        },
-                        BindGroupLayoutEntry {
-                            binding: 3,
-                            visibility: ShaderStages::FRAGMENT,
-                            ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                            count: None,
-                        },
-                    ],
-                }))})
+                            BindGroupLayoutEntry {
+                                binding: 2,
+                                visibility: ShaderStages::FRAGMENT,
+                                ty: BindingType::Texture {
+                                    multisampled: false,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    sample_type: wgpu::TextureSampleType::Float {
+                                        filterable: true,
+                                    },
+                                },
+                                count: None,
+                            },
+                            BindGroupLayoutEntry {
+                                binding: 3,
+                                visibility: ShaderStages::FRAGMENT,
+                                ty: BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                                count: None,
+                            },
+                        ],
+                    })),
+                })
             });
 
         let dither_view = pattern_asset
@@ -169,22 +184,7 @@ impl PixilMaterial for PixilDefaultMaterial {
                             module: &shader,
                             entry_point: "vs_main".into(),
                             compilation_options: Default::default(),
-                            buffers: &[VertexBufferLayout {
-                                array_stride: size_of::<Vertex>() as BufferAddress,
-                                step_mode: VertexStepMode::Vertex,
-                                attributes: &[
-                                    VertexAttribute {
-                                        format: VertexFormat::Float32x3,
-                                        offset: 0,
-                                        shader_location: 0,
-                                    },
-                                    VertexAttribute {
-                                        format: VertexFormat::Float32x3,
-                                        offset: size_of::<[f32; 3]>() as BufferAddress,
-                                        shader_location: 1,
-                                    },
-                                ],
-                            }],
+                            buffers: &VERTEX_BUFFER_LAYOUT,
                         },
                         primitive: PrimitiveState {
                             topology: PrimitiveTopology::TriangleList,

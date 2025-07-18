@@ -120,14 +120,18 @@ impl<T: Send + Sync + CacheObject> CacheServer<T> {
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Cache<T> {
-        if let Some(t) = CacheServer::get(id) {return t}
+        if let Some(t) = CacheServer::get(id) {
+            return t;
+        }
         CacheServer::add(id, asset)
     }
     pub fn get_or_add_sync(
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Cache<T> {
-        if let Some(t) = CacheServer::get(id) {return t}
+        if let Some(t) = CacheServer::get(id) {
+            return t;
+        }
         CacheServer::add_sync(id, asset)
     }
 }

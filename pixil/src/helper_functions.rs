@@ -2,9 +2,8 @@ use corrosive_asset_manager::cache_server::{Cache, CacheServer};
 use corrosive_asset_manager_macro::static_hasher;
 use corrosive_ecs_renderer_backend::assets::BindGroupLayoutAsset;
 use corrosive_ecs_renderer_backend::public_functions::create_bind_group_layout;
-use corrosive_ecs_renderer_backend::wgpu::{
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferBindingType, ShaderStages,
-};
+use corrosive_ecs_renderer_backend::wgpu::{BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BufferAddress, BufferBindingType, ShaderStages, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
+use crate::mesh::Vertex;
 
 pub(crate) fn view_bind_group_layout() -> Cache<BindGroupLayoutAsset> {
     CacheServer::get_or_add(static_hasher!("ViewBindGroupLayout"), || {
@@ -96,3 +95,19 @@ pub(crate) fn transform_bind_group_layout() -> Cache<BindGroupLayoutAsset> {
         })
     })
 }
+pub(crate) const VERTEX_BUFFER_LAYOUT: [VertexBufferLayout; 1] = [VertexBufferLayout {
+    array_stride: size_of::<Vertex>() as BufferAddress,
+    step_mode: VertexStepMode::Vertex,
+    attributes: &[
+        VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: 0,
+            shader_location: 0,
+        },
+        VertexAttribute {
+            format: VertexFormat::Float32x3,
+            offset: size_of::<[f32; 3]>() as BufferAddress,
+            shader_location: 1,
+        },
+    ],
+}];

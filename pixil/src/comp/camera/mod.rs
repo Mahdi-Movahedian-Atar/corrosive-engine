@@ -9,26 +9,47 @@ use corrosive_ecs_renderer_backend::public_functions::{
 use corrosive_ecs_renderer_backend::wgpu::{Buffer, BufferUsages};
 use glam::Mat4;
 use std::cell::LazyCell;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use crate::task::renderer::DYNAMIC_LIGHTS;
 
-#[derive(Component,Debug)]
+#[derive(Component, Debug)]
 pub struct PixilCamera {
     pub(crate) fov: f32,
     pub(crate) near: f32,
     pub(crate) far: f32,
-    pub(crate) has_updated:bool
+    pub(crate) has_updated: bool,
 }
 impl PixilCamera {
     pub fn new(fov: f32, near: f32, far: f32) -> Self {
-        Self { fov, near, far, has_updated:true }
+        Self {
+            fov,
+            near,
+            far,
+            has_updated: true,
+        }
     }
-    pub fn set_fov(&mut self,fov:f32){ self.has_updated = true;self.fov = fov}
-    pub fn set_near(&mut self,near:f32){ self.has_updated = true;self.near = near}
-    pub fn set_far(&mut self,far:f32){ self.has_updated = true;self.far = far}
-    pub fn get_fov(& self) -> f32{ self.fov }
-    pub fn get_near(& self)-> f32{ self.near }
-    pub fn get_far(& self)-> f32 { self.far }
+    pub fn set_fov(&mut self, fov: f32) {
+        self.has_updated = true;
+        self.fov = fov
+    }
+    pub fn set_near(&mut self, near: f32) {
+        self.has_updated = true;
+        self.near = near
+    }
+    pub fn set_far(&mut self, far: f32) {
+        self.has_updated = true;
+        self.far = far
+    }
+    pub fn get_fov(&self) -> f32 {
+        self.fov
+    }
+    pub fn get_near(&self) -> f32 {
+        self.near
+    }
+    pub fn get_far(&self) -> f32 {
+        self.far
+    }
 }
 pub struct ActivePixilCameraData {
     pub(crate) position: Member<PositionPixil>,
@@ -42,7 +63,7 @@ pub struct ActivePixilCamera {
     pub(crate) z_params_buffer: LazyCell<Buffer>,
     pub(crate) projection_buffer: LazyCell<Buffer>,
     pub(crate) inverse_projection_buffer: LazyCell<Buffer>,
-    pub(crate) has_updated: AtomicBool
+    pub(crate) has_updated: AtomicBool,
 }
 impl Default for ActivePixilCamera {
     fn default() -> Self {
@@ -83,7 +104,7 @@ impl Default for ActivePixilCamera {
                     BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 )
             }),
-            has_updated: AtomicBool::new(true)
+            has_updated: AtomicBool::new(true),
         }
     }
 }
@@ -121,9 +142,11 @@ impl ActivePixilCamera {
                     p.to_array()
                 }),
             );
+
+            DYNAMIC_LIGHTS.set_frustum_corners_world((projection * view).inverse(),projection,near_far[0],near_far[1]);
         }
     }
-    pub(crate) fn update_camera_data(&self){
+    pub(crate) fn update_camera_data(&self) {
         if let Some(t) = &self.data {
             let (projection, near_far) = {
                 let c = t.camera.f_read();
@@ -148,7 +171,8 @@ impl ActivePixilCamera {
                 bytemuck::bytes_of(&projection.inverse().to_cols_array()),
             );
             write_to_buffer(&self.z_params_buffer, 0, bytemuck::cast_slice(&near_far));
-            self.has_updated.store(false,Ordering::Relaxed);
+
+            self.has_updated.store(false, Ordering::Relaxed);
         }
     }
     pub fn new(&mut self, position: &Member<PositionPixil>, camera: &LockedRef<PixilCamera>) {
@@ -156,7 +180,7 @@ impl ActivePixilCamera {
             position: position.clone(),
             camera: camera.clone(),
         });
-        self.has_updated.store(true,Ordering::Relaxed);
+        self.has_updated.store(true, Ordering::Relaxed);
     }
     pub fn get_z_params(&self) -> (f32, f32) {
         self.data

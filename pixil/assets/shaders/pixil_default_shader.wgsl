@@ -25,6 +25,9 @@ struct SpotLight {
     attenuation: vec4f,
 };
 struct DirectionalLight {
+    projection_matrix_0: mat4x4<f32>,
+    projection_matrix_1: mat4x4<f32>,
+    projection_matrix_2: mat4x4<f32>,
     direction: vec4f,
     intensity: f32,
     index: u32,
@@ -51,6 +54,10 @@ struct Cluster {
 @group(2) @binding(2) var<uniform>  spot_lights_num: u32;
 @group(2) @binding(5) var<storage, read> directional_lights: array<DirectionalLight>;
 @group(2) @binding(4) var<uniform>  directional_lights_num: u32;
+    @group(2) @binding(6) var directional_shadow_0_texture: texture_depth_2d_array; // New binding
+        @group(2) @binding(7) var directional_shadow_1_texture: texture_depth_2d_array; // New binding
+            @group(2) @binding(8) var directional_shadow_2_texture: texture_depth_2d_array; // New binding
+            @group(2) @binding(9) var directional_sampler: sampler_comparison; // New binding
 @group(3) @binding(0)
 var gradient_texture: texture_2d<f32>;
 @group(3) @binding(1)
@@ -202,7 +209,52 @@ fn directional_light_calc(
     let NdotH = max(dot(N, H), 0.0);
 
     let specular = diffuse * pow(NdotH, 32.0);
-    return textureSample(gradient_texture, gradient_sampler,vec2<f32>(clamp(0.0,1.0,(diffuse + specular) + dither),f32(light.index)/255.0) ).xyz * light.intensity;
+
+    var shadow_value: f32;
+    if (input.view_position.z < z_params[0] + (z_params[1] - z_params[0]) * 0.05) {
+    //if (true) {
+        let light_clip_pos = light.projection_matrix_0 * (vec4<f32>(input.view_position, 1.0));
+        let ndc = light_clip_pos.xyz / light_clip_pos.w;
+
+        var uv = ndc.xy * 0.5 + vec2(0.5);
+        let depth = ndc.z;
+
+         shadow_value = textureSampleCompare(
+            directional_shadow_0_texture,
+            directional_sampler,
+            uv,
+            index,
+            depth
+        );
+
+    } else if (input.view_position.z < z_params[0] + (z_params[1] - z_params[0]) * 0.2) {
+        let light_clip_pos = light.projection_matrix_1 * vec4<f32>(input.view_position,1.0);
+        let ndc = light_clip_pos.xyz / light_clip_pos.w;
+                let uv = ndc.xy * 0.5 + vec2(0.5);
+                let depth = ndc.z;
+        shadow_value = textureSampleCompare(
+                         directional_shadow_1_texture,
+                         directional_sampler,
+                         uv,
+                         index,
+                         depth // Compare value
+                );
+    } else {
+        let light_clip_pos = light.projection_matrix_2 * vec4<f32>(input.view_position,1.0);
+        let ndc = light_clip_pos.xyz / light_clip_pos.w;
+                        let uv = ndc.xy * 0.5 + vec2(0.5);
+                        let depth = ndc.z;
+        shadow_value = textureSampleCompare(
+                         directional_shadow_2_texture,
+                         directional_sampler,
+                         uv,
+                         index,
+                         depth
+                );
+    }
+
+    return textureSample(gradient_texture, gradient_sampler,vec2<f32>(clamp(0.0,1.0,(diffuse + specular) * (shadow_value) + dither),f32(light.index)/255.0) ).xyz * light.intensity;
+    //return vec3f(shadow_value);
 }
 
 @fragment

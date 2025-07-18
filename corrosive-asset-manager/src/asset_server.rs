@@ -147,14 +147,18 @@ impl<T: Send + Sync + AssetObject> AssetServer<T> {
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Asset<T> {
-        if let Some(t) = AssetServer::get(id){return t};
+        if let Some(t) = AssetServer::get(id) {
+            return t;
+        };
         AssetServer::add(id, asset)
     }
     pub fn get_or_add_sync(
         id: u64,
         asset: impl FnOnce() -> Result<T, Box<dyn Error>> + Send + 'static,
     ) -> Asset<T> {
-        if let Some(t) = AssetServer::get(id){return t};
+        if let Some(t) = AssetServer::get(id) {
+            return t;
+        };
         AssetServer::add_sync(id, asset)
     }
 }
